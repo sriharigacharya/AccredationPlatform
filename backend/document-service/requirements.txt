@@ -1,0 +1,14 @@
+flask==3.0.3
+flask-cors==4.0.1
+celery==5.4.0
+redis==5.0.8
+pymongo==4.8.0
+pymupdf==1.24.9
+python-docx==1.1.2
+requests==2.32.3
+gunicorn==22.0.0
+# OCR engines (uncomment based on needs):
+# paddleocr==2.7.3        # Full OCR (scanned PDFs/images) — large Docker image ~3GB
+# paddlepaddle==2.6.1     # Required by paddleocr
+# pytesseract==0.3.10     # Lightweight OCR fallback (needs tesseract-ocr system package)
+# Pillow==10.4.0          # Required by pytesseract path

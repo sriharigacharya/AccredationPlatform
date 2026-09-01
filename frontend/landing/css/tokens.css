@@ -1,0 +1,64 @@
+﻿/* =====================================================
+   AcademiQ Design Tokens
+   Shared across landing page + all app pages
+   ===================================================== */
+
+:root {
+  /* Brand Palette */
+  --cream:          #F7F3EC;
+  --cream-dark:     #EDE7D9;
+  --charcoal:       #2A2520;
+  --charcoal-mid:   #3D352E;
+  --charcoal-lt:    #5A4F46;
+  --gold:           #C9A36A;
+  --gold-lt:        #DFC090;
+  --gold-dim:       #A07C45;
+  --orange:         #A85B2C;
+  --orange-dk:      #8A4820;
+  --ivory:          #FAF7F2;
+
+  /* App Shell (Dark) */
+  --app-bg:         #1C1814;
+  --sidebar-bg:     #211D19;
+  --panel-bg:       #2C2620;
+  --card-bg:        #352E28;
+  --card-bg-hover:  #3D352E;
+  --border:         rgba(201,163,106,0.14);
+  --border-lt:      rgba(201,163,106,0.08);
+
+  /* Status Colors */
+  --success:        #56B87A;
+  --success-bg:     rgba(86,184,122,0.12);
+  --warning:        #E8A44A;
+  --warning-bg:     rgba(232,164,74,0.12);
+  --danger:         #E05555;
+  --danger-bg:      rgba(224,85,85,0.12);
+  --info:           #5B9BD5;
+  --info-bg:        rgba(91,155,213,0.12);
+
+  /* Typography */
+  --font-serif:     'Playfair Display', Georgia, serif;
+  --font-sans:      'Inter', system-ui, sans-serif;
+
+  /* Spacing scale */
+  --sp-xs:  4px;
+  --sp-sm:  8px;
+  --sp-md:  16px;
+  --sp-lg:  24px;
+  --sp-xl:  40px;
+
+  /* Radius */
+  --r-sm:   6px;
+  --r-md:   12px;
+  --r-lg:   18px;
+  --r-pill: 999px;
+
+  /* Shadows */
+  --shadow-sm:   0 1px 8px rgba(0,0,0,0.25);
+  --shadow-md:   0 4px 20px rgba(0,0,0,0.3);
+  --shadow-warm: 0 4px 24px rgba(42,37,32,0.18);
+
+  /* Sidebar width */
+  --sidebar-w: 240px;
+  --header-h:  60px;
+}

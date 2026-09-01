@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>AcademiQ — AI-Powered Academic Intelligence &amp; Accreditation Platform</title>
+  <meta name="description" content="A unified AI platform that automates academic records, faculty performance tracking, student outcome prediction, and NAAC/NBA accreditation preparation using NLP, LLMs, and predictive analytics."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+  <link rel="stylesheet" href="css/tokens.css"/>
+</head>
+<body>
+
+<!-- UTILITY BAR -->
+<div class="util-bar">
+  <div class="container">
+    <ul class="util-links">
+      <li><a href="#">Institute Portal</a></li>
+      <li><a href="#">Faculty Login</a></li>
+      <li><a href="#">Student Dashboard</a></li>
+      <li><a href="#">Admin Access</a></li>
+    </ul>
+    <div class="util-right">
+      <span>Mini-Project &middot; B.E. CSE &middot; 2025&ndash;26</span>
+      <span class="phase-badge">Phase 1 Review</span>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN NAV -->
+<nav class="main-nav" id="main-nav">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#" class="nav-brand">
+        <div class="nav-logo">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z" stroke="#C9A36A" stroke-width="1.5" stroke-linejoin="round"/>
+            <path d="M9 12L11 14L15 10" stroke="#C9A36A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="nav-name">AcademiQ</div>
+          <div class="nav-sub">AI Accreditation Platform</div>
+        </div>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#overview" class="active">Overview</a></li>
+        <li><a href="#modules">Modules</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#tech-stack">Tech Stack</a></li>
+        <li><a href="#team">Team</a></li>
+        <li><a href="#contact">Contact</a></li>
+      </ul>
+      <div class="nav-right">
+        <button class="icon-btn" aria-label="Search">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        </button>
+        <a href="#contact" class="btn-nav">Get Started</a>
+        <button class="hamburger" id="hamburger" aria-label="Toggle menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="mob-menu" id="mob-menu">
+    <a href="#overview">Overview</a>
+    <a href="#modules">Modules</a>
+    <a href="#how-it-works">How It Works</a>
+    <a href="#tech-stack">Tech Stack</a>
+    <a href="#team">Team</a>
+    <a href="#contact">Contact</a>
+    <a href="#contact" class="btn-nav">Get Started</a>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="overview">
+  <div class="container">
+    <div class="hero-grid">
+      <div>
+        <div class="eyebrow">AI &times; Accreditation &times; Analytics</div>
+        <h1 class="hero-h1">Academic Intelligence,<br><em>Unified and Automated,</em><br>for Every Institution</h1>
+        <p class="hero-sub">One platform that replaces disconnected spreadsheets with AI-driven document processing, smart report generation, and real-time accreditation readiness &mdash; powered by Llama&nbsp;3.1, BERT, and BGE-M3.</p>
+        <div class="hero-ctas">
+          <a href="pages/dashboard.html" class="btn-solid">View Demo Modules</a>
+          <a href="#team" class="btn-outline">Read Abstract</a>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-num" data-count="6">6</div>
+          <div class="stat-lbl">AI Modules</div>
+          <div class="stat-desc">End-to-end coverage of every institutional workflow</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">5+</div>
+          <div class="stat-lbl">Core Models</div>
+          <div class="stat-desc">Llama 3.1, BERT, BART/T5, BGE-M3, XGBoost</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" data-count="1">1</div>
+          <div class="stat-lbl">Unified Platform</div>
+          <div class="stat-desc">Replacing N disconnected systems with one intelligent hub</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num">2026</div>
+          <div class="stat-lbl">Phase 1 &middot; In Progress</div>
+          <div class="stat-desc">Active development &middot; B.E. Final Year Mini-Project</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- WHY THIS PLATFORM — MODULES -->
+<section class="modules-section section-pad" id="modules">
+  <div class="container">
+    <div class="sec-head rv">
+      <h2 class="sec-h2">Why This Platform?<br><em>Six modules. One mission.</em></h2>
+      <p class="sec-p">From raw institutional documents to actionable insights &mdash; every workflow your institution needs, in one place.</p>
+    </div>
+    <div class="mod-grid">
+      <div class="mod-card rv d1">
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+        </div>
+        <div class="mod-title">Unified Academic Dashboard</div>
+        <p class="mod-desc">A single, real-time view of student records, faculty performance metrics, and institutional KPIs &mdash; replacing multiple disjointed portals with one authoritative source.</p>
+        <span class="mod-tag">Analytics &middot; Reporting</span>
+      </div>
+      <div class="mod-card rv d2">
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <path d="M9 15l2 2 4-4"/>
+          </svg>
+        </div>
+        <div class="mod-title">AI Document Intelligence</div>
+        <p class="mod-desc">Automated classification and structured extraction from institutional documents using PaddleOCR for digitisation and BERT-based NLP for entity recognition.</p>
+        <span class="mod-tag">OCR &middot; BERT &middot; NLP</span>
+      </div>
+      <div class="mod-card rv d3">
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </div>
+        <div class="mod-title">Smart Report Generation</div>
+        <p class="mod-desc">Accreditation-ready reports, executive summaries, and compliance documents auto-generated using BART, T5, and Llama&nbsp;3.1&nbsp;8B &mdash; in minutes, not weeks.</p>
+        <span class="mod-tag">BART &middot; T5 &middot; Llama 3.1</span>
+      </div>
+      <div class="mod-card rv d1">
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+        </div>
+        <div class="mod-title">Semantic Search &amp; Retrieval</div>
+        <p class="mod-desc">Ask plain-English questions across the entire institutional knowledge base. BGE-M3 embeddings and vector similarity search surface the right answer instantly.</p>
+        <span class="mod-tag">BGE-M3 &middot; RAG &middot; Embeddings</span>
+      </div>
+      <div class="mod-card rv d2">
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+          </svg>
+        </div>
+        <div class="mod-title">Predictive Analytics</div>
+        <p class="mod-desc">Forecasts student performance and outcome trends using Random&nbsp;Forest and XGBoost models, enabling early academic interventions before grades decline.</p>
+        <span class="mod-tag">XGBoost &middot; Random Forest</span>
+      </div>
+      <div class="mod-card rv d3">
+        <div class="mod-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+        </div>
+        <div class="mod-title">Accreditation Assistant</div>
+        <p class="mod-desc">Continuous, automated evidence collection and criterion mapping aligned to NAAC and NBA frameworks &mdash; so the institution stays audit-ready at all times.</p>
+        <span class="mod-tag">NAAC &middot; NBA &middot; Compliance</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- HOW IT WORKS -->
+<section class="how-section section-pad" id="how-it-works">
+  <div class="container">
+    <div class="sec-head rv">
+      <h2 class="sec-h2">From Documents to <em>Decisions</em></h2>
+      <p class="sec-p">Four intelligent stages transform raw institutional data into accreditation-ready insight.</p>
+    </div>
+    <div class="steps">
+      <div class="step rv d1">
+        <div class="step-ring"><span class="step-n">01</span></div>
+        <div class="step-title">Ingest &amp; Extract</div>
+        <p class="step-desc">Documents uploaded via portal; PaddleOCR digitises and BERT classifies &amp; extracts structured data automatically.</p>
+      </div>
+      <div class="step rv d2">
+        <div class="step-ring"><span class="step-n">02</span></div>
+        <div class="step-title">Embed &amp; Index</div>
+        <p class="step-desc">BGE-M3 converts content into semantic vectors stored in a vector database, enabling millisecond retrieval.</p>
+      </div>
+      <div class="step rv d3">
+        <div class="step-ring"><span class="step-n">03</span></div>
+        <div class="step-title">Analyse &amp; Predict</div>
+        <p class="step-desc">ML models run outcome forecasting, anomaly detection, and accreditation gap analysis on the indexed data.</p>
+      </div>
+      <div class="step rv d4">
+        <div class="step-ring"><span class="step-n">04</span></div>
+        <div class="step-title">Generate &amp; Report</div>
+        <p class="step-desc">Llama&nbsp;3.1&nbsp;8B synthesises findings into human-readable reports, summaries, and compliance evidence packages.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<section class="cmp-section" id="comparison">
+  <div class="container">
+    <div class="sec-head rv">
+      <h2 class="sec-h2 light">Existing System vs. <em>Proposed System</em></h2>
+      <p class="sec-p light">The institutional data problem is real &mdash; and solvable.</p>
+    </div>
+    <div class="cmp-grid">
+      <div class="cmp-card old rv d1">
+        <div class="cmp-head">
+          <div class="cmp-ico">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(250,247,242,0.42)" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          </div>
+          <div>
+            <div class="cmp-title">Existing / Fragmented System</div>
+            <div class="cmp-sub">Current state across most institutions</div>
+          </div>
+        </div>
+        <ul class="cmp-list">
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#E05555" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+            <span class="cmp-text">Data scattered across spreadsheets, emails, and isolated departmental systems with no single source of truth</span>
+          </li>
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#E05555" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+            <span class="cmp-text">Manual, error-prone report compilation consumes weeks of faculty and admin time before each review cycle</span>
+          </li>
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#E05555" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+            <span class="cmp-text">Accreditation evidence collection is reactive and inconsistent, leading to gaps and last-minute scrambles</span>
+          </li>
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#E05555" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+            <span class="cmp-text">No predictive capability &mdash; students are identified as at-risk only after academic failure has occurred</span>
+          </li>
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#E05555" stroke-width="3"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+            <span class="cmp-text">Document retrieval requires manual browsing through physical files or keyword-matching across unsearchable PDFs</span>
+          </li>
+        </ul>
+      </div>
+      <div class="cmp-card new rv d2">
+        <div class="cmp-head">
+          <div class="cmp-ico">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#C9A36A" stroke-width="1.5" stroke-linecap="round"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z"/><path d="M9 12l2 2 4-4"/></svg>
+          </div>
+          <div>
+            <div class="cmp-title">AcademiQ &mdash; Proposed Platform</div>
+            <div class="cmp-sub">Intelligent, unified, and automated</div>
+          </div>
+        </div>
+        <ul class="cmp-list">
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#56B87A" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
+            <span class="cmp-text">Unified dashboard consolidates all institutional data into one real-time, role-based view with zero duplication</span>
+          </li>
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#56B87A" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
+            <span class="cmp-text">Llama&nbsp;3.1&nbsp;8B auto-generates complete accreditation reports and summaries in minutes, not weeks</span>
+          </li>
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#56B87A" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
+            <span class="cmp-text">Continuous automated evidence collection mapped to NAAC/NBA criteria keeps the institution always audit-ready</span>
+          </li>
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#56B87A" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
+            <span class="cmp-text">XGBoost and Random Forest models flag at-risk students proactively, enabling timely academic interventions</span>
+          </li>
+          <li class="cmp-item">
+            <div class="cmp-bul"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#56B87A" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg></div>
+            <span class="cmp-text">Semantic search with BGE-M3 retrieves precise answers from the full document repository in under a second</span>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TEAM / PROBLEM STATEMENT -->
+<section class="team-section" id="team">
+  <div class="container">
+    <div class="team-inner">
+      <div class="photo-frame rv">
+        <div class="photo-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+          <span>Project Team</span>
+        </div>
+      </div>
+      <div class="team-right">
+        <div>
+          <div class="qmark">&ldquo;</div>
+          <p class="qtext rv">Institutions today are drowning in data but starved of insight. Every department maintains its own records, every accreditation cycle triggers a fire-drill, and students at risk slip through the cracks of disconnected systems. AcademiQ was built to change that &mdash; one unified, intelligent platform that turns institutional data into decisions.</p>
+          <div class="qattr rv d1">Project Team, AcademiQ<br><span>B.E. Computer Science &amp; Engineering &middot; 2025&ndash;26</span></div>
+        </div>
+        <div class="mini-grid">
+          <div class="mini-card rv d1">
+            <div class="mini-num">4</div>
+            <div class="mini-lbl">Research Objectives</div>
+            <div class="mini-desc">Automation, unification, prediction, accreditation readiness</div>
+          </div>
+          <div class="mini-card rv d2">
+            <div class="mini-num">9+</div>
+            <div class="mini-lbl">ML / AI Models</div>
+            <div class="mini-desc">Llama, BERT, BART, T5, BGE-M3, XGBoost and more</div>
+          </div>
+          <div class="mini-card rv d3">
+            <div class="mini-num">2</div>
+            <div class="mini-lbl">Accreditation Frameworks</div>
+            <div class="mini-desc">NAAC and NBA criterion alignment built in from day one</div>
+          </div>
+          <div class="mini-card rv d4">
+            <div class="mini-num">&infin;</div>
+            <div class="mini-lbl">Scalability</div>
+            <div class="mini-desc">Designed to grow from a single department to a multi-campus deployment</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TECH STACK -->
+<section class="tech-section" id="tech-stack">
+  <div class="container">
+    <p class="tech-lbl">Built With</p>
+    <div class="chip-wrap">
+      <div class="chip"><span class="chip-dot"></span>React.js</div>
+      <div class="chip"><span class="chip-dot"></span>FastAPI (Python)</div>
+      <div class="chip"><span class="chip-dot"></span>MySQL / MongoDB</div>
+      <div class="chip"><span class="chip-dot"></span>PyTorch</div>
+      <div class="chip"><span class="chip-dot"></span>Hugging Face Transformers</div>
+      <div class="chip"><span class="chip-dot"></span>Llama 3.1 8B</div>
+      <div class="chip"><span class="chip-dot"></span>BERT</div>
+      <div class="chip"><span class="chip-dot"></span>BART / T5</div>
+      <div class="chip"><span class="chip-dot"></span>BGE-M3 Embeddings</div>
+      <div class="chip"><span class="chip-dot"></span>PaddleOCR</div>
+      <div class="chip"><span class="chip-dot"></span>XGBoost</div>
+      <div class="chip"><span class="chip-dot"></span>Random Forest</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="contact">
+  <div class="container">
+    <div class="foot-grid">
+      <div>
+        <div class="foot-name">AcademiQ</div>
+        <p class="foot-about">An AI-Powered Unified Academic Intelligence and Accreditation Management Platform. Developed as a Final Year Mini-Project, B.E. CSE, 2025&ndash;26.</p>
+        <div class="foot-badges">
+          <span class="foot-badge">Phase 1 &middot; 2026</span>
+          <span class="foot-badge">Mini-Project</span>
+          <span class="foot-badge">B.E. CSE</span>
+        </div>
+      </div>
+      <div>
+        <div class="foot-col-lbl">Platform</div>
+        <ul class="foot-links">
+          <li><a href="#overview">Overview</a></li>
+          <li><a href="#modules">AI Modules</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#comparison">System Comparison</a></li>
+          <li><a href="#tech-stack">Tech Stack</a></li>
+        </ul>
+      </div>
+      <div>
+        <div class="foot-col-lbl">Project Info</div>
+        <ul class="foot-links">
+          <li><a href="#">Project Abstract (PDF)</a></li>
+          <li><a href="#">Phase 1 Report</a></li>
+          <li><a href="#">GitHub Repository</a></li>
+          <li><a href="#">Team Members</a></li>
+          <li><a href="#">Contact Guide</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <span class="foot-copy">&copy; 2025&ndash;26 AcademiQ Project Team &middot; B.E. Final Year Mini-Project &middot; All rights reserved</span>
+      <div class="foot-misc">
+        <a href="#">Privacy</a>
+        <a href="#">Abstract</a>
+        <a href="#">GitHub</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// === Mobile nav ===
+const hamburger = document.getElementById('hamburger');
+const mobMenu   = document.getElementById('mob-menu');
+hamburger.addEventListener('click', () => {
+  hamburger.classList.toggle('open');
+  mobMenu.classList.toggle('open');
+});
+mobMenu.querySelectorAll('a').forEach(a => a.addEventListener('click', () => {
+  hamburger.classList.remove('open');
+  mobMenu.classList.remove('open');
+}));
+
+// === Scroll reveal ===
+const rvEls = document.querySelectorAll('.rv');
+const rvObs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('show'); rvObs.unobserve(e.target); } });
+}, { threshold: 0.1, rootMargin: '0px 0px -36px 0px' });
+rvEls.forEach(el => rvObs.observe(el));
+
+// === Active nav on scroll ===
+const sections = document.querySelectorAll('section[id], footer[id]');
+const navAs    = document.querySelectorAll('.nav-links a');
+const secObs   = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) navAs.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + e.target.id));
+  });
+}, { rootMargin: '-38% 0px -55% 0px' });
+sections.forEach(s => secObs.observe(s));
+
+// === Counter animation for stat cards ===
+document.querySelectorAll('.stat-num[data-count]').forEach(el => {
+  const target = +el.dataset.count;
+  const obs = new IntersectionObserver(entries => {
+    if (!entries[0].isIntersecting) return;
+    obs.disconnect();
+    let n = 0;
+    const step = target / 40;
+    const tick = () => { n = Math.min(n + step, target); el.textContent = Math.round(n); if (n < target) requestAnimationFrame(tick); };
+    requestAnimationFrame(tick);
+  }, { threshold: 0.5 });
+  obs.observe(el);
+});
+
+// === Nav shadow on scroll ===
+const nav = document.getElementById('main-nav');
+window.addEventListener('scroll', () => {
+  nav.style.boxShadow = scrollY > 16 ? '0 2px 22px rgba(42,37,32,.12)' : '';
+}, { passive: true });
+
+// === Smooth anchor scroll ===
+document.querySelectorAll('a[href^="#"]').forEach(a => {
+  a.addEventListener('click', e => {
+    const href = a.getAttribute('href');
+    if (href === '#') return;
+    const tgt = document.querySelector(href);
+    if (!tgt) return;
+    e.preventDefault();
+    window.scrollTo({ top: tgt.getBoundingClientRect().top + scrollY - nav.offsetHeight - 6, behavior: 'smooth' });
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+﻿<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>Accreditation Assistant — AcademiQ</title><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/><link rel="stylesheet" href="../css/tokens.css"/><link rel="stylesheet" href="../css/components.css"/>  <style>
+    .acc-layout{display:grid;grid-template-columns:1fr 320px;gap:1rem}
+    .criteria-row{display:flex;align-items:center;gap:1rem;padding:.85rem 1.25rem;border-bottom:1px solid var(--border-lt)}
+    .criteria-row:last-child{border-bottom:none}
+    .criteria-num{width:28px;height:28px;border-radius:50%;background:rgba(201,163,106,.1);border:1px solid rgba(201,163,106,.25);display:flex;align-items:center;justify-content:center;font-size:.68rem;font-weight:700;color:var(--gold);flex-shrink:0}
+    .criteria-name{flex:1;font-size:.83rem;font-weight:600;color:var(--ivory)}
+    .criteria-sub{font-size:.7rem;color:rgba(250,247,242,.38);margin-top:1px}
+    .criteria-bar{width:160px;flex-shrink:0}
+    .criteria-pct{font-size:.8rem;font-weight:700;min-width:36px;text-align:right;flex-shrink:0}
+    .criteria-evidence{font-size:.7rem;color:rgba(250,247,242,.35);min-width:56px;text-align:right;flex-shrink:0}
+    .donut-wrap{display:flex;flex-direction:column;align-items:center;gap:.5rem;padding:1.25rem}
+    .donut-score{font-family:var(--font-serif);font-size:2.4rem;font-weight:700;color:var(--gold);text-align:center;line-height:1}
+    .donut-label{font-size:.72rem;color:rgba(250,247,242,.38);text-align:center}
+    .gap-card{background:rgba(224,85,85,.06);border:1px solid rgba(224,85,85,.2);border-radius:var(--r-md);padding:1rem 1.1rem;margin-bottom:.65rem}
+    .gap-title{font-size:.82rem;font-weight:600;color:var(--ivory);margin-bottom:.3rem}
+    .gap-desc{font-size:.77rem;color:rgba(250,247,242,.55);line-height:1.55;margin-bottom:.6rem}
+    .gap-action{font-size:.72rem;color:var(--orange);font-weight:500}
+    @media(max-width:900px){.acc-layout{grid-template-columns:1fr}.criteria-bar{display:none}}
+  </style>
+</head>
+<body>
+<div id="sb-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99"></div>
+<div class="app-shell">  <aside class="sidebar" id="sidebar">
+    <div class="sb-top">
+      <a href="../index.html" class="sb-brand"><div class="sb-logo-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z" stroke="#C9A36A" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 12L11 14L15 10" stroke="#C9A36A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><div class="sb-brand-name">AcademiQ</div><div class="sb-brand-tag">AI Platform</div></div></a>
+      <div class="sb-section-label">Main</div>
+      <a href="dashboard.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+      <div class="sb-section-label">AI Modules</div>
+      <a href="document-ai.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>Document Intelligence</a>
+      <a href="report-gen.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Report Generation</a>
+      <a href="semantic-search.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Semantic Search</a>
+      <a href="analytics.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Predictive Analytics</a>
+      <a href="accreditation.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z"/><path d="M9 12l2 2 4-4"/></svg>Accreditation</a>
+    </div>
+    <div class="sb-bottom"><div class="sb-user"><div class="sb-avatar">AD</div><div><div class="sb-user-name">Admin User</div><div class="sb-user-role">Institute Admin</div></div></div></div>
+  </aside>  <div class="app-main">
+    <header class="app-header">
+      <div class="app-header-left">'@ + $tb + @'<div><div class="page-title">Accreditation Assistant</div><div class="breadcrumb">AcademiQ &rsaquo; <span>Accreditation</span></div></div></div>
+      <div style="display:flex;align-items:center;gap:.75rem">
+        <div class="pill-toggle"><button class="pill-btn active">NAAC</button><button class="pill-btn">NBA</button></div>
+        <div class="header-actions"><div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div><div class="header-avatar">AD</div></div>
+      </div>
+    </header>
+    <main class="app-content">
+      <div class="acc-layout">
+        <!-- Left: criteria + evidence table -->
+        <div style="display:flex;flex-direction:column;gap:1rem">
+          <!-- Criteria progress -->
+          <div class="card rv">
+            <div class="card-header"><div><div class="card-title">NAAC Criteria Compliance Status</div><div class="card-subtitle">Evidence collected &bull; Last updated 13 Aug 2025</div></div><button class="btn btn-sm btn-gold">Export Evidence</button></div>
+            <div class="criteria-row">
+              <div class="criteria-num">I</div>
+              <div style="flex:1"><div class="criteria-name">Curricular Aspects</div><div class="criteria-sub">Programme design, delivery, evaluation</div></div>
+              <div class="criteria-bar"><div class="progress-wrap"><div class="progress-fill success" style="width:92%"></div></div></div>
+              <div class="criteria-pct" style="color:var(--success)">92%</div>
+              <div class="criteria-evidence">48 docs</div>
+              <span class="badge badge-success">Complete</span>
+            </div>
+            <div class="criteria-row">
+              <div class="criteria-num">II</div>
+              <div style="flex:1"><div class="criteria-name">Teaching, Learning &amp; Evaluation</div><div class="criteria-sub">Pedagogy, assessment, feedback</div></div>
+              <div class="criteria-bar"><div class="progress-wrap"><div class="progress-fill success" style="width:88%"></div></div></div>
+              <div class="criteria-pct" style="color:var(--success)">88%</div>
+              <div class="criteria-evidence">61 docs</div>
+              <span class="badge badge-success">Complete</span>
+            </div>
+            <div class="criteria-row">
+              <div class="criteria-num">III</div>
+              <div style="flex:1"><div class="criteria-name">Research, Innovation &amp; Extension</div><div class="criteria-sub">Publications, projects, outreach</div></div>
+              <div class="criteria-bar"><div class="progress-wrap"><div class="progress-fill success" style="width:82%"></div></div></div>
+              <div class="criteria-pct" style="color:var(--success)">82%</div>
+              <div class="criteria-evidence">34 docs</div>
+              <span class="badge badge-success">Complete</span>
+            </div>
+            <div class="criteria-row">
+              <div class="criteria-num">IV</div>
+              <div style="flex:1"><div class="criteria-name">Infrastructure &amp; Learning Resources</div><div class="criteria-sub">Labs, library, IT infrastructure</div></div>
+              <div class="criteria-bar"><div class="progress-wrap"><div class="progress-fill success" style="width:79%"></div></div></div>
+              <div class="criteria-pct" style="color:var(--gold)">79%</div>
+              <div class="criteria-evidence">27 docs</div>
+              <span class="badge badge-warning">In Progress</span>
+            </div>
+            <div class="criteria-row">
+              <div class="criteria-num">V</div>
+              <div style="flex:1"><div class="criteria-name">Student Support &amp; Progression</div><div class="criteria-sub">Scholarships, placement, alumni</div></div>
+              <div class="criteria-bar"><div class="progress-wrap"><div class="progress-fill warning" style="width:61%"></div></div></div>
+              <div class="criteria-pct" style="color:var(--warning)">61%</div>
+              <div class="criteria-evidence">19 docs</div>
+              <span class="badge badge-danger">Gap</span>
+            </div>
+            <div class="criteria-row">
+              <div class="criteria-num">VI</div>
+              <div style="flex:1"><div class="criteria-name">Governance, Leadership &amp; Management</div><div class="criteria-sub">Policies, administration, finance</div></div>
+              <div class="criteria-bar"><div class="progress-wrap"><div class="progress-fill success" style="width:85%"></div></div></div>
+              <div class="criteria-pct" style="color:var(--success)">85%</div>
+              <div class="criteria-evidence">42 docs</div>
+              <span class="badge badge-success">Complete</span>
+            </div>
+            <div class="criteria-row">
+              <div class="criteria-num">VII</div>
+              <div style="flex:1"><div class="criteria-name">Institutional Values &amp; Best Practices</div><div class="criteria-sub">Green campus, gender equity, ethics</div></div>
+              <div class="criteria-bar"><div class="progress-wrap"><div class="progress-fill warning" style="width:58%"></div></div></div>
+              <div class="criteria-pct" style="color:var(--warning)">58%</div>
+              <div class="criteria-evidence">14 docs</div>
+              <span class="badge badge-danger">Gap</span>
+            </div>
+          </div>
+
+          <!-- Evidence table -->
+          <div class="card rv d1">
+            <div class="card-header"><div><div class="card-title">Evidence Collection Log</div><div class="card-subtitle">Recently auto-collected by AI pipeline</div></div><button class="btn btn-sm btn-secondary">View All</button></div>
+            <div style="overflow-x:auto">
+              <table class="data-table">
+                <thead><tr><th>Evidence Document</th><th>Criterion</th><th>Uploaded</th><th>Status</th></tr></thead>
+                <tbody>
+                  <tr><td class="td-name">Faculty_FDP_Certificates_2025.zip</td><td><span class="badge badge-gold">Criterion II</span></td><td class="td-muted">13 Aug 2025</td><td><span class="badge badge-success">Verified</span></td></tr>
+                  <tr><td class="td-name">Research_Publications_SCOPUS.pdf</td><td><span class="badge badge-info">Criterion III</span></td><td class="td-muted">12 Aug 2025</td><td><span class="badge badge-success">Verified</span></td></tr>
+                  <tr><td class="td-name">Placement_Report_2024_25.pdf</td><td><span class="badge badge-warning">Criterion V</span></td><td class="td-muted">11 Aug 2025</td><td><span class="badge badge-warning">Under Review</span></td></tr>
+                  <tr><td class="td-name">Alumni_Policy_Draft_v2.docx</td><td><span class="badge badge-warning">Criterion V</span></td><td class="td-muted">10 Aug 2025</td><td><span class="badge badge-danger">Incomplete</span></td></tr>
+                  <tr><td class="td-name">Green_Campus_Audit_2025.pdf</td><td><span class="badge badge-danger">Criterion VII</span></td><td class="td-muted">09 Aug 2025</td><td><span class="badge badge-warning">Under Review</span></td></tr>
+                  <tr><td class="td-name">Financial_Audit_Report_2024.pdf</td><td><span class="badge badge-gold">Criterion VI</span></td><td class="td-muted">08 Aug 2025</td><td><span class="badge badge-success">Verified</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Donut + Gap analysis -->
+        <div style="display:flex;flex-direction:column;gap:1rem">
+          <div class="chart-card rv">
+            <div class="card-header"><div class="card-title">Overall Compliance</div><div class="card-subtitle">NAAC readiness score</div></div>
+            <div class="donut-wrap">
+              <div class="chart-wrap" style="height:200px;width:200px"><canvas id="complianceDonut"></canvas></div>
+              <div class="donut-score">78%</div>
+              <div class="donut-label">NAAC Readiness Score</div>
+            </div>
+          </div>
+
+          <div class="card rv d1">
+            <div class="card-header"><div class="card-title">Gap Analysis</div><div class="card-subtitle">Action items flagged by AI</div></div>
+            <div class="card-body">
+              <div class="gap-card">
+                <div class="gap-title">&#9888; Alumni Engagement Policy Missing</div>
+                <p class="gap-desc">Criterion V.5.4.1 requires a formal, documented, and approved alumni engagement policy. Current draft (v2) awaits Academic Council approval.</p>
+                <div class="gap-action">&#8594; Action: Expedite Academic Council approval before Sept 2025</div>
+              </div>
+              <div class="gap-card">
+                <div class="gap-title">&#9888; 4 Unresolved Grievances (Q4 2024)</div>
+                <p class="gap-desc">Criterion V.5.1.3 mandates resolution within 30 days. Four cases from Q4 2024 exceed this limit and remain open in the grievance register.</p>
+                <div class="gap-action">&#8594; Action: Close and document resolution for all 4 cases immediately</div>
+              </div>
+              <div class="gap-card">
+                <div class="gap-title">&#9888; Green Campus Audit Incomplete</div>
+                <p class="gap-desc">Criterion VII requires a green campus audit report. The 2025 audit is under review and missing energy consumption and waste management data.</p>
+                <div class="gap-action">&#8594; Action: Submit complete data to Environmental Committee by 20 Aug</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script src="../js/nav.js"></script><script src="../js/charts.js"></script><script>document.addEventListener("DOMContentLoaded",()=>{const ov=document.getElementById("sb-overlay");if(!ov)return;ov.style.display="";ov.style.opacity="0";ov.style.transition="opacity .3s";ov.style.pointerEvents="none";const sb=document.getElementById("sidebar"),tg=document.getElementById("sb-toggle"),cl=()=>{sb.classList.remove("open");ov.style.opacity="0";ov.style.pointerEvents="none";};if(tg)tg.addEventListener("click",()=>{sb.classList.toggle("open");const op=sb.classList.contains("open");ov.style.opacity=op?"1":"0";ov.style.pointerEvents=op?"auto":"none";});ov.addEventListener("click",cl);});</script><script>document.addEventListener("DOMContentLoaded",()=>initComplianceDonut("complianceDonut"));</script>
+</body></html>

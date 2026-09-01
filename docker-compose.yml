@@ -1,0 +1,304 @@
+version: "3.9"
+
+# ================================================================
+#  AcademiQ — Docker Compose
+#  Run: docker-compose up --build
+#  Frontend: http://localhost:3000
+#  API Gateway: http://localhost:8000
+# ================================================================
+
+networks:
+  academiq-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mongo_data:
+  redis_data:
+  qdrant_data:
+  uploads_data:
+  reports_data:
+
+services:
+
+  # ─────────────────────────────────────────────
+  #  INFRASTRUCTURE
+  # ─────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-academiq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-academiq_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-academiq}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-academiq}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.2
+    restart: unless-stopped
+    volumes:
+      - qdrant_data:/qdrant/storage
+    ports:
+      - "6333:6333"
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333 && echo -e \"GET /healthz HTTP/1.0\\r\\n\\r\\n\" >&3 && cat <&3 | grep -q 200'"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+      start_period: 30s
+
+  # ─────────────────────────────────────────────
+  #  BACKEND SERVICES
+  # ─────────────────────────────────────────────
+
+  auth-service:
+    build: ./backend/auth-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SERVICE_PORT=8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  academic-data-service:
+    build: ./backend/academic-data-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SERVICE_PORT=8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  parent-contact-service:
+    build: ./backend/parent-contact-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SERVICE_PORT=8003
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  document-service:
+    build:
+      context: ./backend/document-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SERVICE_PORT=8004
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  document-worker:
+    build:
+      context: ./backend/document-service
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    env_file: .env
+    command: celery -A tasks.celery_app worker --loglevel=info --queues=ocr_queue
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    networks: [academiq-net]
+
+  nlp-rag-service:
+    build:
+      context: ./backend/nlp-rag-service
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SERVICE_PORT=8005
+    depends_on:
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [academiq-net]
+    # NOTE: First startup downloads ~500MB BGE-M3 model from HuggingFace
+    # To pre-download: docker-compose run nlp-rag-service python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('BAAI/bge-m3')"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8005/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  # nlp-rag-worker: disabled — tasks.celery_app module not yet implemented.
+  # Re-enable once backend/nlp-rag-service/tasks.py is created.
+  # nlp-rag-worker:
+  #   build:
+  #     context: ./backend/nlp-rag-service
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   env_file: .env
+  #   command: celery -A tasks.celery_app worker --loglevel=info --queues=embed_queue
+  #   depends_on:
+  #     redis:
+  #       condition: service_healthy
+  #     qdrant:
+  #       condition: service_healthy
+  #   networks: [academiq-net]
+
+  prediction-service:
+    build: ./backend/prediction-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SERVICE_PORT=8006
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8006/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  report-service:
+    build: ./backend/report-service
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SERVICE_PORT=8007
+      - REPORTS_DIR=/app/reports
+    volumes:
+      - reports_data:/app/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      academic-data-service:
+        condition: service_healthy
+      nlp-rag-service:
+        condition: service_healthy
+    networks: [academiq-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8007/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    build: ./backend/api-gateway
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - SERVICE_PORT=8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      academic-data-service:
+        condition: service_healthy
+      parent-contact-service:
+        condition: service_healthy
+      document-service:
+        condition: service_healthy
+      nlp-rag-service:
+        condition: service_healthy
+      prediction-service:
+        condition: service_healthy
+      report-service:
+        condition: service_healthy
+    networks: [academiq-net]
+
+  # ─────────────────────────────────────────────
+  #  REACT FRONTEND
+  # ─────────────────────────────────────────────
+
+  frontend:
+    build: ./frontend/app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api/v1
+    depends_on:
+      - api-gateway
+    networks: [academiq-net]
+
+  # ─────────────────────────────────────────────
+  #  OPTIONAL: Local Ollama (needs 10GB+ RAM)
+  #  Uncomment if running Llama 3.1 8B locally.
+  #  After starting: docker exec -it ollama ollama pull llama3.1:8b
+  # ─────────────────────────────────────────────
+
+  # ollama:
+  #   image: ollama/ollama
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ~/.ollama:/root/.ollama
+  #   ports:
+  #     - "11434:11434"
+  #   networks: [academiq-net]

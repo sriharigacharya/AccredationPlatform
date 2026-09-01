@@ -1,0 +1,138 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Semantic Search — AcademiQ</title>  <link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="../css/tokens.css"/><link rel="stylesheet" href="../css/components.css"/>  <style>
+    .search-hero{background:var(--panel-bg);border:1px solid var(--border);border-radius:var(--r-lg);padding:2rem;text-align:center;margin-bottom:1.25rem}
+    .search-bar-big{display:flex;align-items:center;gap:.75rem;background:rgba(255,255,255,.05);border:1.5px solid rgba(201,163,106,.35);border-radius:var(--r-pill);padding:12px 20px;max-width:700px;margin:0 auto;transition:border-color .2s}
+    .search-bar-big:focus-within{border-color:rgba(201,163,106,.7)}
+    .search-bar-big input{flex:1;background:none;border:none;outline:none;font-size:.95rem;color:var(--ivory);font-family:var(--font-sans)}
+    .search-bar-big input::placeholder{color:rgba(250,247,242,.3)}
+    .search-bar-big svg{color:rgba(250,247,242,.35);width:18px;height:18px;flex-shrink:0}
+    .search-btn{background:var(--orange);color:#fff;border:none;border-radius:var(--r-pill);padding:8px 20px;font-size:.85rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .2s}
+    .search-btn:hover{background:var(--orange-dk)}
+    .search-sub{font-size:.78rem;color:rgba(250,247,242,.3);margin-top:.65rem}
+    .two-col{display:grid;grid-template-columns:1fr 340px;gap:1rem}
+    .result-card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--r-md);padding:1.15rem 1.25rem;margin-bottom:.65rem;cursor:pointer;transition:border-color .2s,background .2s}
+    .result-card:hover,.result-card.active{border-color:rgba(201,163,106,.4);background:var(--card-bg-hover)}
+    .result-title{font-weight:600;color:var(--ivory);font-size:.875rem;margin-bottom:.3rem}
+    .result-excerpt{font-size:.8rem;color:rgba(250,247,242,.55);line-height:1.6;margin-bottom:.6rem}
+    .result-excerpt mark{background:rgba(201,163,106,.22);color:var(--gold);border-radius:2px;padding:0 2px}
+    .result-meta{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+    .relevance{font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:var(--r-pill)}
+    .rel-high{background:rgba(86,184,122,.12);color:var(--success)}
+    .rel-med{background:rgba(201,163,106,.12);color:var(--gold)}
+    .preview-panel{background:var(--panel-bg);border:1px solid var(--border);border-radius:var(--r-md);padding:1.25rem;position:sticky;top:calc(var(--header-h) + 1rem)}
+    .preview-content{font-size:.8rem;line-height:1.75;color:rgba(250,247,242,.65);max-height:480px;overflow-y:auto;margin-top:1rem}
+    @media(max-width:900px){.two-col{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div id="sb-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99"></div>
+<div class="app-shell">  <aside class="sidebar" id="sidebar">
+    <div class="sb-top">
+      <a href="../index.html" class="sb-brand"><div class="sb-logo-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z" stroke="#C9A36A" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 12L11 14L15 10" stroke="#C9A36A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><div class="sb-brand-name">AcademiQ</div><div class="sb-brand-tag">AI Platform</div></div></a>
+      <div class="sb-section-label">Main</div>
+      <a href="dashboard.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+      <div class="sb-section-label">AI Modules</div>
+      <a href="document-ai.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>Document Intelligence</a>
+      <a href="report-gen.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Report Generation</a>
+      <a href="semantic-search.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Semantic Search</a>
+      <a href="analytics.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Predictive Analytics</a>
+      <a href="accreditation.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z"/><path d="M9 12l2 2 4-4"/></svg>Accreditation</a>
+    </div>
+    <div class="sb-bottom"><div class="sb-user"><div class="sb-avatar">AD</div><div><div class="sb-user-name">Admin User</div><div class="sb-user-role">Institute Admin</div></div></div></div>
+  </aside>  <div class="app-main">
+    <header class="app-header">
+      <div class="app-header-left">'@ + $togBtn + @'<div><div class="page-title">Semantic Search &amp; Retrieval</div><div class="breadcrumb">AcademiQ &rsaquo; <span>Semantic Search</span></div></div></div>
+      <div class="header-actions"><div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div><div class="header-avatar">AD</div></div>
+    </header>
+    <main class="app-content">
+      <div class="search-hero rv">
+        <div style="font-size:.68rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:.75rem">BGE-M3 Semantic Embeddings</div>
+        <div class="search-bar-big">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder='Ask anything — "What is the NAAC pass criteria for B.E. CSE?" or "Faculty research publications 2024"' value="What are the NAAC compliance gaps for Criterion V?"/>
+          <button class="search-btn">Search</button>
+        </div>
+        <div class="search-sub">Searching across 4,291 institutional documents &bull; BGE-M3 embeddings &bull; Vector similarity &lt;120ms</div>
+      </div>
+
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem" class="rv d1">
+        <span class="chip active" data-filter="all">All</span>
+        <span class="chip" data-filter="policy">Policy</span>
+        <span class="chip" data-filter="report">Reports</span>
+        <span class="chip" data-filter="results">Results</span>
+        <span class="chip" data-filter="research">Research</span>
+        <span class="chip" data-filter="accreditation">Accreditation</span>
+      </div>
+
+      <div class="two-col rv d2">
+        <div>
+          <div style="font-size:.78rem;color:rgba(250,247,242,.35);margin-bottom:.75rem">5 results for <strong style="color:var(--gold)">"NAAC compliance gaps Criterion V"</strong></div>
+
+          <div class="result-card active">
+            <div class="result-title">NAAC SSR — Criterion V: Student Support &amp; Progression</div>
+            <p class="result-excerpt">The institution currently provides <mark>student support</mark> through 14 scholarships and a dedicated counselling cell. However, <mark>compliance gaps</mark> identified include the absence of a documented alumni engagement policy and incomplete grievance redressal records for AY 2023&ndash;24...</p>
+            <div class="result-meta"><span class="relevance rel-high">96% match</span><span class="badge badge-gold">Policy</span><span class="td-muted" style="font-size:.72rem">NAAC_SSR_Criteria_5_2025.pdf</span></div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-title">Student Grievance Redressal Report — Q4 2024</div>
+            <p class="result-excerpt">Quarterly report of the Internal Complaints Committee (ICC). A total of 23 grievances were filed in Q4 2024. Of these, 19 were resolved within the stipulated 30-day window. Four cases remain pending and represent a <mark>compliance gap</mark> against <mark>NAAC Criterion V</mark> sub-criteria 5.1.3...</p>
+            <div class="result-meta"><span class="relevance rel-high">91% match</span><span class="badge badge-info">Report</span><span class="td-muted" style="font-size:.72rem">Grievance_Q4_2024.pdf</span></div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-title">Alumni Engagement Policy — Draft v2</div>
+            <p class="result-excerpt">Draft policy document for formalising alumni engagement activities. This document, once finalised, will address the <mark>compliance gap</mark> identified under <mark>Criterion V</mark>, sub-criteria 5.4.1 (Alumni Engagement) in the NAAC framework. Pending approval from Academic Council...</p>
+            <div class="result-meta"><span class="relevance rel-med">84% match</span><span class="badge badge-warning">Draft</span><span class="td-muted" style="font-size:.72rem">Alumni_Policy_Draft_v2.docx</span></div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-title">Scholarship Disbursement Register 2024&ndash;25</div>
+            <p class="result-excerpt">Complete register of all scholarship disbursements made to students during AY 2024&ndash;25. Includes government scholarships, institutional scholarships, and merit awards. 847 students benefited totalling Rs. 38.4 Lakhs. Document directly maps to <mark>NAAC Criterion V</mark> sub-criteria 5.1.1...</p>
+            <div class="result-meta"><span class="relevance rel-med">78% match</span><span class="badge badge-success">Financial</span><span class="td-muted" style="font-size:.72rem">Scholarship_Register_2425.xlsx</span></div>
+          </div>
+
+          <div class="result-card">
+            <div class="result-title">Career Guidance Cell — Activity Report 2024</div>
+            <p class="result-excerpt">Annual report of the Career Guidance and Placement Cell. Placement rate achieved: 72.4%. The report notes that structured career counselling sessions, while conducted, lack individual student tracking documentation — a minor <mark>compliance gap</mark> under <mark>Criterion V</mark> 5.2.2...</p>
+            <div class="result-meta"><span class="relevance rel-med">72% match</span><span class="badge badge-info">Report</span><span class="td-muted" style="font-size:.72rem">Career_Cell_Report_2024.pdf</span></div>
+          </div>
+        </div>
+
+        <!-- Preview panel -->
+        <div class="preview-panel">
+          <div class="card-title">Document Preview</div>
+          <div class="card-subtitle" style="font-size:.7rem;margin-top:2px;color:rgba(250,247,242,.35)">NAAC_SSR_Criteria_5_2025.pdf</div>
+          <div class="preview-content">
+            <strong style="color:var(--ivory)">NAAC Self-Study Report</strong><br>
+            <span style="color:rgba(250,247,242,.35);font-size:.73rem">Criterion V — Student Support &amp; Progression</span>
+            <hr style="border:none;border-top:1px solid var(--border-lt);margin:.75rem 0">
+            <strong style="color:var(--gold);font-size:.78rem">5.1 — Student Support</strong><br><br>
+            The institution operates a Student Welfare Committee comprising 8 faculty members and 4 student representatives. Scholarships are disbursed to 847 students (29.7% of enrolled strength) through 14 schemes covering government, institutional, and merit-based categories.<br><br>
+            <strong style="color:rgba(224,85,85,.9);font-size:.75rem">&#9888; Gap Identified:</strong><br>
+            Alumni engagement policy exists only in draft form (v2). Formal approval by Academic Council pending since March 2025. This creates a documentation gap for sub-criteria 5.4.1 which requires a "formal, documented, and implemented" policy.<br><br>
+            <strong style="color:rgba(224,85,85,.9);font-size:.75rem">&#9888; Gap Identified:</strong><br>
+            4 of 23 Q4 2024 grievances unresolved beyond 30-day limit, violating sub-criteria 5.1.3 resolution timeline requirements.<br><br>
+            <strong style="color:var(--success);font-size:.75rem">&#10003; Compliant:</strong><br>
+            Placement cell reports 72.4% placement rate. Anti-ragging committee functional. Student council elections held annually.
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="../js/nav.js"></script><script src="../js/charts.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded",()=>{
+    const ov=document.getElementById("sb-overlay"); if(!ov)return;
+    ov.style.display="";ov.style.opacity="0";ov.style.transition="opacity .3s";ov.style.pointerEvents="none";
+    const sb=document.getElementById("sidebar"),tg=document.getElementById("sb-toggle"),cl=()=>{sb.classList.remove("open");ov.style.opacity="0";ov.style.pointerEvents="none";};
+    if(tg)tg.addEventListener("click",()=>{sb.classList.toggle("open");const op=sb.classList.contains("open");ov.style.opacity=op?"1":"0";ov.style.pointerEvents=op?"auto":"none";});
+    ov.addEventListener("click",cl);
+  });
+</script></body></html>

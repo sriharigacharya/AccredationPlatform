@@ -1,0 +1,280 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Dashboard — AcademiQ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="../css/tokens.css"/>
+  <link rel="stylesheet" href="../css/components.css"/>
+  <style>
+    .two-col { display:grid; grid-template-columns:1fr 340px; gap:1rem; margin-bottom:1rem; }
+    .three-col { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1rem; }
+    .actions-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem; }
+    .risk-item { display:flex; align-items:center; gap:.75rem; padding:.7rem 0; border-bottom:1px solid var(--border-lt); }
+    .risk-item:last-child { border-bottom:none; }
+    .risk-avatar { width:32px;height:32px;border-radius:50%;background:var(--gold-dim);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:var(--charcoal);flex-shrink:0; }
+    .risk-name { font-size:.82rem;font-weight:600;color:var(--ivory);line-height:1.2; }
+    .risk-dept { font-size:.68rem;color:rgba(250,247,242,.38); }
+    .risk-score { font-family:'Playfair Display',Georgia,serif;font-size:1.1rem;font-weight:700;color:var(--danger);margin-left:auto;flex-shrink:0; }
+    @media(max-width:1100px){ .two-col{grid-template-columns:1fr;} .three-col{grid-template-columns:1fr 1fr;} }
+    @media(max-width:700px){ .three-col{grid-template-columns:1fr;} .actions-grid{grid-template-columns:1fr 1fr;} }
+  </style>
+</head>
+<body>
+<div id="sb-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99" class=""></div>
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-top">
+      <a href="../index.html" class="sb-brand">
+        <div class="sb-logo-mark">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z" stroke="#C9A36A" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 12L11 14L15 10" stroke="#C9A36A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div><div class="sb-brand-name">AcademiQ</div><div class="sb-brand-tag">AI Platform</div></div>
+      </a>
+      <div class="sb-section-label">Main</div>
+      <a href="dashboard.html" class="sb-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </a>
+      <div class="sb-section-label">AI Modules</div>
+      <a href="document-ai.html" class="sb-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+        Document Intelligence
+      </a>
+      <a href="report-gen.html" class="sb-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        Report Generation
+      </a>
+      <a href="semantic-search.html" class="sb-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Semantic Search
+      </a>
+      <a href="analytics.html" class="sb-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Predictive Analytics
+      </a>
+      <a href="accreditation.html" class="sb-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z"/><path d="M9 12l2 2 4-4"/></svg>
+        Accreditation
+      </a>
+      <div class="sb-section-label">Settings</div>
+      <a href="#" class="sb-link">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Settings
+      </a>
+    </div>
+    <div class="sb-bottom">
+      <div class="sb-user">
+        <div class="sb-avatar">AD</div>
+        <div><div class="sb-user-name">Admin User</div><div class="sb-user-role">Institute Admin</div></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="app-main">
+    <header class="app-header">
+      <div class="app-header-left">
+        <button class="sb-toggle icon-btn" id="sb-toggle" aria-label="Toggle sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div>
+          <div class="page-title">Unified Dashboard</div>
+          <div class="breadcrumb">AcademiQ &rsaquo; <span>Dashboard</span></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:.75rem">
+        <div class="header-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" placeholder="Search anything..."/>
+        </div>
+        <div class="header-actions">
+          <div class="icon-btn" title="Notifications">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          </div>
+          <div class="header-avatar">AD</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-content">
+
+      <!-- KPI Cards -->
+      <div class="kpi-grid rv">
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:rgba(201,163,106,.12)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#C9A36A" stroke-width="1.5" stroke-linecap="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <span class="kpi-delta up">&#8593; 4.2%</span>
+          </div>
+          <div class="kpi-num" data-count="2847">2847</div>
+          <div class="kpi-label">Total Students Enrolled</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:rgba(91,155,213,.12)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#5B9BD5" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 12-8 12S4 15.25 4 10a8 8 0 0 1 8-8z"/></svg>
+            </div>
+            <span class="kpi-delta up">&#8593; 2.1%</span>
+          </div>
+          <div class="kpi-num" data-count="184">184</div>
+          <div class="kpi-label">Active Faculty Members</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:rgba(86,184,122,.12)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#56B87A" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>
+            </div>
+            <span class="kpi-delta up">&#8593; 18%</span>
+          </div>
+          <div class="kpi-num" data-count="4291">4291</div>
+          <div class="kpi-label">Documents Processed</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-top">
+            <div class="kpi-icon" style="background:rgba(168,91,44,.12)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#A85B2C" stroke-width="1.5" stroke-linecap="round"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z"/><path d="M9 12l2 2 4-4"/></svg>
+            </div>
+            <span class="kpi-delta up">&#8593; 7%</span>
+          </div>
+          <div class="kpi-num" data-count="78" data-suffix="%">78%</div>
+          <div class="kpi-label">NAAC Readiness Score</div>
+        </div>
+      </div>
+
+      <!-- Charts row -->
+      <div class="two-col rv d1">
+        <div class="chart-card">
+          <div class="card-header">
+            <div><div class="card-title">Student Performance Trend</div><div class="card-subtitle">Avg score &amp; pass rate over 8 months</div></div>
+            <select class="form-input" style="width:auto;padding:5px 10px;font-size:.75rem">
+              <option>2025&ndash;26</option><option>2024&ndash;25</option>
+            </select>
+          </div>
+          <div class="chart-body"><div class="chart-wrap" style="height:240px"><canvas id="performanceChart"></canvas></div></div>
+        </div>
+        <div class="chart-card">
+          <div class="card-header">
+            <div><div class="card-title">Faculty Load by Department</div><div class="card-subtitle">Average teaching hours per week</div></div>
+          </div>
+          <div class="chart-body"><div class="chart-wrap" style="height:240px"><canvas id="deptChart"></canvas></div></div>
+        </div>
+      </div>
+
+      <!-- Bottom row -->
+      <div class="two-col rv d2" style="grid-template-columns:1fr 300px">
+
+        <!-- Recent documents table -->
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">Recent Documents</div><div class="card-subtitle">Latest processed by AI pipeline</div></div>
+            <a href="document-ai.html" class="btn btn-sm btn-gold">View All</a>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="data-table">
+              <thead><tr><th>Document</th><th>Type</th><th>Department</th><th>Status</th><th>Date</th></tr></thead>
+              <tbody>
+                <tr><td class="td-name">NAAC_SSR_Criteria_1_2025.pdf</td><td><span class="badge badge-gold">Policy</span></td><td class="td-muted">IQAC</td><td><span class="badge badge-success">Processed</span></td><td class="td-muted">13 Aug</td></tr>
+                <tr><td class="td-name">Faculty_Appraisal_CSE_2025.docx</td><td><span class="badge badge-info">Report</span></td><td class="td-muted">CSE</td><td><span class="badge badge-success">Processed</span></td><td class="td-muted">12 Aug</td></tr>
+                <tr><td class="td-name">Student_Results_SEM5_ECE.xlsx</td><td><span class="badge badge-warning">Results</span></td><td class="td-muted">ECE</td><td><span class="badge badge-warning">Pending</span></td><td class="td-muted">12 Aug</td></tr>
+                <tr><td class="td-name">Lab_Utilisation_Report_MECH.pdf</td><td><span class="badge badge-info">Report</span></td><td class="td-muted">MECH</td><td><span class="badge badge-success">Processed</span></td><td class="td-muted">11 Aug</td></tr>
+                <tr><td class="td-name">Research_Publications_2025.pdf</td><td><span class="badge badge-gold">Research</span></td><td class="td-muted">R&amp;D Cell</td><td><span class="badge badge-danger">Failed</span></td><td class="td-muted">11 Aug</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- At-risk students -->
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">At-Risk Students</div><div class="card-subtitle">Predicted by XGBoost model</div></div>
+            <a href="analytics.html" class="btn btn-sm btn-secondary">Details</a>
+          </div>
+          <div class="card-body">
+            <div class="risk-item">
+              <div class="risk-avatar">RK</div>
+              <div><div class="risk-name">Ravi Kumar</div><div class="risk-dept">CSE &middot; Sem 5</div></div>
+              <div style="text-align:right"><div class="risk-score">5.8</div><span class="badge badge-danger">High Risk</span></div>
+            </div>
+            <div class="risk-item">
+              <div class="risk-avatar">PS</div>
+              <div><div class="risk-name">Priya Sharma</div><div class="risk-dept">ECE &middot; Sem 3</div></div>
+              <div style="text-align:right"><div class="risk-score">6.2</div><span class="badge badge-warning">Medium</span></div>
+            </div>
+            <div class="risk-item">
+              <div class="risk-avatar">AM</div>
+              <div><div class="risk-name">Arjun Mehta</div><div class="risk-dept">MECH &middot; Sem 7</div></div>
+              <div style="text-align:right"><div class="risk-score">6.0</div><span class="badge badge-danger">High Risk</span></div>
+            </div>
+            <div class="risk-item">
+              <div class="risk-avatar">SK</div>
+              <div><div class="risk-name">Sneha Krishnan</div><div class="risk-dept">CIVIL &middot; Sem 5</div></div>
+              <div style="text-align:right"><div class="risk-score">6.4</div><span class="badge badge-warning">Medium</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="rv d3">
+        <div style="font-size:.82rem;font-weight:600;color:rgba(250,247,242,.5);letter-spacing:.06em;text-transform:uppercase;margin-bottom:.75rem">Quick Actions</div>
+        <div class="actions-grid">
+          <a href="document-ai.html" class="action-card">
+            <div class="action-icon" style="background:rgba(201,163,106,.12)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#C9A36A" stroke-width="1.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="action-label">Upload Document</div>
+          </a>
+          <a href="report-gen.html" class="action-card">
+            <div class="action-icon" style="background:rgba(91,155,213,.12)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#5B9BD5" stroke-width="1.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+            <div class="action-label">Generate Report</div>
+          </a>
+          <a href="analytics.html" class="action-card">
+            <div class="action-icon" style="background:rgba(86,184,122,.12)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#56B87A" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+            </div>
+            <div class="action-label">Run Analytics</div>
+          </a>
+          <a href="accreditation.html" class="action-card">
+            <div class="action-icon" style="background:rgba(168,91,44,.12)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="#A85B2C" stroke-width="1.5" stroke-linecap="round"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z"/><path d="M9 12l2 2 4-4"/></svg>
+            </div>
+            <div class="action-label">Accreditation Status</div>
+          </a>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="../js/nav.js"></script>
+<script src="../js/charts.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    initPerformanceChart("performanceChart");
+    initDeptChart("deptChart");
+    const overlay = document.getElementById("sb-overlay");
+    if (overlay) {
+      overlay.style.display = "";
+      overlay.style.opacity = "0";
+      overlay.style.transition = "opacity .3s";
+      overlay.style.pointerEvents = "none";
+      const sidebar = document.getElementById("sidebar");
+      const toggle = document.getElementById("sb-toggle");
+      const close = () => { sidebar.classList.remove("open"); overlay.style.opacity="0"; overlay.style.pointerEvents="none"; };
+      if (toggle) toggle.addEventListener("click", () => { sidebar.classList.toggle("open"); const open = sidebar.classList.contains("open"); overlay.style.opacity = open?"1":"0"; overlay.style.pointerEvents = open?"auto":"none"; });
+      overlay.addEventListener("click", close);
+    }
+  });
+</script>
+</body>
+</html>

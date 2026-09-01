@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ report.institution_name }} — NBA SAR {{ report.academic_year }}</title>
+  <style>
+    /* Inline report.css content — WeasyPrint doesn't resolve relative @import in all environments */
+    {{ css_content }}
+  </style>
+</head>
+<body>
+
+<!-- Running string anchors (invisible, but read by @page CSS) -->
+<span id="dept-header-anchor" style="position:absolute;width:0;overflow:hidden;">
+  {{ report.department.get('name', '') }}
+</span>
+<span id="academic-year-anchor" style="position:absolute;width:0;overflow:hidden;">
+  Academic Year {{ report.academic_year }}
+</span>
+
+<!-- ── Title Page ────────────────────────────────────────────── -->
+<div class="title-page">
+  <div class="nba-logo-area">
+    <div style="font-size:9pt;color:#718096;letter-spacing:1pt;text-transform:uppercase;margin-bottom:8pt;">
+      National Board of Accreditation
+    </div>
+    <div style="font-size:11pt;font-weight:700;color:#2d3748;">
+      Self-Assessment Report (SAR)
+    </div>
+    <div style="font-size:9.5pt;color:#4a5568;margin-top:4pt;">
+      UG Engineering Programs — Tier-II Institution | GAPC Version 4.0 | January 2025
+    </div>
+  </div>
+
+  <h1>{{ report.institution_name }}</h1>
+  <h2>{{ report.program_name }}</h2>
+  <div class="subtitle">Department of {{ report.department.get('name', '—') }}</div>
+  <div class="subtitle" style="margin-top:4pt;">Academic Year: <strong>{{ report.academic_year }}</strong></div>
+
+  <div class="meta-block">
+    <div><strong>SAR Format:</strong> {{ report.sar_format }}</div>
+    <div><strong>Scope:</strong> {{ report.scope }}</div>
+    <div><strong>Generated:</strong> {{ report.generated_at[:10] }}</div>
+    {% if report.report_id %}
+    <div><strong>Report ID:</strong> <span style="font-family:monospace;font-size:8.5pt;">{{ report.report_id }}</span></div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Table of Contents ─────────────────────────────────────── -->
+{% if sections | length > 1 %}
+<div class="toc-page">
+  <h2>Table of Contents</h2>
+  {% for section in sections %}
+    {% if section.content_type == 'criterion_header' %}
+    <div class="toc-entry criterion">
+      <span>Criterion {{ section.id }}: {{ section.title }}</span>
+      <span class="toc-marks">{{ section.marks }} marks</span>
+    </div>
+    {% elif section.level == 2 or section.level == 3 %}
+    <div class="toc-entry" style="padding-left:{{ (section.level - 1) * 12 }}pt;">
+      <span>{{ section.id }}  {{ section.title }}</span>
+      <span class="toc-marks">{{ section.marks }} marks</span>
+    </div>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── Sections ──────────────────────────────────────────────── -->
+{% for section in sections %}
+
+  {# ── Criterion header ──────────────────────────────────── #}
+  {% if section.content_type == 'criterion_header' %}
+  <div class="criterion-header">
+    <h2>
+      Criterion {{ section.id }}: {{ section.title }}
+      <span class="criterion-marks">(1000 marks total)</span>
+    </h2>
+  </div>
+
+  {# ── Sub/sub-sub section ───────────────────────────────── #}
+  {% else %}
+  <div class="section-block">
+
+    {# Section heading #}
+    <div class="section-header">
+      {% if section.level == 1 or section.level == 2 %}
+      <h3>
+        {{ section.id }}  {{ section.title }}
+        <span class="marks-badge">{{ section.marks }} marks</span>
+      </h3>
+      {% else %}
+      <h4>
+        {{ section.id }}  {{ section.title }}
+        <span class="marks-badge">{{ section.marks }} marks</span>
+      </h4>
+      {% endif %}
+    </div>
+
+    {# Placeholder warning #}
+    {% if section.has_placeholders %}
+    <div class="placeholder-banner">
+      ⚠ This section contains placeholder data. Please verify and update before submission.
+    </div>
+    {% endif %}
+
+    {# Formula result callout for formula_table nodes #}
+    {% if section.formula_result %}
+    <div class="formula-result-box">
+      <span class="score">{{ section.formula_result.get('marks', '—') }}</span>
+      <span class="max-marks"> / {{ section.marks }} marks</span>
+      {% for k, v in section.formula_result.items() %}
+        {% if k != 'marks' %}
+        &nbsp;&nbsp;|&nbsp;&nbsp;<strong>{{ k }}:</strong> {{ v }}
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {# Table (for table / formula_table nodes) #}
+    {% if section.table_rows %}
+    <table class="data-table">
+      {% if section.table_headers %}
+      <thead>
+        <tr>
+          {% for h in section.table_headers %}
+          <th>{{ h }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      {% endif %}
+      <tbody>
+        {% for row in section.table_rows %}
+        <tr>
+          {% for cell in row %}
+          <td>{{ cell }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    {# Narrative / static text #}
+    {% if section.narrative %}
+    <div class="narrative-content">{{ section.narrative }}</div>
+    {% endif %}
+
+  </div>
+  {% endif %}
+
+{% endfor %}
+
+<!-- ── Signature block ───────────────────────────────────────── -->
+<div class="signature-block" style="break-before:page;">
+  <div class="signature-line">
+    Head of Department<br/>
+    Date: ___________
+  </div>
+  <div class="signature-line">
+    Principal / Director<br/>
+    Date: ___________
+  </div>
+</div>
+
+</body>
+</html>

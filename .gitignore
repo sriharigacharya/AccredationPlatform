@@ -1,0 +1,42 @@
+# Environment
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.pkl
+*.model
+venv/
+.venv/
+
+# Node / React
+node_modules/
+frontend/app/dist/
+frontend/app/.env.local
+
+# Docker
+.docker/
+
+# ML models (large files — use git-lfs or rebuild)
+services/prediction-service/models/*.pkl
+services/nlp-rag-service/.cache/
+
+# Uploads
+services/document-service/uploads/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

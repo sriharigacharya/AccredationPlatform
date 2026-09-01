@@ -1,0 +1,171 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Document Intelligence — AcademiQ</title>  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="../css/tokens.css"/>
+  <link rel="stylesheet" href="../css/components.css"/>  <style>
+    .upload-zone{border:2px dashed rgba(201,163,106,.35);border-radius:var(--r-lg);padding:3rem 2rem;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;background:rgba(201,163,106,.03)}
+    .upload-zone:hover{border-color:rgba(201,163,106,.65);background:rgba(201,163,106,.06)}
+    .upload-icon{width:56px;height:56px;background:rgba(201,163,106,.1);border-radius:var(--r-md);display:flex;align-items:center;justify-content:center;margin:0 auto 1rem}
+    .upload-icon svg{width:28px;height:28px;color:var(--gold)}
+    .upload-title{font-family:var(--font-serif);font-size:1.05rem;font-weight:600;color:var(--ivory);margin-bottom:.4rem}
+    .upload-sub{font-size:.8rem;color:rgba(250,247,242,.42);margin-bottom:1.1rem}
+    .file-types{display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap}
+    .pipeline{display:flex;align-items:center;gap:0;margin:1.25rem 0}
+    .pipe-step{flex:1;text-align:center;padding:.85rem .5rem;background:var(--card-bg);border:1px solid var(--border);position:relative}
+    .pipe-step:first-child{border-radius:var(--r-md) 0 0 var(--r-md)}
+    .pipe-step:last-child{border-radius:0 var(--r-md) var(--r-md) 0}
+    .pipe-step+.pipe-step{border-left:none}
+    .pipe-step.active{background:rgba(201,163,106,.1);border-color:rgba(201,163,106,.35)}
+    .pipe-step.done{background:rgba(86,184,122,.07);border-color:rgba(86,184,122,.25)}
+    .pipe-icon{font-size:1.25rem;margin-bottom:.3rem}
+    .pipe-label{font-size:.72rem;font-weight:600;color:rgba(250,247,242,.6)}
+    .pipe-status{font-size:.65rem;color:rgba(250,247,242,.35);margin-top:2px}
+    .pipe-step.active .pipe-label{color:var(--gold)}
+    .pipe-step.done .pipe-label{color:var(--success)}
+    .conf-bar{display:flex;align-items:center;gap:.65rem}
+    .conf-pct{font-size:.8rem;font-weight:600;min-width:36px;text-align:right}
+    .two-col{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    @media(max-width:800px){.two-col{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div id="sb-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99"></div>
+<div class="app-shell">  <aside class="sidebar" id="sidebar">
+    <div class="sb-top">
+      <a href="../index.html" class="sb-brand">
+        <div class="sb-logo-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z" stroke="#C9A36A" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 12L11 14L15 10" stroke="#C9A36A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><div class="sb-brand-name">AcademiQ</div><div class="sb-brand-tag">AI Platform</div></div>
+      </a>
+      <div class="sb-section-label">Main</div>
+      <a href="dashboard.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+      <div class="sb-section-label">AI Modules</div>
+      <a href="document-ai.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>Document Intelligence</a>
+      <a href="report-gen.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Report Generation</a>
+      <a href="semantic-search.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Semantic Search</a>
+      <a href="analytics.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Predictive Analytics</a>
+      <a href="accreditation.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z"/><path d="M9 12l2 2 4-4"/></svg>Accreditation</a>
+    </div>
+    <div class="sb-bottom"><div class="sb-user"><div class="sb-avatar">AD</div><div><div class="sb-user-name">Admin User</div><div class="sb-user-role">Institute Admin</div></div></div></div>
+  </aside>  <div class="app-main">
+    <header class="app-header">
+      <div class="app-header-left">
+        <button class="sb-toggle icon-btn" id="sb-toggle" aria-label="Toggle sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div>
+          <div class="page-title">AI Document Intelligence</div>
+          <div class="breadcrumb">AcademiQ &rsaquo; <span>Document Intelligence</span></div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div>
+        <div class="header-avatar">AD</div>
+      </div>
+    </header>
+    <main class="app-content">
+      <div class="two-col">
+
+        <!-- Left: Upload + Pipeline -->
+        <div style="display:flex;flex-direction:column;gap:1rem">
+          <div class="card card-body rv">
+            <div class="upload-zone">
+              <div class="upload-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
+              <div class="upload-title">Drop institutional documents here</div>
+              <p class="upload-sub">Drag &amp; drop or click to browse — supports PDF, DOCX, XLSX, images</p>
+              <div class="file-types">
+                <span class="badge badge-gold">PDF</span>
+                <span class="badge badge-info">DOCX</span>
+                <span class="badge badge-warning">XLSX</span>
+                <span class="badge badge-success">PNG / JPG</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card rv d1">
+            <div class="card-header"><div class="card-title">Processing Pipeline</div><div class="card-subtitle">Current document: NAAC_SSR_2025.pdf</div></div>
+            <div class="card-body">
+              <div class="pipeline">
+                <div class="pipe-step done"><div class="pipe-icon">&#128444;</div><div class="pipe-label">OCR</div><div class="pipe-status">PaddleOCR &bull; Done</div></div>
+                <div class="pipe-step active"><div class="pipe-icon">&#129504;</div><div class="pipe-label">Classification</div><div class="pipe-status">BERT &bull; Running</div></div>
+                <div class="pipe-step"><div class="pipe-icon">&#128202;</div><div class="pipe-label">Extraction</div><div class="pipe-status">NER &bull; Queued</div></div>
+                <div class="pipe-step"><div class="pipe-icon">&#10003;</div><div class="pipe-label">Indexed</div><div class="pipe-status">BGE-M3 &bull; Queued</div></div>
+              </div>
+              <div style="margin-top:.5rem">
+                <div style="display:flex;justify-content:space-between;font-size:.75rem;color:rgba(250,247,242,.45);margin-bottom:.4rem"><span>Overall progress</span><span style="color:var(--gold)">52%</span></div>
+                <div class="progress-wrap"><div class="progress-fill" style="width:52%"></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Document type chart -->
+          <div class="chart-card rv d2">
+            <div class="card-header"><div class="card-title">Document Type Distribution</div><div class="card-subtitle">Across 4,291 processed files</div></div>
+            <div class="chart-body"><div class="chart-wrap" style="height:200px"><canvas id="docTypeChart"></canvas></div></div>
+          </div>
+        </div>
+
+        <!-- Right: Extracted data + recent -->
+        <div style="display:flex;flex-direction:column;gap:1rem">
+          <div class="card rv">
+            <div class="card-header"><div class="card-title">Extracted Data</div><div class="card-subtitle">NAAC_SSR_Criteria_1_2025.pdf</div></div>
+            <div style="overflow-x:auto">
+              <table class="data-table">
+                <thead><tr><th>Field</th><th>Extracted Value</th><th>Confidence</th></tr></thead>
+                <tbody>
+                  <tr><td class="td-name">Document Type</td><td>NAAC Self-Study Report</td><td><div class="conf-bar"><div class="progress-wrap" style="flex:1"><div class="progress-fill success" style="width:97%"></div></div><span class="conf-pct" style="color:var(--success)">97%</span></div></td></tr>
+                  <tr><td class="td-name">Institution Name</td><td>XYZ Institute of Technology</td><td><div class="conf-bar"><div class="progress-wrap" style="flex:1"><div class="progress-fill success" style="width:99%"></div></div><span class="conf-pct" style="color:var(--success)">99%</span></div></td></tr>
+                  <tr><td class="td-name">Academic Year</td><td>2024&ndash;2025</td><td><div class="conf-bar"><div class="progress-wrap" style="flex:1"><div class="progress-fill success" style="width:95%"></div></div><span class="conf-pct" style="color:var(--success)">95%</span></div></td></tr>
+                  <tr><td class="td-name">Criterion Number</td><td>Criterion I</td><td><div class="conf-bar"><div class="progress-wrap" style="flex:1"><div class="progress-fill" style="width:88%"></div></div><span class="conf-pct" style="color:var(--gold)">88%</span></div></td></tr>
+                  <tr><td class="td-name">Page Count</td><td>47 pages</td><td><div class="conf-bar"><div class="progress-wrap" style="flex:1"><div class="progress-fill success" style="width:100%"></div></div><span class="conf-pct" style="color:var(--success)">100%</span></div></td></tr>
+                  <tr><td class="td-name">Department</td><td>IQAC / Academic Affairs</td><td><div class="conf-bar"><div class="progress-wrap" style="flex:1"><div class="progress-fill warning" style="width:74%"></div></div><span class="conf-pct" style="color:var(--warning)">74%</span></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card rv d1">
+            <div class="card-header"><div class="card-title">Recent Uploads</div><div class="card-subtitle">Last 5 documents processed</div></div>
+            <div style="overflow-x:auto">
+              <table class="data-table">
+                <thead><tr><th>Filename</th><th>Type</th><th>Status</th><th>Time</th></tr></thead>
+                <tbody>
+                  <tr><td class="td-name" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">NAAC_SSR_Criteria_1_2025.pdf</td><td><span class="badge badge-gold">Policy</span></td><td><span class="badge badge-success">Done</span></td><td class="td-muted">2 min ago</td></tr>
+                  <tr><td class="td-name" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Faculty_Appraisal_CSE.docx</td><td><span class="badge badge-info">Report</span></td><td><span class="badge badge-success">Done</span></td><td class="td-muted">18 min ago</td></tr>
+                  <tr><td class="td-name" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">SEM5_Results_ECE_2025.xlsx</td><td><span class="badge badge-warning">Results</span></td><td><span class="badge badge-warning">Processing</span></td><td class="td-muted">34 min ago</td></tr>
+                  <tr><td class="td-name" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Lab_Report_MECH_Q2.pdf</td><td><span class="badge badge-info">Report</span></td><td><span class="badge badge-success">Done</span></td><td class="td-muted">1 hr ago</td></tr>
+                  <tr><td class="td-name" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Research_Publications_2025.pdf</td><td><span class="badge badge-gold">Research</span></td><td><span class="badge badge-danger">Failed</span></td><td class="td-muted">2 hr ago</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="../js/nav.js"></script>
+<script src="../js/charts.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const overlay = document.getElementById("sb-overlay");
+    if (!overlay) return;
+    overlay.style.display = "";
+    overlay.style.opacity = "0";
+    overlay.style.transition = "opacity .3s";
+    overlay.style.pointerEvents = "none";
+    const sidebar = document.getElementById("sidebar");
+    const toggle  = document.getElementById("sb-toggle");
+    const close   = () => { sidebar.classList.remove("open"); overlay.style.opacity="0"; overlay.style.pointerEvents="none"; };
+    if (toggle) toggle.addEventListener("click", () => {
+      sidebar.classList.toggle("open");
+      const open = sidebar.classList.contains("open");
+      overlay.style.opacity = open?"1":"0"; overlay.style.pointerEvents = open?"auto":"none";
+    });
+    overlay.addEventListener("click", close);
+  });
+</script><script>document.addEventListener("DOMContentLoaded",()=>initDocTypeChart("docTypeChart"));</script>
+</body></html>

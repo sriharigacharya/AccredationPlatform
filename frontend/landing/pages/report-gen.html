@@ -1,0 +1,157 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Report Generation — AcademiQ</title>  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="../css/tokens.css"/>
+  <link rel="stylesheet" href="../css/components.css"/>  <style>
+    .rg-layout{display:grid;grid-template-columns:280px 1fr;gap:1rem}
+    .config-card{background:var(--card-bg);border:1px solid var(--border);border-radius:var(--r-md);padding:1.25rem;display:flex;flex-direction:column;gap:1rem}
+    .config-section-title{font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(250,247,242,.38);margin-bottom:.4rem}
+    .report-preview{background:var(--panel-bg);border:1px solid var(--border);border-radius:var(--r-md);padding:1.75rem 2rem;font-size:.875rem;line-height:1.85;color:rgba(250,247,242,.82);max-height:520px;overflow-y:auto}
+    .report-preview h3{font-family:var(--font-serif);font-size:1.15rem;font-weight:600;color:var(--ivory);margin-bottom:.65rem;margin-top:1.25rem}
+    .report-preview h3:first-child{margin-top:0}
+    .report-preview p{margin-bottom:.75rem}
+    .report-preview table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.8rem}
+    .report-preview th{padding:.4rem .65rem;background:rgba(201,163,106,.1);color:var(--gold);font-weight:600;text-align:left;border:1px solid rgba(201,163,106,.15)}
+    .report-preview td{padding:.4rem .65rem;border:1px solid rgba(255,255,255,.06);color:rgba(250,247,242,.7)}
+    .gen-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:.5rem;background:var(--orange);color:#fff;font-size:.85rem;font-weight:600;padding:11px;border-radius:var(--r-sm);border:none;cursor:pointer;transition:background .2s}
+    .gen-btn:hover{background:var(--orange-dk)}
+    .model-chip{display:flex;align-items:center;gap:.45rem;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--r-sm);padding:6px 10px;font-size:.76rem;cursor:pointer;transition:all .2s;color:rgba(250,247,242,.6)}
+    .model-chip.active{border-color:rgba(201,163,106,.4);color:var(--gold);background:rgba(201,163,106,.08)}
+    .model-chip svg{width:14px;height:14px;flex-shrink:0}
+    @media(max-width:800px){.rg-layout{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div id="sb-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99"></div>
+<div class="app-shell">  <aside class="sidebar" id="sidebar">
+    <div class="sb-top">
+      <a href="../index.html" class="sb-brand">
+        <div class="sb-logo-mark"><svg viewBox="0 0 24 24" fill="none"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z" stroke="#C9A36A" stroke-width="1.5" stroke-linejoin="round"/><path d="M9 12L11 14L15 10" stroke="#C9A36A" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div><div class="sb-brand-name">AcademiQ</div><div class="sb-brand-tag">AI Platform</div></div>
+      </a>
+      <div class="sb-section-label">Main</div>
+      <a href="dashboard.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Dashboard</a>
+      <div class="sb-section-label">AI Modules</div>
+      <a href="document-ai.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg>Document Intelligence</a>
+      <a href="report-gen.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Report Generation</a>
+      <a href="semantic-search.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>Semantic Search</a>
+      <a href="analytics.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Predictive Analytics</a>
+      <a href="accreditation.html" class="sb-link"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 2L3 7V12C3 16.55 6.84 20.74 12 22C17.16 20.74 21 16.55 21 12V7L12 2Z"/><path d="M9 12l2 2 4-4"/></svg>Accreditation</a>
+    </div>
+    <div class="sb-bottom"><div class="sb-user"><div class="sb-avatar">AD</div><div><div class="sb-user-name">Admin User</div><div class="sb-user-role">Institute Admin</div></div></div></div>
+  </aside>  <div class="app-main">
+    <header class="app-header">
+      <div class="app-header-left">        <button class="sb-toggle icon-btn" id="sb-toggle" aria-label="Toggle sidebar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>        <div><div class="page-title">Smart Report Generation</div><div class="breadcrumb">AcademiQ &rsaquo; <span>Report Generation</span></div></div>
+      </div>
+      <div class="header-actions"><div class="icon-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div><div class="header-avatar">AD</div></div>
+    </header>
+    <main class="app-content">
+      <!-- Report type toggle -->
+      <div class="rv" style="margin-bottom:1rem">
+        <div class="card-title" style="margin-bottom:.65rem">Report Type</div>
+        <div class="pill-toggle">
+          <button class="pill-btn active">NAAC SSR</button>
+          <button class="pill-btn">NBA SAR</button>
+          <button class="pill-btn">Dept. Summary</button>
+          <button class="pill-btn">Custom</button>
+        </div>
+      </div>
+
+      <div class="rg-layout rv d1">
+        <!-- Config sidebar -->
+        <div class="config-card">
+          <div>
+            <div class="config-section-title">Academic Year</div>
+            <select class="form-input">
+              <option>2024&ndash;2025</option>
+              <option>2023&ndash;2024</option>
+              <option>2022&ndash;2023</option>
+            </select>
+          </div>
+          <div>
+            <div class="config-section-title">Department</div>
+            <select class="form-input">
+              <option>All Departments</option>
+              <option>CSE</option><option>ECE</option><option>MECH</option><option>CIVIL</option>
+            </select>
+          </div>
+          <div>
+            <div class="config-section-title">Sections to Include</div>
+            <div style="display:flex;flex-direction:column;gap:.5rem;margin-top:.3rem">
+              <label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:rgba(250,247,242,.7);cursor:pointer"><input type="checkbox" checked style="accent-color:var(--gold)"> Executive Summary</label>
+              <label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:rgba(250,247,242,.7);cursor:pointer"><input type="checkbox" checked style="accent-color:var(--gold)"> Student Performance</label>
+              <label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:rgba(250,247,242,.7);cursor:pointer"><input type="checkbox" checked style="accent-color:var(--gold)"> Faculty Analysis</label>
+              <label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:rgba(250,247,242,.7);cursor:pointer"><input type="checkbox" style="accent-color:var(--gold)"> Infrastructure</label>
+              <label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:rgba(250,247,242,.7);cursor:pointer"><input type="checkbox" checked style="accent-color:var(--gold)"> Compliance Status</label>
+            </div>
+          </div>
+          <div>
+            <div class="config-section-title">LLM Model</div>
+            <div style="display:flex;flex-direction:column;gap:.4rem;margin-top:.3rem">
+              <div class="model-chip active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>Llama 3.1 8B (Default)</div>
+              <div class="model-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6M9 12h6M9 15h4"/></svg>BART-Large</div>
+              <div class="model-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>T5-Large</div>
+            </div>
+          </div>
+          <button class="gen-btn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            Generate Report
+          </button>
+        </div>
+
+        <!-- Preview panel -->
+        <div style="display:flex;flex-direction:column;gap:.75rem">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div><div class="card-title">Generated Report Preview</div><div class="card-subtitle" style="font-size:.72rem;color:rgba(250,247,242,.35);margin-top:2px">Llama 3.1 8B &bull; NAAC SSR &bull; AY 2024&ndash;25 &bull; Generated 2 min ago</div></div>
+            <div style="display:flex;gap:.5rem">
+              <button class="btn btn-sm btn-secondary">&#128196; Copy</button>
+              <button class="btn btn-sm btn-gold">&#8595; Download PDF</button>
+            </div>
+          </div>
+          <div class="report-preview">
+            <h3>NAAC Self-Study Report — Executive Summary</h3>
+            <p>XYZ Institute of Technology has demonstrated consistent academic excellence during the assessment period 2024&ndash;2025. This Self-Study Report presents a comprehensive evaluation of the institution's performance across all seven NAAC criteria, synthesised from 4,291 institutional documents processed by the AcademiQ AI platform.</p>
+
+            <h3>1. Curricular Aspects</h3>
+            <p>The institution offers 12 undergraduate and 6 postgraduate programmes aligned with the National Education Policy 2020 guidelines. Programme Outcomes (POs) and Course Outcomes (COs) have been defined and mapped for all 248 courses. Curriculum revision cycles occur on a biennial basis with active industry participation.</p>
+            <table>
+              <tr><th>Programme</th><th>Students</th><th>Pass Rate</th><th>Attainment Level</th></tr>
+              <tr><td>B.E. CSE</td><td>480</td><td>91.4%</td><td>Level 3</td></tr>
+              <tr><td>B.E. ECE</td><td>360</td><td>85.2%</td><td>Level 2</td></tr>
+              <tr><td>B.E. MECH</td><td>360</td><td>78.6%</td><td>Level 2</td></tr>
+              <tr><td>MBA</td><td>120</td><td>88.3%</td><td>Level 3</td></tr>
+            </table>
+
+            <h3>2. Teaching-Learning &amp; Evaluation</h3>
+            <p>Faculty strength stands at 184 with a student-to-faculty ratio of 15.5:1, within UGC norms. The institution has adopted Outcome-Based Education (OBE) with continuous internal assessments, project-based learning, and blended modes of delivery. Average faculty workload is 17.2 hours per week, ensuring adequate time for research and student mentoring.</p>
+
+            <h3>3. Research, Innovations &amp; Extension</h3>
+            <p>Faculty members have published 127 papers in SCOPUS/WoS-indexed journals during the assessment period. Six sponsored research projects worth Rs. 48.6 Lakhs are currently active. The institution maintains active MoUs with 23 industry partners for collaborative research and internships.</p>
+
+            <h3>Compliance Status</h3>
+            <p>Overall NAAC readiness score: <strong style="color:var(--gold)">78%</strong>. Criteria I through IV show strong evidence availability. Criterion V (Student Support) and Criterion VII (Institutional Values) require additional documentation, which the Accreditation Assistant module has flagged for immediate attention.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="../js/nav.js"></script>
+<script src="../js/charts.js"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const overlay = document.getElementById("sb-overlay");
+    if (!overlay) return;
+    overlay.style.display=""; overlay.style.opacity="0"; overlay.style.transition="opacity .3s"; overlay.style.pointerEvents="none";
+    const sidebar=document.getElementById("sidebar"); const toggle=document.getElementById("sb-toggle");
+    const close=()=>{ sidebar.classList.remove("open"); overlay.style.opacity="0"; overlay.style.pointerEvents="none"; };
+    if(toggle) toggle.addEventListener("click",()=>{ sidebar.classList.toggle("open"); const open=sidebar.classList.contains("open"); overlay.style.opacity=open?"1":"0"; overlay.style.pointerEvents=open?"auto":"none"; });
+    overlay.addEventListener("click",close);
+  });
+</script></body></html>
