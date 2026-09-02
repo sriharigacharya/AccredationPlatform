@@ -92,6 +92,7 @@ export default function LoginPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
               {DEMO_CREDS.map(cred => (
                 <button
+                  type="button"
                   key={cred.role}
                   onClick={() => fillDemo(cred)}
                   style={{
@@ -110,6 +111,7 @@ export default function LoginPage() {
                 </button>
               ))}
             </div>
+
             {activeDemo && (
               <div style={{
                 marginTop: 8, padding: '8px 12px',

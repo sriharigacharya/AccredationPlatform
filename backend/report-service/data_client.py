@@ -256,14 +256,41 @@ def fetch_approved_events(
         return []
 
 
+def fetch_image_base64(base_url: str, photo_path: str, category: str = "event") -> str | None:
+    """Fetch an image from academic-data-service and return as data:image/jpeg;base64,... string."""
+    import base64
+    if not photo_path:
+        return None
+    endpoint = f"/event-photos/{photo_path}" if category == "event" else f"/achievement-photos/{photo_path}"
+    try:
+        url = f"{base_url.rstrip('/')}{endpoint}"
+        resp = _SESSION.get(url, timeout=5)
+        if resp.status_code == 200 and resp.content:
+            mime = resp.headers.get("Content-Type", "image/jpeg")
+            encoded = base64.b64encode(resp.content).decode("utf-8")
+            return f"data:{mime};base64,{encoded}"
+    except Exception as e:
+        logger.debug(f"[data_client] Could not fetch image {photo_path}: {e}")
+    return None
+
+
 def fetch_event_summary_sheets(base_url: str, event_ids: list[int] | None = None) -> list[dict]:
-    """Fetch full detailed summary sheets for specific events (or all approved)."""
+    """Fetch full detailed summary sheets for specific events (or all approved) with inlined base64 images."""
     params = {}
     if event_ids:
         params["event_ids"] = ",".join(str(i) for i in event_ids)
     try:
         res = _get(base_url, "/events/summary-sheets", params)
-        return res if isinstance(res, list) else []
+        sheets = res if isinstance(res, list) else []
+        for s in sheets:
+            for p in s.get("photos_formatted", []):
+                p_path = p.get("photo_path")
+                if p_path:
+                    b64 = fetch_image_base64(base_url, p_path, category="event")
+                    if b64:
+                        p["photo_data_url"] = b64
+                        p["photo_url"] = b64
+        return sheets
     except Exception as e:
         logger.warning(f"[data_client] Could not fetch event summary sheets: {e}")
         return []
@@ -357,10 +384,21 @@ def fetch_verified_student_achievements(
         params["academic_year"] = academic_year
     try:
         res = _get(base_url, "/student-achievements/report", params)
-        return res if isinstance(res, dict) else {}
+        data = res if isinstance(res, dict) else {}
+        # Inline photo base64
+        for yr_grp in data.get("unified_by_year", []):
+            for ach in yr_grp.get("achievements", []):
+                paths = ach.get("photo_paths", [])
+                ach["photo_data_urls"] = []
+                for p in paths:
+                    b64 = fetch_image_base64(base_url, p, category="achievement")
+                    if b64:
+                        ach["photo_data_urls"].append(b64)
+        return data
     except Exception as e:
         logger.warning(f"[data_client] Could not fetch verified student achievements: {e}")
         return {}
+
 
 
 

@@ -56,6 +56,8 @@ ROUTE_TABLE = [
     ("/faculty",        "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
     ("/departments",    "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
     ("/assignments",    "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
+    ("/classes",        "ACADEMIC_DATA_SERVICE_URL",  True, _STAFF),
+
 
     # ── Clubs & Events ────────────────────────────────────────
     # Fine-grained role checks (mentor-only approve, head/council submit)
@@ -218,11 +220,11 @@ def proxy(subpath):
             url            = upstream,
             headers        = forward_headers,
             data           = request.get_data(),
-            files          = request.files if request.files else None,
             timeout        = 60,
             allow_redirects= False,
             stream         = True,
         )
+
     except req.exceptions.ConnectionError:
         logger.error(f"[gateway] Cannot connect to {svc_key} at {base_url}")
         return jsonify({"error": f"Service unavailable: {svc_key.lower().replace('_url', '')}"}), 503

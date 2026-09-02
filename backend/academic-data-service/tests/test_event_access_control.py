@@ -41,13 +41,14 @@ def app():
         db.session.add(dept)
 
         # Faculty 1 (mentor for Club 1), Faculty 2 (not mentor for Club 1)
-        f1 = Faculty(faculty_id="FAC001", name="Dr. Raman", email="raman@test.edu", department_code="CSE")
-        f2 = Faculty(faculty_id="FAC002", name="Dr. Meera", email="meera@test.edu", department_code="CSE")
+        f1 = Faculty(faculty_id="FAC001", name="Dr. Raman", email="raman@test.edu", department_id=dept.id)
+        f2 = Faculty(faculty_id="FAC002", name="Dr. Meera", email="meera@test.edu", department_id=dept.id)
         db.session.add_all([f1, f2])
 
         # Student & Worker
-        s1 = Student(student_id="STU001", name="Rohan", email="rohan@test.edu", department_code="CSE")
+        s1 = Student(student_id="STU001", name="Rohan", email="rohan@test.edu", department_id=dept.id)
         db.session.add(s1)
+
 
         # Club with mentor FAC001
         c1 = Club(id=1, name="ACM Student Chapter", category="technical", mentor_faculty_id="FAC001")
@@ -63,6 +64,7 @@ def app():
             event_date=datetime(2025, 10, 15, 10, 0),
             venue="Auditorium",
             attendee_count=150,
+            organized_by_student_id="STU001",
             report_text="Successful symposium.",
             po_mapping="PO1, PO2, PO5",
             resource_person="Industry Expert",

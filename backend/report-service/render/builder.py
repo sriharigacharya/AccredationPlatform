@@ -307,12 +307,13 @@ def _build_formula_or_table_section(
             table_rows = [["—", "Data not available", "—", "—", "—", "—", "—"]]
             is_placeholder = True
 
-        # Layer 2 Summary Sheets: Only for selected events in include_event_ids
+        # Layer 2 Summary Sheets: Default to all approved events if none explicitly selected
+        selected_ids = include_event_ids if include_event_ids is not None else [e["id"] for e in all_approved if "id" in e]
         summary_sheets = []
-        if include_event_ids:
+        if selected_ids:
             summary_sheets = data_client.fetch_event_summary_sheets(
                 academic_url,
-                event_ids=include_event_ids,
+                event_ids=selected_ids,
             )
 
         return ReportSection(
@@ -323,7 +324,7 @@ def _build_formula_or_table_section(
             has_placeholders=is_placeholder,
             source_data={
                 "total_approved_events": len(all_approved),
-                "detailed_event_ids": include_event_ids or [],
+                "detailed_event_ids": selected_ids or [],
                 "summary_sheets_count": len(summary_sheets),
             },
         )
@@ -335,6 +336,7 @@ def _build_formula_or_table_section(
         )
         unified_by_year = report_data.get("unified_by_year", [])
         table_rows = []
+        achievements_list = []
         sl_no = 1
         for yr_grp in unified_by_year:
             for ach in yr_grp.get("achievements", []):
@@ -349,6 +351,7 @@ def _build_formula_or_table_section(
                     ach.get("venue") or "—",
                     ach.get("result_description") or "—",
                 ])
+                achievements_list.append(ach)
                 sl_no += 1
 
         is_placeholder = len(table_rows) == 0
@@ -363,6 +366,7 @@ def _build_formula_or_table_section(
             source_data={
                 "total_verified_achievements": report_data.get("total_verified_achievements", 0 if is_placeholder else len(table_rows)),
                 "academic_years_count": report_data.get("academic_years_count", len(unified_by_year)),
+                "achievements": achievements_list,
             },
         )
 
@@ -370,38 +374,64 @@ def _build_formula_or_table_section(
         verified_admissions = data_client.fetch_verified_admission_records(
             academic_url,
             department=dept.get("code"),
-            academic_year=academic_year,
+            academic_year=None,
         )
         if verified_admissions:
-            rec = verified_admissions[0]
-            enrolled = rec.get("total_admitted", 0) or rec.get("first_year_admitted_net_migration", 0)
-            intake   = rec.get("sanctioned_intake", 0)
-            is_placeholder = False
-            result = formulas.enrolment_ratio(enrolled, intake)
+            sorted_adm = sorted(verified_admissions, key=lambda r: r.get("academic_year", ""), reverse=True)[:3]
+            er_values = []
+            for r in sorted_adm:
+                n = r.get("sanctioned_intake", 0)
+                n1 = r.get("total_admitted", 0) or r.get("first_year_admitted_net_migration", 0)
+                er = (n1 / n * 100.0) if n > 0 else 0.0
+                er_values.append(er)
+
+            avg_er = sum(er_values) / len(er_values) if er_values else 0.0
+            if avg_er >= 90:
+                marks = 20.0
+            elif avg_er >= 80:
+                marks = 18.0
+            elif avg_er >= 70:
+                marks = 16.0
+            elif avg_er >= 60:
+                marks = 14.0
+            else:
+                marks = 0.0
+
+            first_rec = sorted_adm[0]
+            enrolled = first_rec.get("total_admitted", 0) or first_rec.get("first_year_admitted_net_migration", 0)
+            intake   = first_rec.get("sanctioned_intake", 0)
+            result = {
+                "enrolled": enrolled,
+                "sanctioned_intake": intake,
+                "er_pct": round(avg_er, 2),
+                "marks": marks,
+                "max_marks": 20.0,
+                "assessment_formula": f"Average [(ER1+ER2+ER3)/3] = {avg_er:.2f}% | Assessment = {marks:.2f} / 20",
+            }
             table_rows = [
                 ["Sanctioned Intake (N)", intake],
                 ["Students Admitted (N1+N2+N3)", enrolled],
-                ["Enrolment Ratio (%)", f"{result['er_pct']:.1f}%"],
-                ["Marks Scored", f"{result['marks']:.0f} / 20"],
+                ["Enrolment Ratio (%)", f"{avg_er:.1f}%"],
+                ["Marks Scored", f"{marks:.0f} / 20"],
             ]
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=["Parameter", "Value"],
+                table_rows=table_rows,
+                has_placeholders=False,
+                source_data={"enrolled": enrolled, "sanctioned_intake": intake, "records": sorted_adm},
+            )
         else:
-            is_placeholder = True
-            result = {"enrolled": 0, "sanctioned_intake": 0, "er_pct": 0.0, "marks": 0.0}
-            table_rows = [
-                ["Sanctioned Intake (N)", "Data not available"],
-                ["Students Admitted (N1+N2+N3)", "Data not available"],
-                ["Enrolment Ratio (%)", "Data not available"],
-                ["Marks Scored", "0 / 20"],
-            ]
-
-        return ReportSection(
-            **base,
-            formula_result=result,
-            table_headers=["Parameter", "Value"],
-            table_rows=table_rows,
-            has_placeholders=is_placeholder,
-            source_data={"enrolled": result.get("enrolled", 0), "sanctioned_intake": result.get("sanctioned_intake", 0), "records": verified_admissions},
-        )
+            result = {"enrolled": 0, "sanctioned_intake": 0, "er_pct": 0.0, "marks": 0.0, "max_marks": 20.0}
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=["Parameter", "Value"],
+                table_rows=[["Sanctioned Intake (N)", "Data not available"], ["Students Admitted (N1+N2+N3)", "Data not available"], ["Enrolment Ratio (%)", "Data not available"], ["Marks Scored", "0 / 20"]],
+                has_placeholders=True,
+                source_data={"records": []},
+            )
 
     if fn == "success_rate_without_backlog" or node.id == "4.2.1":
         batches_summary = data_client.fetch_verified_batch_progress_summary(
@@ -410,35 +440,45 @@ def _build_formula_or_table_section(
         )
         completed_batches = [b for b in batches_summary if b.get("year_IV")]
         if completed_batches:
+            batches_3 = completed_batches[:3]
             si_values = [
                 (b["year_IV"]["students_without_backlog"] / b["total_admitted"]) if b.get("total_admitted", 0) > 0 else 0.0
-                for b in completed_batches
+                for b in batches_3
             ]
             avg_si = sum(si_values) / len(si_values) if si_values else 0.0
-            result = formulas.success_rate_without_backlog(avg_si)
-            table_rows = [
-                ["Average Success Index (Without Backlog)", f"{result['avg_si']:.4f}"],
-                ["Success Rate (%)", f"{result['avg_si_pct']:.1f}%"],
-                ["Assessment Marks", f"{result['marks']:.1f} / 25"],
-            ]
-            is_placeholder = False
-        else:
-            result = {"avg_si": 0.0, "avg_si_pct": 0.0, "marks": 0.0}
-            table_rows = [
-                ["Average Success Index (Without Backlog)", "Data not available"],
-                ["Success Rate (%)", "Data not available"],
-                ["Assessment Marks", "0.0 / 25"],
-            ]
-            is_placeholder = True
+            marks = round(avg_si * 25.0, 2)
+            result = {
+                "avg_si": round(avg_si, 4),
+                "avg_si_pct": round(avg_si * 100.0, 2),
+                "marks": marks,
+                "max_marks": 25.0,
+                "formula_text": f"Success rate without backlogs = 25 × Average SI = 25 × {avg_si:.2f} = {marks:.2f}",
+            }
 
-        return ReportSection(
-            **base,
-            formula_result=result,
-            table_headers=["Parameter", "Value"],
-            table_rows=table_rows,
-            has_placeholders=is_placeholder,
-            source_data={"avg_si": result.get("avg_si", 0.0), "batches": completed_batches},
-        )
+            headers = ["ITEM"] + [f"Latest Year of Graduation, {'LYG' if i==0 else f'LYGm{i}'} ({b.get('year_of_entry') or b.get('cohort_year', '')})" for i, b in enumerate(batches_3)]
+            row_admitted = ["Number of students admitted in corresponding First Year + lateral entry (N1+N2)"] + [b.get("total_admitted", 0) for b in batches_3]
+            row_passed = ["Number of students who have graduated without backlogs in stipulated period"] + [b.get("year_IV", {}).get("students_without_backlog", 0) for b in batches_3]
+            row_si = ["Success Index (SI)"] + [f"{si:.2f}" for si in si_values]
+            row_avg = ["Average SI"] + [f"{avg_si:.2f}"] + ["—"] * (len(batches_3) - 1)
+
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=headers,
+                table_rows=[row_admitted, row_passed, row_si, row_avg],
+                has_placeholders=False,
+                source_data={"avg_si": avg_si, "batches": batches_3},
+            )
+        else:
+            result = {"avg_si": 0.0, "avg_si_pct": 0.0, "marks": 0.0, "max_marks": 25.0}
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=["ITEM", "LYG", "LYGm1", "LYGm2"],
+                table_rows=[["Data not available", "—", "—", "—"]],
+                has_placeholders=True,
+                source_data={"batches": []},
+            )
 
     if fn == "success_rate_with_backlog" or node.id == "4.2.2":
         batches_summary = data_client.fetch_verified_batch_progress_summary(
@@ -447,83 +487,99 @@ def _build_formula_or_table_section(
         )
         completed_batches = [b for b in batches_summary if b.get("year_IV")]
         if completed_batches:
+            batches_3 = completed_batches[:3]
             si_values = [
                 (b["year_IV"]["students_total_passed"] / b["total_admitted"]) if b.get("total_admitted", 0) > 0 else 0.0
-                for b in completed_batches
+                for b in batches_3
             ]
             avg_si = sum(si_values) / len(si_values) if si_values else 0.0
-            result = formulas.success_rate_with_backlog(avg_si)
-            table_rows = [
-                ["Average Success Index (With Backlogs Allowed)", f"{result['avg_si']:.4f}"],
-                ["Success Rate (%)", f"{result['avg_si_pct']:.1f}%"],
-                ["Assessment Marks", f"{result['marks']:.1f} / 15"],
-            ]
-            is_placeholder = False
-        else:
-            result = {"avg_si": 0.0, "avg_si_pct": 0.0, "marks": 0.0}
-            table_rows = [
-                ["Average Success Index (With Backlogs Allowed)", "Data not available"],
-                ["Success Rate (%)", "Data not available"],
-                ["Assessment Marks", "0.0 / 15"],
-            ]
-            is_placeholder = True
+            marks = round(avg_si * 15.0, 2)
+            result = {
+                "avg_si": round(avg_si, 4),
+                "avg_si_pct": round(avg_si * 100.0, 2),
+                "marks": marks,
+                "max_marks": 15.0,
+                "formula_text": f"Success rate with backlogs = 15 × Average SI = 15 × {avg_si:.2f} = {marks:.2f}",
+            }
 
-        return ReportSection(
-            **base,
-            formula_result=result,
-            table_headers=["Parameter", "Value"],
-            table_rows=table_rows,
-            has_placeholders=is_placeholder,
-            source_data={"avg_si": result.get("avg_si", 0.0), "batches": completed_batches},
-        )
+            headers = ["ITEM"] + [f"Latest Year of Graduation, {'LYG' if i==0 else f'LYGm{i}'} ({b.get('year_of_entry') or b.get('cohort_year', '')})" for i, b in enumerate(batches_3)]
+            row_admitted = ["Number of students admitted in corresponding First Year + lateral entry (N1+N2)"] + [b.get("total_admitted", 0) for b in batches_3]
+            row_passed = ["Number of students who have graduated in stipulated period (with backlogs)"] + [b.get("year_IV", {}).get("students_total_passed", 0) for b in batches_3]
+            row_si = ["Success Index (SI)"] + [f"{si:.2f}" for si in si_values]
+            row_avg = ["Average SI"] + [f"{avg_si:.2f}"] + ["—"] * (len(batches_3) - 1)
+
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=headers,
+                table_rows=[row_admitted, row_passed, row_si, row_avg],
+                has_placeholders=False,
+                source_data={"avg_si": avg_si, "batches": batches_3},
+            )
+        else:
+            result = {"avg_si": 0.0, "avg_si_pct": 0.0, "marks": 0.0, "max_marks": 15.0}
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=["ITEM", "LYG", "LYGm1", "LYGm2"],
+                table_rows=[["Data not available", "—", "—", "—"]],
+                has_placeholders=True,
+                source_data={"batches": []},
+            )
 
     if fn in ("api_year1", "api_year2", "api_year3") or node.id in ("4.3", "4.4"):
-        study_year_map = {"api_year1": "I", "api_year2": "II", "api_year3": "III"}
-        study_yr = study_year_map.get(fn, "II" if node.id == "4.3" else "III")
+        study_yr = "III" if node.id == "4.3" or fn == "api_year3" else "II"
         perf_records = data_client.fetch_verified_academic_performance(
             academic_url,
             department=dept.get("code"),
-            academic_year=academic_year,
+            academic_year=None,
             year_of_study=study_yr,
         )
 
         if perf_records:
-            records_data = [
-                {
-                    "academic_year": r.get("academic_year"),
-                    "year_of_study": r.get("year_of_study"),
-                    "mean_cgpa_or_percentage": float(r.get("mean_cgpa_or_percentage") or 0.0),
-                    "successful_students_count": int(r.get("successful_students_count") or 0),
-                    "appeared_students_count": int(r.get("appeared_students_count") or 0),
-                }
-                for r in perf_records
-            ]
-            result = formulas.academic_performance_index(records_by_year=records_data, max_marks=float(node.marks or 15.0))
-            rows = []
-            for y in result.get("years", []):
-                rows.append([
-                    y.get("academic_year") or "—",
-                    y.get("appeared_students_count", 0),
-                    y.get("successful_students_count", 0),
-                    f"{y.get('mean_cgpa_or_percentage', 0.0):.2f}",
-                    f"{y.get('success_ratio', 0.0):.4f}",
-                    f"{y.get('api', 0.0):.2f}",
-                ])
+            records_3 = sorted(perf_records, key=lambda r: r.get("academic_year", ""), reverse=True)[:3]
+            api_values = []
+            total_students_count = 0
+            for r in records_3:
+                cgpa = float(r.get("mean_cgpa_or_percentage") or 0.0)
+                succ = int(r.get("successful_students_count") or 0)
+                app = int(r.get("appeared_students_count") or 1)
+                total_students_count += app
+                api = cgpa * (succ / app) if app > 0 else 0.0
+                api_values.append(api)
+
+            avg_api = sum(api_values) / len(api_values) if api_values else 0.0
+            marks = round(1.5 * avg_api, 2)
+            result = {
+                "avg_api": round(avg_api, 3),
+                "marks": marks,
+                "max_marks": 15.0,
+                "total_students": total_students_count,
+                "formula_text": f"Academic Performance = 1.5 * Average API = 1.5 * {avg_api:.2f} = {marks:.2f}",
+            }
+
+            headers = ["Academic Performance"] + [r.get("academic_year") for r in records_3]
+            row_x = ["Mean of CGPA or Mean Percentage of all successful Students (X)"] + [f"{r.get('mean_cgpa_or_percentage', 0.0):.2f}" for r in records_3]
+            row_y = ["Total no. of Successful Students (Y)"] + [r.get("successful_students_count", 0) for r in records_3]
+            row_z = ["Total no. of Students appeared in the examination (Z)"] + [r.get("appeared_students_count", 0) for r in records_3]
+            row_api = ["API = X * (Y / Z)"] + [f"{api:.2f}" for api in api_values]
+            row_avg = ["Average API"] + [f"{avg_api:.2f}"] + ["—"] * (len(records_3) - 1)
+
             return ReportSection(
                 **base,
                 formula_result=result,
-                table_headers=["Academic Year", "Appeared Students", "Successful Students", "Mean CGPA", "Success Ratio", "API"],
-                table_rows=rows,
+                table_headers=headers,
+                table_rows=[row_x, row_y, row_z, row_api, row_avg],
                 has_placeholders=False,
-                source_data={"records": perf_records, "summary": result},
+                source_data={"records": records_3, "summary": result},
             )
         else:
-            result = {"avg_api": 0.0, "marks": 0.0, "years": []}
+            result = {"avg_api": 0.0, "marks": 0.0, "max_marks": 15.0, "total_students": 0, "years": []}
             return ReportSection(
                 **base,
                 formula_result=result,
-                table_headers=["Academic Year", "Appeared Students", "Successful Students", "Mean CGPA", "Success Ratio", "API"],
-                table_rows=[["Data not available", "—", "—", "—", "—", "—"]],
+                table_headers=["Academic Performance", "Year 1", "Year 2", "Year 3"],
+                table_rows=[["Data not available", "—", "—", "—"]],
                 has_placeholders=True,
                 source_data={"records": []},
             )
@@ -533,39 +589,52 @@ def _build_formula_or_table_section(
         years_data = placement_summary.get("years", [])
 
         if years_data:
-            placements_for_formula = [
-                {
-                    "cohort_year": y.get("cohort_year"),
-                    "academic_year": y.get("academic_year"),
-                    "total": y.get("final_year_cohort_total", 0),
-                    "placed": y.get("verified_placed", 0),
-                    "higher_studies": y.get("verified_higher_studies", 0),
-                    "entrepreneurs": y.get("verified_entrepreneurs", 0),
-                }
-                for y in years_data
-            ]
-            result = formulas.placement_index(placements_for_formula)
+            years_3 = years_data[:3]
+            pi_values = []
             rows = []
-            for y in result.get("years", []):
+            for y in years_3:
+                pos = y.get("career_positive_total")
+                placed = y.get("verified_placed") if y.get("verified_placed") is not None else y.get("placed", 0)
+                higher = y.get("verified_higher_studies") if y.get("verified_higher_studies") is not None else y.get("higher_studies", 0)
+                entr   = y.get("verified_entrepreneurs") if y.get("verified_entrepreneurs") is not None else y.get("entrepreneurs", 0)
+                if pos is None:
+                    pos = placed + higher + entr
+                tot = y.get("final_year_cohort_total") or y.get("total", 0) or 1
+                pi = (pos / tot) if tot > 0 else 0.0
+                pi_values.append(pi)
+
                 rows.append([
                     y.get("academic_year") or str(y.get("cohort_year")),
-                    y.get("total", 0),
-                    y.get("placed", 0),
-                    y.get("higher_studies", 0),
-                    y.get("entrepreneurs", 0),
-                    y.get("career_positive_total", 0),
-                    f"{y.get('placement_index_pct', 0.0):.1f}%",
+                    tot,
+                    placed,
+                    higher,
+                    entr,
+                    pos,
+                    f"{pi * 100.0:.1f}%",
                 ])
+
+            avg_pi = sum(pi_values) / len(pi_values) if pi_values else 0.0
+            marks = round(40.0 * avg_pi, 2)
+            result = {
+                "avg_placement_index": round(avg_pi, 4),
+                "avg_placement_pct": round(avg_pi * 100.0, 2),
+                "marks": marks,
+                "max_marks": 40.0,
+                "formula_text": f"Assessment Points = 40 * Average Placement = 40 x {avg_pi:.2f} = {marks:.2f}",
+            }
+
+            headers = ["Academic Year", "Cohort Total (N)", "Placed (x)", "Higher Studies (y)", "Entrepreneurs (z)", "Total (x+y+z)", "Placement Index P (%)"]
+
             return ReportSection(
                 **base,
                 formula_result=result,
-                table_headers=["Academic Year", "Cohort Total (N)", "Placed (x)", "Higher Studies (y)", "Entrepreneurs (z)", "Total (x+y+z)", "Placement Index P (%)"],
+                table_headers=headers,
                 table_rows=rows,
                 has_placeholders=False,
                 source_data=placement_summary,
             )
         else:
-            result = {"avg_placement_index_pct": 0.0, "marks": 0.0, "years": []}
+            result = {"avg_placement_index": 0.0, "avg_placement_pct": 0.0, "marks": 0.0, "max_marks": 40.0, "years": []}
             return ReportSection(
                 **base,
                 formula_result=result,
@@ -574,6 +643,9 @@ def _build_formula_or_table_section(
                 has_placeholders=True,
                 source_data={"placement": []},
             )
+
+
+
 
 
 

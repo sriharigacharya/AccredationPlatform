@@ -153,13 +153,24 @@ class EventPhoto(db.Model):
     file_path   = db.Column(db.String(500), nullable=False)
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    @property
+    def photo_path(self):
+        return self.file_path
+
+    @property
+    def caption(self):
+        return ""
+
     def to_dict(self):
         return {
             "id":          self.id,
             "event_id":    self.event_id,
             "file_path":   self.file_path,
-            "uploaded_at":  self.uploaded_at.isoformat() if self.uploaded_at else None,
+            "photo_path":  self.file_path,
+            "caption":     "",
+            "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
         }
+
 
 
 def _safe_json(val):

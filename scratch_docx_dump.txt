@@ -1,0 +1,73 @@
+=== PARAGRAPHS ===
+[Normal] NATIONAL BOARD OF ACCREDITATION
+[Normal] SELF-ASSESSMENT REPORT (SAR)
+[Normal] UG Engineering Programs — Tier-II Institution | GAPC V4.0 | January 2025
+[Normal] Computer Science & Engineering
+[Normal] B.E. Computer Science & Engineering
+[Normal] Department of Computer Science & Engineering
+[Normal] Academic Year: 2025-26  |  Generated: 2026-09-02
+[Heading 1] Criterion 4: Students' Performance
+[Heading 3] 4.1  Enrolment Ratio  (20 marks)
+[FormulaResult] Score: 20 / 20 marks   |   er_pct: 107.22   |   enrolled: 193   |   intake: 180
+[Heading 1] Criterion 4.2: Success Rate in Stipulated Period
+[Heading 4] 4.2.1  Success Index without Backlog  (25 marks)
+[FormulaResult] Score: 19.13 / 25 marks   |   avg_si: 0.7653   |   avg_si_pct: 76.53   |   max_marks: 25.0
+[Heading 4] 4.2.2  Success Index with Backlog  (15 marks)
+[FormulaResult] Score: 13.85 / 15 marks   |   avg_si: 0.9236   |   avg_si_pct: 92.36   |   max_marks: 15.0
+[Heading 3] 4.3  Academic Performance — Second Year (API)  (15 marks)
+[PlaceholderWarning] ⚠ Placeholder data — verify before submission.
+[FormulaResult] Score: 0.0 / 15 marks   |   avg_api: 0.0   |   years: []
+[Heading 3] 4.4  Academic Performance — Third Year (API)  (15 marks)
+[PlaceholderWarning] ⚠ Placeholder data — verify before submission.
+[FormulaResult] Score: 0.0 / 15 marks   |   avg_api: 0.0   |   years: []
+[Heading 3] 4.5  Placement, Higher Studies and Entrepreneurship  (40 marks)
+[FormulaResult] Score: 25.31 / 40 marks   |   avg_placement_index: 0.6328   |   avg_placement_pct: 63.28   |   years_count: 4   |   is_provisional: False   |   years: [{'cohort_year': 2026, 'academic_year': '2025-26', 'total': 32, 'placed': 3, 'higher_studies': 2, 'entrepreneurs': 1, 'career_positive_total': 6, 'placement_index_ratio': 0.1875, 'placement_index_pct': 18.75}, {'cohort_year': 2025, 'academic_year': '2024-25', 'total': 32, 'placed': 20, 'higher_studies': 3, 'entrepreneurs': 1, 'career_positive_total': 24, 'placement_index_ratio': 0.75, 'placement_index_pct': 75.0}, {'cohort_year': 2024, 'academic_year': '2023-24', 'total': 32, 'placed': 22, 'higher_studies': 3, 'entrepreneurs': 1, 'career_positive_total': 26, 'placement_index_ratio': 0.8125, 'placement_index_pct': 81.25}, {'cohort_year': 2023, 'academic_year': '2022-23', 'total': 32, 'placed': 21, 'higher_studies': 3, 'entrepreneurs': 1, 'career_positive_total': 25, 'placement_index_ratio': 0.7812, 'placement_index_pct': 78.12}]
+[Heading 1] Criterion 4.6: Professional Activities
+[Heading 4] 4.6.1  Professional Activities and Club Events (Summary Sheets)  (5 marks)
+[PlaceholderWarning] ⚠ Placeholder data — verify before submission.
+[Heading 4] 4.6.2  Publication of Technical Magazines, Newsletters, etc.  (5 marks)
+[Normal] The department publishes an annual technical magazine ByteStream and a bi-monthly newsletter TechPulse. The editorial board comprises 4 faculty members and 8 elected student editors. During 2025-26, 32 student technical articles and 14 research briefs were featured.
+[Heading 4] 4.6.3  Participation in Inter-Institute Events by Students  (10 marks)
+[Heading 2] DECLARATION / SIGNATURES
+
+=== TABLES ===
+-- Table 1 (5 rows x 2 cols) --
+Parameter | Value
+Sanctioned Intake (N) | 180
+Students Admitted (N1+N2+N3) | 193
+Enrolment Ratio (%) | 107.2%
+Marks Scored | 20 / 20
+-- Table 2 (4 rows x 2 cols) --
+Parameter | Value
+Average Success Index (Without Backlog) | 0.7653
+Success Rate (%) | 76.5%
+Assessment Marks | 19.1 / 25
+-- Table 3 (4 rows x 2 cols) --
+Parameter | Value
+Average Success Index (With Backlogs Allowed) | 0.9236
+Success Rate (%) | 92.4%
+Assessment Marks | 13.8 / 15
+-- Table 4 (2 rows x 6 cols) --
+Academic Year | Appeared Students | Successful Students | Mean CGPA | Success Ratio | API
+Data not available | — | — | — | — | —
+-- Table 5 (2 rows x 6 cols) --
+Academic Year | Appeared Students | Successful Students | Mean CGPA | Success Ratio | API
+Data not available | — | — | — | — | —
+-- Table 6 (5 rows x 7 cols) --
+Academic Year | Cohort Total (N) | Placed (x) | Higher Studies (y) | Entrepreneurs (z) | Total (x+y+z) | Placement Index P (%)
+2025-26 | 32 | 3 | 2 | 1 | 6 | 18.8%
+2024-25 | 32 | 20 | 3 | 1 | 24 | 75.0%
+2023-24 | 32 | 22 | 3 | 1 | 26 | 81.2%
+2022-23 | 32 | 21 | 3 | 1 | 25 | 78.1%
+-- Table 7 (2 rows x 7 cols) --
+Sl. No | Event Title | Club / Society | Type | Date | Venue | Attendees
+— | Data not available | — | — | — | — | —
+-- Table 8 (5 rows x 8 cols) --
+Sl. No | Student Name / ID | Event Name | Activity Type | Scope | Date | Venue | Result / Prize
+1 | Aarav Sharma | RoboSub International Challenge — Techfest 2025 | Technical | National | 2025-12-28 | IIT Bombay Campus, Powai, Mumbai | 2nd Runner Up & Trophy in Autonomous Underwater Vehicle Track
+2 | Abhinav Jain | Smart India Hackathon (SIH 2025) | Technical | National | 2025-11-22 | IIT Roorkee Nodal Center, Uttarakhand | 1st Prize & ₹1,00,000 Cash Award in AI/Healthcare Category
+3 | Amruta Desai | VTU 24th Inter-Collegiate State Athletics Meet | Sports | Within State | 2025-10-15 | Kanteerava Stadium, Bengaluru | Gold Medal in 100m Sprint (Timing: 10.84s)
+4 | Deepa Lakshmi | National Youth Cultural Festival (Yuva Utsav 2025) | Cultural | National | 2025-09-18 | Banaras Hindu University (BHU), Varanasi | 1st Prize in Solo Classical Carnatic Vocal
+-- Table 9 (2 rows x 2 cols) --
+Head of Department | Principal / Director
+Date: ___________ | Date: ___________

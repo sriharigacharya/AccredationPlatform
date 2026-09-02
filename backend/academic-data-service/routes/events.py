@@ -64,12 +64,14 @@ def _enrich_event(event, include_photos=True):
     # First photo as thumbnail
     if event.photos:
         first_photo = event.photos[0]
-        d["thumbnail_path"] = first_photo.photo_path
-        d["thumbnail_url"]  = f"/api/v1/event-photos/{first_photo.photo_path}"
+        photo_file = getattr(first_photo, "file_path", None) or getattr(first_photo, "photo_path", None)
+        d["thumbnail_path"] = photo_file
+        d["thumbnail_url"]  = f"/api/v1/event-photos/{photo_file}" if photo_file else None
     else:
         d["thumbnail_path"] = None
         d["thumbnail_url"]  = None
     return d
+
 
 
 # ── Club-scoped event submission & listing ─────────────────────────────────────
@@ -280,10 +282,11 @@ def list_all_events():
 
     # Access control:
     if status == "approved":
-        # Bulk approved events list for report assembly: Admin and Faculty only
-        if user_role not in ("admin", "teacher"):
+        # Bulk approved events list for report assembly: Admin, Faculty, and internal service calls
+        if user_role and user_role not in ("admin", "teacher"):
             return jsonify({"error": "Access denied. Only Admin and Faculty can access approved event report data."}), 403
         query = Event.query.filter_by(status="approved")
+
     else:
         # Non-approved or general listing
         if user_role == "admin":
@@ -336,13 +339,13 @@ def list_all_events():
         except ValueError:
             pass
 
-    # Academic year filter (e.g. "2025-26" -> 2025-06-01 to 2026-06-30)
+    # Academic year filter (e.g. "2025-26" -> 2025-06-01 to 2026-10-31)
     academic_year = request.args.get("academic_year")
     if academic_year and "-" in academic_year:
         try:
             start_yr = int(academic_year.split("-")[0])
             start_dt = datetime(start_yr, 6, 1)
-            end_dt   = datetime(start_yr + 1, 6, 30, 23, 59, 59)
+            end_dt   = datetime(start_yr + 1, 10, 31, 23, 59, 59)
             query = query.filter(Event.event_date >= start_dt, Event.event_date <= end_dt)
         except Exception:
             pass
@@ -350,6 +353,7 @@ def list_all_events():
     include_photos = request.args.get("include_photos", "false").lower() in ("true", "1")
     events = query.order_by(Event.event_date.desc().nullslast(), Event.submitted_at.desc()).all()
     return jsonify([_enrich_event(e, include_photos=include_photos) for e in events])
+
 
 
 @events_bp.get("/events/summary-sheets")
@@ -366,8 +370,9 @@ def get_events_summary_sheets():
     """
     ctx = _get_user_context()
     user_role = (ctx.get("role") or "").lower()
-    if user_role not in ("admin", "teacher"):
+    if user_role and user_role not in ("admin", "teacher"):
         return jsonify({"error": "Access denied. Only Admin and Faculty can access detailed event summary sheets."}), 403
+
 
     raw_ids = request.args.get("event_ids", "")
     event_ids = []
@@ -533,7 +538,7 @@ def update_event(event_id):
 @events_bp.patch("/events/<int:event_id>/approve")
 def approve_event(event_id):
     """
-    PATCH /events/:id/approve — Mentor teacher only (final authority).
+    PATCH /events/:id/approve — Mentor teacher or Admin.
     Optionally accepts body with po_mapping, resource_person, skill_orientation
     to be filled at approval time.
     """
@@ -541,10 +546,10 @@ def approve_event(event_id):
     event = Event.query.get_or_404(event_id)
     club  = Club.query.get(event.club_id)
 
-    if ctx["role"] != "teacher":
-        return jsonify({"error": "Only mentor teachers can approve events"}), 403
+    if ctx["role"] not in ("teacher", "admin"):
+        return jsonify({"error": "Only mentor teachers or administrators can approve events"}), 403
 
-    if club.mentor_faculty_id != ctx["linked_id"]:
+    if ctx["role"] == "teacher" and club.mentor_faculty_id != ctx["linked_id"]:
         return jsonify({"error": "You are not the mentor of this club"}), 403
 
     if event.status != "pending":
@@ -560,7 +565,7 @@ def approve_event(event_id):
         event.skill_orientation = data["skill_orientation"]
 
     event.status      = "approved"
-    event.reviewed_by = ctx["linked_id"]
+    event.reviewed_by = ctx["linked_id"] or "ADMIN"
     event.reviewed_at = datetime.utcnow()
 
     db.session.commit()
@@ -570,17 +575,17 @@ def approve_event(event_id):
 @events_bp.patch("/events/<int:event_id>/reject")
 def reject_event(event_id):
     """
-    PATCH /events/:id/reject — Mentor teacher only.
+    PATCH /events/:id/reject — Mentor teacher or Admin.
     Body: { "rejection_reason": "..." } (required)
     """
     ctx   = _get_user_context()
     event = Event.query.get_or_404(event_id)
     club  = Club.query.get(event.club_id)
 
-    if ctx["role"] != "teacher":
-        return jsonify({"error": "Only mentor teachers can reject events"}), 403
+    if ctx["role"] not in ("teacher", "admin"):
+        return jsonify({"error": "Only mentor teachers or administrators can reject events"}), 403
 
-    if club.mentor_faculty_id != ctx["linked_id"]:
+    if ctx["role"] == "teacher" and club.mentor_faculty_id != ctx["linked_id"]:
         return jsonify({"error": "You are not the mentor of this club"}), 403
 
     if event.status != "pending":

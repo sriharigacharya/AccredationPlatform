@@ -96,7 +96,24 @@ def _seed_demo_users():
             "name":      "Demo Document Worker",
             "linked_id": None,
         },
+        {
+            "user_id":   "U006",
+            "email":     "teacher@academiq.edu",
+            "password":  "teacher123",
+            "role":      "teacher",
+            "name":      "Dr. Meena Iyer",
+            "linked_id": "FAC001",
+        },
+        {
+            "user_id":   "U007",
+            "email":     "student@academiq.edu",
+            "password":  "student123",
+            "role":      "student",
+            "name":      "Aarav Sharma",
+            "linked_id": "STU001",
+        },
     ]
+
 
     created = []
     for d in demos:

@@ -88,9 +88,20 @@ def login():
     if not email or not password:
         return jsonify({"error": "email and password required"}), 400
 
-    user = User.query.filter_by(email=email, is_active=True).first()
+    # Common demo email aliases
+    alias_map = {
+        "teacher@academiq.edu": "meena.iyer@faculty.academiq.edu",
+        "student@academiq.edu": "aarav.stu001@student.academiq.edu",
+    }
+    lookup_email = alias_map.get(email, email)
+
+    user = User.query.filter(
+        ((User.email == email) | (User.email == lookup_email)),
+        User.is_active == True
+    ).first()
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({"error": "Invalid credentials"}), 401
+
 
     # Role-based redirect hint for the frontend
     redirect_map = {

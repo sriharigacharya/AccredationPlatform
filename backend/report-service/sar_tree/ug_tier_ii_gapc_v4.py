@@ -103,8 +103,9 @@ _raw: list[SARNode] = [
     _n("4.2",   "Success Rate in Stipulated Period",                  0,  "criterion_header", "computed",                  level=2, parent_id="4"),
     _n("4.2.1", "Success Index without Backlog",                     25, "formula_table",    "academic-data-service",      level=3, parent_id="4.2", formula_fn="success_rate_without_backlog"),
     _n("4.2.2", "Success Index with Backlog",                        15, "formula_table",    "academic-data-service",      level=3, parent_id="4.2", formula_fn="success_rate_with_backlog"),
-    _n("4.3",   "Academic Performance — Second Year (API)",          15, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="api_year2"),
-    _n("4.4",   "Academic Performance — Third Year (API)",           15, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="api_year3"),
+    _n("4.3",   "Academic Performance in Third Year (API)",           15, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="api_year3"),
+    _n("4.4",   "Academic Performance in Second Year (API)",          15, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="api_year2"),
+
     _n("4.5",   "Placement, Higher Studies and Entrepreneurship",    40, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="placement_index"),
     _n("4.6",   "Professional Activities",                            0,  "criterion_header", "computed",                  level=2, parent_id="4"),
     _n("4.6.1", "Professional Activities and Club Events (Summary Sheets)", 5, "events_table", "academic-data-service",    level=3, parent_id="4.6", formula_fn="club_events_summary"),

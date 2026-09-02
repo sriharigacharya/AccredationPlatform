@@ -67,8 +67,37 @@ def create_app():
     with app.app_context():
         db.create_all()
         _run_db_migrations()
+        _seed_demo_narratives()
 
     return app
+
+
+def _seed_demo_narratives():
+    """Seed sample realistic NBA narrative for Section 4.6.2 (Publication of Technical Magazines & Newsletters)."""
+    from models import ReportNarrative
+    try:
+        if ReportNarrative.query.filter_by(node_id="4.6.2").count() == 0:
+            narrative_text = (
+                "1. MANTHANA, Yearly College Magazine: 'MANTHANA', the flagship college magazine, is published annually during the inauguration of the academic session. It features high-quality technical articles, innovations, and retrospective reports on academic, co-curricular, and extra-curricular milestones achieved during the previous academic year. It serves as an open publication platform for both undergraduate students and faculty researchers.\n\n"
+                "2. THE EDIFICE, Biannual Departmental Newsletter: 'THE EDIFICE', the Department of Computer Science & Engineering biannual newsletter, documents department-level symposiums, hackathons, guest lectures, student club initiatives, and competitive milestones.\n\n"
+                "3. TECHPULSE NEWSLETTER: Released quarterly under the guidance of the student editorial committee and department faculty advisors.\n"
+                "Editorial Board: Dr. Meena Iyer (Chief Editor), Prof. Ravi Shankar (Associate Editor), along with 6 student editors elected from 3rd and 4th year batches.\n"
+                "During academic year 2025-26, more than 38 student technical articles, 15 competitive coding solutions, and 8 patent summaries were authored and published across department releases."
+            )
+            for dept in ["CSE", "ISE", "ECE"]:
+                for ay in ["2025-26", "2024-25", "2023-24"]:
+                    db.session.add(ReportNarrative(
+                        sar_format="ug_tier_ii_gapc_v4",
+                        node_id="4.6.2",
+                        department_id=dept,
+                        academic_year=ay,
+                        narrative_text=narrative_text,
+                        author_id="U_ADM001",
+                        author_role="admin",
+                    ))
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
 
 
 def _run_db_migrations():
@@ -83,6 +112,7 @@ def _run_db_migrations():
             db.session.commit()
         except Exception:
             db.session.rollback()
+
 
 
 

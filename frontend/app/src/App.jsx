@@ -19,6 +19,8 @@ import ReportsPage        from './pages/ReportsPage'
 import AssignmentsPage    from './pages/AssignmentsPage'
 import EventsPage         from './pages/EventsPage'
 import HistoricalDataPage from './pages/HistoricalDataPage'
+import TeacherClassesPage from './pages/TeacherClassesPage'
+
 
 
 // ── Route guard ────────────────────────────────────────────────────────────────
@@ -105,7 +107,15 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* Classes, Attendance & Marks — admin + teacher */}
+      <Route path="/classes" element={
+        <ProtectedRoute roles={['admin', 'teacher']}>
+          <AppLayout><TeacherClassesPage /></AppLayout>
+        </ProtectedRoute>
+      } />
+
       {/* Assignments — admin + teacher (Faculty) */}
+
       <Route path="/assignments" element={
         <ProtectedRoute roles={['admin', 'teacher']}>
           <AppLayout><AssignmentsPage /></AppLayout>

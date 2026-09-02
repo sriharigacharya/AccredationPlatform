@@ -146,13 +146,41 @@ def _add_title_page(doc, report: ReportData):
 
 
 def _add_section(doc, sec: ReportSection):
-    from docx.shared import Pt, RGBColor
+    import io
+    import base64
+    from docx.shared import Pt, RGBColor, Inches
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
 
     # Criterion header
     if sec.content_type == "criterion_header":
         doc.add_page_break()
-        h = doc.add_paragraph(style="Heading 1")
-        h.add_run(f"Criterion {sec.id}: {sec.title}")
+        if sec.id == "4":
+            tbl_banner = doc.add_table(rows=1, cols=3)
+            tbl_banner.style = "Table Grid"
+            tbl_banner.alignment = WD_TABLE_ALIGNMENT.CENTER
+            
+            c0 = tbl_banner.cell(0, 0)
+            c0.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r0 = c0.paragraphs[0].add_run("CRITERION-4")
+            r0.bold = True
+            r0.font.size = Pt(13)
+
+            c1 = tbl_banner.cell(0, 1)
+            c1.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r1 = c1.paragraphs[0].add_run("Students Performance")
+            r1.bold = True
+            r1.font.size = Pt(13)
+
+            c2 = tbl_banner.cell(0, 2)
+            c2.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r2 = c2.paragraphs[0].add_run("150")
+            r2.bold = True
+            r2.font.size = Pt(13)
+        else:
+            h = doc.add_paragraph(style="Heading 1")
+            h.add_run(f"Criterion {sec.id}: {sec.title}")
+        doc.add_paragraph()
         return
 
     # Sub-section heading
@@ -164,15 +192,6 @@ def _add_section(doc, sec: ReportSection):
     if sec.has_placeholders:
         pw = doc.add_paragraph(style="PlaceholderWarning")
         pw.add_run("⚠ Placeholder data — verify before submission.")
-
-    # Formula result summary
-    if sec.formula_result:
-        fr = doc.add_paragraph(style="FormulaResult")
-        marks = sec.formula_result.get("marks", "—")
-        fr.add_run(f"Score: {marks} / {sec.marks} marks")
-        for k, v in sec.formula_result.items():
-            if k != "marks":
-                fr.add_run(f"   |   {k}: {v}")
 
     # Table
     if sec.table_rows:
@@ -192,6 +211,20 @@ def _add_section(doc, sec: ReportSection):
             for i, cell_val in enumerate(row_data):
                 row_cells[i].text = str(cell_val)
 
+        # Formula result summary below table
+        if sec.formula_result:
+            p_calc = doc.add_paragraph()
+            calc_text = sec.formula_result.get("formula_text") or sec.formula_result.get("assessment_formula")
+            if calc_text:
+                r_calc = p_calc.add_run(calc_text)
+                r_calc.bold = True
+                r_calc.font.size = Pt(10)
+                r_calc.font.color.rgb = RGBColor(0x1a, 0x36, 0x5d)
+            elif sec.formula_result.get("marks") is not None:
+                r_calc = p_calc.add_run(f"Assessment Score: {sec.formula_result.get('marks')} / {sec.marks} Marks")
+                r_calc.bold = True
+                r_calc.font.size = Pt(10)
+
         doc.add_paragraph()
 
     # Detailed Summary Sheets (Section 4.6.1)
@@ -199,34 +232,98 @@ def _add_section(doc, sec: ReportSection):
         h_sum = doc.add_paragraph(style="Heading 3")
         h_sum.add_run(f"Detailed Activity Summary Sheets ({len(sec.summary_sheets)} Selected Events)")
 
-        for sheet in sec.summary_sheets:
-            p_title = doc.add_paragraph()
-            r_title = p_title.add_run(f"Event: {sheet.get('title', '—')}")
-            r_title.bold = True
-            r_title.font.size = Pt(11)
+        for idx, sheet in enumerate(sec.summary_sheets):
+
+            p_act = doc.add_paragraph()
+            r_act = p_act.add_run(f"Activity-{idx + 1}: {sheet.get('title', '—')}")
+            r_act.bold = True
+            r_act.font.size = Pt(11)
 
             p_meta = doc.add_paragraph()
-            p_meta.add_run(f"Club: {sheet.get('club_name', '—')}  |  Type: {sheet.get('event_type', '—').capitalize()}  |  Date: {(sheet.get('event_date') or '')[:10]}")
+            p_meta.add_run(f"Club: {sheet.get('club_name', '—')}  |  Type: {(sheet.get('event_type') or '—').capitalize()}  |  Date: {(sheet.get('event_date') or '')[:10]}")
 
-            tbl_s = doc.add_table(rows=3, cols=2)
+
+
+
+            tbl_s = doc.add_table(rows=7, cols=3)
             tbl_s.style = "Table Grid"
-            tbl_s.cell(0, 0).text = f"Venue: {sheet.get('venue') or 'Campus'}"
-            tbl_s.cell(0, 1).text = f"Attendees: {sheet.get('attendee_count') or '—'}"
-            tbl_s.cell(1, 0).text = f"Resource Person: {sheet.get('resource_person') or '—'}"
-            tbl_s.cell(1, 1).text = f"Skill Orientation: {sheet.get('skill_orientation') or '—'}"
-            tbl_s.cell(2, 0).text = f"PO Mapping: {sheet.get('po_mapping') or 'PO1, PO2, PO5, PO12'}"
-            tbl_s.cell(2, 1).text = f"Mentor/Reviewer: {sheet.get('reviewer_name') or '—'}"
 
-            if sheet.get("report_text") or sheet.get("description"):
-                p_rep = doc.add_paragraph()
-                r_rep_lbl = p_rep.add_run("Report / Outcomes: ")
-                r_rep_lbl.bold = True
-                p_rep.add_run(sheet.get("report_text") or sheet.get("description"))
+            # Header
+            tbl_s.cell(0, 0).paragraphs[0].add_run("Sl.No").bold = True
+            tbl_s.cell(0, 1).paragraphs[0].add_run("Field").bold = True
+            tbl_s.cell(0, 2).paragraphs[0].add_run("Summary Details").bold = True
+
+            fields = [
+                ("1", "Title of the Event", sheet.get("title", "—")),
+                ("2", "In association with", sheet.get("club_name") or "Department Club"),
+                ("3", "Mapping to POs", sheet.get("po_mapping") or "PO1, PO2, PO5, PO12"),
+                ("4", "Resource person", sheet.get("resource_person") or (", ".join(sheet.get("guest_names_list", []))) or "—"),
+                ("5", "Hands-on / Skill oriented", sheet.get("skill_orientation") or "Skill oriented"),
+                ("6", "Outcomes achieved / conclusion", sheet.get("report_text") or sheet.get("description") or "—"),
+            ]
+
+            for row_idx, (sl, fld, val) in enumerate(fields, start=1):
+                tbl_s.cell(row_idx, 0).text = sl
+                tbl_s.cell(row_idx, 1).text = fld
+                tbl_s.cell(row_idx, 2).text = str(val)
+
+            # Photos row
+            tbl_s.cell(6, 0).text = "7"
+            tbl_s.cell(6, 1).text = "Photos"
+            cell_photos = tbl_s.cell(6, 2)
+            cell_photos.paragraphs[0].text = ""
+
+            photos = sheet.get("photos_formatted", [])
+            if photos:
+                for p in photos:
+                    data_url = p.get("photo_data_url") or p.get("photo_url") or ""
+                    if data_url.startswith("data:image") and "base64," in data_url:
+                        try:
+                            b64_str = data_url.split("base64,")[1]
+                            img_bytes = base64.b64decode(b64_str)
+                            cell_photos.paragraphs[0].add_run().add_picture(io.BytesIO(img_bytes), width=Inches(2.5))
+                            if p.get("caption"):
+                                p_cap = cell_photos.add_paragraph()
+                                r_cap = p_cap.add_run(p["caption"])
+                                r_cap.font.size = Pt(7.5)
+                                r_cap.font.italic = True
+                        except Exception:
+                            cell_photos.paragraphs[0].text = "Event photograph attached"
+                    else:
+                        cell_photos.paragraphs[0].text = "Event photograph attached"
+            else:
+                cell_photos.paragraphs[0].text = "Event photograph attached"
 
             doc.add_paragraph()
+
+    # Student Achievement Certificates / Photos (Section 4.6.3)
+    if sec.id == "4.6.3" and sec.source_data and sec.source_data.get("achievements"):
+        h_ach = doc.add_paragraph(style="Heading 3")
+        h_ach.add_run("Student Achievement Photo & Certificate Records")
+
+        achievements = sec.source_data.get("achievements", [])
+        for ach in achievements:
+            p_urls = ach.get("photo_data_urls", [])
+            for purl in p_urls:
+                if purl.startswith("data:image") and "base64," in purl:
+                    try:
+                        b64_str = purl.split("base64,")[1]
+                        img_bytes = base64.b64decode(b64_str)
+                        p_img = doc.add_paragraph()
+                        p_img.add_run().add_picture(io.BytesIO(img_bytes), width=Inches(3.0))
+                        p_lbl = doc.add_paragraph()
+                        r_lbl = p_lbl.add_run(f"{ach.get('event_name', '')} — {ach.get('result_description', '')}")
+                        r_lbl.font.size = Pt(8.5)
+                        r_lbl.font.bold = True
+                    except Exception:
+                        pass
+
+        doc.add_paragraph()
 
     # Narrative / static text
     if sec.narrative:
         for line in sec.narrative.split("\n"):
-            doc.add_paragraph(line)
+            if line.strip():
+                doc.add_paragraph(line)
+
 

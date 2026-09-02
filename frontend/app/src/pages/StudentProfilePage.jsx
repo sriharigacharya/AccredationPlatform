@@ -178,7 +178,7 @@ export default function StudentProfilePage() {
           </div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <span className="badge badge-neutral" style={{ fontSize: 13, padding: '4px 10px' }}>
-              SGPA: <strong>{sgpa.toFixed(2)}</strong>
+              SGPA: <strong>{sgpa ? sgpa.toFixed(2) : 'Pending'}</strong>
             </span>
             {riskLevel !== 'none' && (
               <span className={`badge badge-${riskLevel === 'High' ? 'danger' : riskLevel === 'Medium' ? 'warning' : 'success'}`}>
@@ -195,14 +195,19 @@ export default function StudentProfilePage() {
           <div className="card" style={{ textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
             <div style={{
               position: 'absolute', top: 0, left: 0, right: 0, height: 4,
-              background: sgpa >= 8 ? 'var(--green)' : sgpa >= 6 ? 'var(--amber)' : 'var(--red)',
+              background: sgpa ? (sgpa >= 8 ? 'var(--green)' : sgpa >= 6 ? 'var(--amber)' : 'var(--red)') : 'var(--text-muted)',
             }} />
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', marginBottom: 4, marginTop: 8 }}>SGPA</div>
-            <div style={{ fontSize: 42, fontWeight: 800, lineHeight: 1, color: sgpa >= 8 ? 'var(--green)' : sgpa >= 6 ? 'var(--text-primary)' : 'var(--red)' }}>
-              {sgpa.toFixed(2)}
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', marginBottom: 4, marginTop: 8 }}>
+              Current Semester SGPA
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>out of 10.0</div>
+            <div style={{ fontSize: 36, fontWeight: 800, lineHeight: 1, color: sgpa ? (sgpa >= 8 ? 'var(--green)' : sgpa >= 6 ? 'var(--text-primary)' : 'var(--red)') : 'var(--text-muted)' }}>
+              {sgpa ? sgpa.toFixed(2) : 'Pending'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+              {student.previous_gpa ? `Past CGPA: ${student.previous_gpa.toFixed(2)}` : 'Awaiting CIE test marks'}
+            </div>
           </div>
+
           <div className="card" style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', marginBottom: 4 }}>Attendance</div>
             <div style={{ fontSize: 36, fontWeight: 700, color: student.attendance_pct < 75 ? 'var(--red)' : 'var(--text-primary)' }}>
@@ -281,59 +286,96 @@ export default function StudentProfilePage() {
                         <div style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.code} · {c.credits} credits</div>
                       </td>
-                      <td style={tdCenter}>{c.cie1}</td>
-                      <td style={tdCenter}>{c.cie2}</td>
-                      <td style={tdCenter}>{c.quiz1}</td>
-                      <td style={tdCenter}>{c.quiz2}</td>
-                      <td style={tdCenter}>{c.el}</td>
-                      <td style={{...tdCenter, borderLeft: '2px solid var(--border)', fontWeight: 600}}>{c.cie_reduced}</td>
-                      <td style={{...tdCenter, fontWeight: 600}}>{c.see_reduced}</td>
+                      <td style={tdCenter}>{c.cie1 !== null && c.cie1 !== undefined ? c.cie1 : '—'}</td>
+                      <td style={tdCenter}>{c.cie2 !== null && c.cie2 !== undefined ? c.cie2 : '—'}</td>
+                      <td style={tdCenter}>{c.quiz1 !== null && c.quiz1 !== undefined ? c.quiz1 : '—'}</td>
+                      <td style={tdCenter}>{c.quiz2 !== null && c.quiz2 !== undefined ? c.quiz2 : '—'}</td>
+                      <td style={tdCenter}>{c.el !== null && c.el !== undefined ? c.el : '—'}</td>
+                      <td style={{...tdCenter, borderLeft: '2px solid var(--border)', fontWeight: 600}}>
+                        {c.cie_reduced !== null && c.cie_reduced !== undefined ? c.cie_reduced : '—'}
+                      </td>
+                      <td style={{...tdCenter, fontWeight: 600}}>
+                        {c.see_reduced !== null && c.see_reduced !== undefined ? c.see_reduced : '—'}
+                      </td>
                       <td style={{
                         ...tdCenter, borderLeft: '2px solid var(--border)',
                         fontWeight: 700, fontSize: 15,
-                        color: c.total >= 50 ? 'var(--text-primary)' : 'var(--red)',
+                        color: c.total !== null && c.total !== undefined ? (c.total >= 50 ? 'var(--text-primary)' : 'var(--red)') : 'var(--text-muted)',
                       }}>
-                        {c.total}
+                        {c.total !== null && c.total !== undefined ? c.total : '—'}
                       </td>
                       <td style={tdCenter}>
-                        <span style={{
-                          display: 'inline-block', padding: '2px 8px', borderRadius: 4,
-                          fontSize: 12, fontWeight: 700,
-                          background: gradeInfo.color + '22', color: gradeInfo.color,
-                        }}>
-                          {c.grade}
-                        </span>
+                        {c.grade === 'Pending' ? (
+                          <span className="badge badge-neutral" style={{ fontSize: 11 }}>Pending</span>
+                        ) : (
+                          <span style={{
+                            display: 'inline-block', padding: '2px 8px', borderRadius: 4,
+                            fontSize: 12, fontWeight: 700,
+                            background: gradeInfo.color + '22', color: gradeInfo.color,
+                          }}>
+                            {c.grade}
+                          </span>
+                        )}
                       </td>
-                      <td style={{ ...tdCenter, fontWeight: 600 }}>{c.grade_points}</td>
+                      <td style={{ ...tdCenter, fontWeight: 600 }}>
+                        {c.grade_points !== null && c.grade_points !== undefined ? c.grade_points : '—'}
+                      </td>
                       <td style={{ ...tdCenter, color: attLow ? 'var(--red)' : 'var(--text-secondary)' }}>
-                        {c.attendance_pct?.toFixed(1)}%
+                        {c.attendance_pct ? `${c.attendance_pct.toFixed(1)}%` : '100%'}
                         {attLow && <span style={{ fontSize: 10 }}> ⚠</span>}
                       </td>
                     </tr>
                   )
                 })}
               </tbody>
-              {courses.length > 0 && (
-                <tfoot>
-                  <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-800)' }}>
-                    <td style={{ padding: '10px 12px', fontWeight: 700 }}>Semester Average</td>
-                    <td colSpan={5} style={{ ...tdCenter, color: 'var(--text-muted)', fontSize: 11 }}>
-                      CIE Raw Avg: {(courses.reduce((s, c) => s + (c.cie_raw || 0), 0) / courses.length).toFixed(1)}/100
-                    </td>
-                    <td style={{...tdCenter, borderLeft: '2px solid var(--border)', fontWeight: 700 }}>
-                      {(courses.reduce((s, c) => s + (c.cie_reduced || 0), 0) / courses.length).toFixed(1)}
-                    </td>
-                    <td style={{...tdCenter, fontWeight: 700 }}>
-                      {(courses.reduce((s, c) => s + (c.see_reduced || 0), 0) / courses.length).toFixed(1)}
-                    </td>
-                    <td style={{...tdCenter, borderLeft: '2px solid var(--border)', fontWeight: 700, fontSize: 16 }}>
-                      {(courses.reduce((s, c) => s + (c.total || 0), 0) / courses.length).toFixed(1)}
-                    </td>
-                    <td colSpan={2} style={{ ...tdCenter, fontWeight: 700, fontSize: 16 }}>SGPA: {sgpa.toFixed(2)}</td>
-                    <td style={{ ...tdCenter, fontWeight: 600 }}>{student.attendance_pct?.toFixed(1)}%</td>
-                  </tr>
-                </tfoot>
-              )}
+              {courses.length > 0 && (() => {
+                const activeCieCourses = courses.filter(c => c.cie_raw !== null && c.cie_raw !== undefined)
+                const activeSeeCourses = courses.filter(c => c.see_reduced !== null && c.see_reduced !== undefined)
+                const isSemesterComplete = activeSeeCourses.length === courses.length && courses.length > 0
+
+                const cieRawAvg = activeCieCourses.length > 0
+                  ? (activeCieCourses.reduce((s, c) => s + c.cie_raw, 0) / activeCieCourses.length).toFixed(1)
+                  : '—'
+                const cieRedAvg = activeCieCourses.length > 0
+                  ? (activeCieCourses.reduce((s, c) => s + (c.cie_reduced || 0), 0) / activeCieCourses.length).toFixed(1)
+                  : '—'
+                const seeRedAvg = activeSeeCourses.length > 0
+                  ? (activeSeeCourses.reduce((s, c) => s + (c.see_reduced || 0), 0) / activeSeeCourses.length).toFixed(1)
+                  : '—'
+                const totalAvg = isSemesterComplete
+                  ? (courses.reduce((s, c) => s + (c.total || 0), 0) / courses.length).toFixed(1)
+                  : 'In Progress'
+
+                return (
+                  <tfoot>
+                    <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-800)' }}>
+                      <td style={{ padding: '10px 12px', fontWeight: 700 }}>Semester Summary</td>
+                      <td colSpan={5} style={{ ...tdCenter, color: 'var(--text-muted)', fontSize: 11 }}>
+                        {activeCieCourses.length > 0
+                          ? `Conducted CIE Avg: ${cieRawAvg}/100 (${activeCieCourses.length}/${courses.length} courses)`
+                          : 'CIE in progress'}
+                      </td>
+                      <td style={{ ...tdCenter, borderLeft: '2px solid var(--border)', fontWeight: 700 }}>
+                        {cieRedAvg}
+                      </td>
+                      <td style={{ ...tdCenter, fontWeight: 700, color: 'var(--text-muted)' }}>
+                        {seeRedAvg}
+                      </td>
+                      <td style={{
+                        ...tdCenter, borderLeft: '2px solid var(--border)',
+                        fontWeight: 700, fontSize: isSemesterComplete ? 15 : 12,
+                        color: isSemesterComplete ? 'var(--text-primary)' : 'var(--amber)',
+                      }}>
+                        {totalAvg}
+                      </td>
+                      <td colSpan={2} style={{ ...tdCenter, fontWeight: 700, fontSize: 13 }}>
+                        {sgpa ? `SGPA: ${sgpa.toFixed(2)}` : <span style={{ color: 'var(--amber)', fontSize: 12 }}>Pending (SEE)</span>}
+                      </td>
+                      <td style={{ ...tdCenter, fontWeight: 600 }}>{student.attendance_pct?.toFixed(1)}%</td>
+                    </tr>
+                  </tfoot>
+                )
+              })()}
             </table>
           </div>
           {courses.length === 0 && (
@@ -342,6 +384,7 @@ export default function StudentProfilePage() {
             </div>
           )}
         </div>
+
 
         {/* ── Charts Row ─────────────────────────────────────────────── */}
         <div className="grid-3 mb-lg">

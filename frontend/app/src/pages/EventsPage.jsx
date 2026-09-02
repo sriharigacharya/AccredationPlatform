@@ -628,7 +628,7 @@ export default function EventsPage() {
                         </button>
 
                         {/* Mentor Review button */}
-                        {role === 'teacher' && evt.status === 'pending' && (
+                        {(role === 'teacher' || role === 'admin') && evt.status === 'pending' && (
                           <button
                             className="btn btn-primary btn-sm"
                             onClick={() => {
@@ -645,6 +645,7 @@ export default function EventsPage() {
                             <CheckCircle size={14} /> Review & Approve
                           </button>
                         )}
+
 
                         {/* Student Edit (Only when pending) */}
                         {role === 'student' && evt.status === 'pending' && evt.organized_by_student_id === user?.linked_id && (
@@ -1242,13 +1243,38 @@ export default function EventsPage() {
               )}
             </div>
 
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setViewingEvent(null)}>
-                Close
-              </button>
+            <div className="modal-footer flex items-center justify-between">
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Organizer ID: <code>{viewingEvent.organized_by_student_id || 'N/A'}</code>
+              </div>
+              <div className="flex gap-sm">
+                {(role === 'teacher' || role === 'admin') && viewingEvent.status === 'pending' && (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => {
+                      const evt = viewingEvent
+                      setViewingEvent(null)
+                      setReviewingEvent(evt)
+                      setReviewData({
+                        po_mapping: evt.po_mapping || '',
+                        resource_person: evt.resource_person || '',
+                        skill_orientation: evt.skill_orientation || '',
+                        rejection_reason: '',
+                      })
+                      setIsRejecting(false)
+                    }}
+                  >
+                    <CheckCircle size={14} /> Review & Approve
+                  </button>
+                )}
+                <button className="btn btn-secondary btn-sm" onClick={() => setViewingEvent(null)}>
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
+
       )}
 
       {/* ── MODAL: CREATE / EDIT CLUB (ADMIN) ──────────────────────────── */}

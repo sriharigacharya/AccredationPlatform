@@ -179,7 +179,22 @@ export const eventsAPI = {
   photos:     (id)             => api.get(`/events/${id}/photos`),
 }
 
+// ── Classes & Evaluations (Attendance & Marks) ────────────────────────────────
+export const classesAPI = {
+  myClasses:               ()                => api.get('/classes/my-classes'),
+  getClassStudents:        (code, section)   => api.get(`/classes/${code}/${section}/students`),
+  submitAttendance:        (data)            => api.post('/classes/attendance', data),
+  getAttendanceSessions:   (code, section)   => api.get(`/classes/${code}/${section}/attendance-sessions`),
+  getSessionDetails:       (sessionId)       => api.get(`/classes/attendance-sessions/${sessionId}`),
+  updateAttendanceSession: (sessionId, data) => api.patch(`/classes/attendance-sessions/${sessionId}`, data),
+  submitMarks:             (data)            => api.post('/classes/marks', data),
+  getAtRisk:               (code, section)   => api.get(`/classes/${code}/${section}/at-risk`),
+}
+
+
+
 // ── Placements ────────────────────────────────────────────────────────────────
+
 export const placementsAPI = {
   myPlacement:   ()          => api.get('/profile/placement', { params: { student_id: 'me' } }),
   getForStudent: (studentId) => api.get(`/placements/student/${studentId}`),

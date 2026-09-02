@@ -19,6 +19,7 @@ from routes.events         import events_bp
 from routes.placements     import placements_bp
 from routes.student_achievements import student_achievements_bp
 from routes.historical_data import historical_data_bp
+from routes.classes import classes_bp
 import event_models        # noqa: F401
 import placement_models    # noqa: F401
 import achievement_models  # noqa: F401
@@ -48,10 +49,12 @@ def create_app():
     app.register_blueprint(assignments_bp,          url_prefix="/assignments")
     app.register_blueprint(clubs_bp,                url_prefix="/clubs")
     app.register_blueprint(student_roles_bp,        url_prefix="/student-roles")
+    app.register_blueprint(classes_bp,              url_prefix="/classes")
     app.register_blueprint(events_bp)               # routes use /clubs/:id/events + /events/
     app.register_blueprint(placements_bp)           # routes use /profile/placement + /placements/
     app.register_blueprint(student_achievements_bp) # routes use /student-achievements + /achievement-proofs/
     app.register_blueprint(historical_data_bp)      # routes use /admission-records, /batch-progress, /academic-performance
+
 
     @app.get("/health")
     def health():
@@ -603,7 +606,7 @@ def _seed_demo_clubs():
             "event_type":              "hackathon",
             "description":             "Annual 24-hour hackathon with 50+ teams building solutions for sustainable development goals. Industry mentors from TCS, Infosys, and Zoho.",
             "venue":                   "Main Auditorium & CS Labs",
-            "event_date":              now - timedelta(days=30),
+            "event_date":              datetime(2026, 2, 15, 9, 0),
             "organized_by_student_id": "STU001",
             "submitted_via":           "club_head",
             "attendee_count":          180,
@@ -614,7 +617,7 @@ def _seed_demo_clubs():
             "skill_orientation":       "Problem solving, Teamwork, Innovation, Technical implementation",
             "status":                  "approved",
             "reviewed_by":             "FAC001",
-            "reviewed_at":             now - timedelta(days=25),
+            "reviewed_at":             datetime(2026, 2, 20, 14, 0),
         },
         {
             "club_id":                 created_clubs[0].id,
@@ -622,7 +625,7 @@ def _seed_demo_clubs():
             "event_type":              "workshop",
             "description":             "Hands-on workshop covering Docker containerization, Kubernetes orchestration, and CI/CD pipelines.",
             "venue":                   "Computer Lab 3",
-            "event_date":              now - timedelta(days=10),
+            "event_date":              datetime(2026, 3, 20, 10, 0),
             "organized_by_student_id": "STU004",
             "submitted_via":           "club_head",
             "attendee_count":          65,
@@ -636,7 +639,7 @@ def _seed_demo_clubs():
             "event_type":              "competition",
             "description":             "Battle-bot competition featuring 20 teams from 8 colleges. Categories: lightweight, heavyweight, and autonomous.",
             "venue":                   "Sports Complex",
-            "event_date":              now - timedelta(days=45),
+            "event_date":              datetime(2026, 1, 20, 9, 30),
             "organized_by_student_id": "STU036",
             "submitted_via":           "club_head",
             "attendee_count":          300,
@@ -647,7 +650,7 @@ def _seed_demo_clubs():
             "skill_orientation":       "Engineering design, Embedded systems, Teamwork, Competition spirit",
             "status":                  "approved",
             "reviewed_by":             "FAC002",
-            "reviewed_at":             now - timedelta(days=40),
+            "reviewed_at":             datetime(2026, 1, 25, 16, 0),
         },
         {
             "club_id":                 created_clubs[2].id,
@@ -655,7 +658,7 @@ def _seed_demo_clubs():
             "event_type":              "competition",
             "description":             "Annual debate championship covering topics on AI ethics, climate policy, and education reform.",
             "venue":                   "Seminar Hall A",
-            "event_date":              now - timedelta(days=5),
+            "event_date":              datetime(2025, 11, 10, 11, 0),
             "organized_by_student_id": "STU069",
             "submitted_via":           "club_head",
             "attendee_count":          120,
@@ -663,17 +666,30 @@ def _seed_demo_clubs():
             "report_text":             "8 departments participated with 3 rounds of elimination. CSE team reached finals. Event enhanced critical thinking and public speaking skills.",
             "status":                  "rejected",
             "reviewed_by":             "FAC001",
-            "reviewed_at":             now - timedelta(days=3),
+            "reviewed_at":             datetime(2025, 11, 15, 15, 0),
             "rejection_reason":        "Report lacks detailed attendance sheet and individual participant feedback. Please resubmit with the signed attendance register scan and participant feedback summary.",
         },
     ]
 
+
     for ed in events_data:
         event = Event(**ed)
         db.session.add(event)
-
     db.session.commit()
+
+    # Seed Event Photos
+    created_events = Event.query.all()
+    if created_events and EventPhoto.query.count() == 0:
+        if len(created_events) >= 1:
+            db.session.add(EventPhoto(event_id=created_events[0].id, photo_path="codestorm_hackathon.jpg", caption="CodeStorm 2026 Hackathon Final Presentations", uploaded_by="FAC001"))
+        if len(created_events) >= 2:
+            db.session.add(EventPhoto(event_id=created_events[1].id, photo_path="k8s_workshop.jpg", caption="Kubernetes Hands-on Lab Session", uploaded_by="FAC001"))
+        if len(created_events) >= 3:
+            db.session.add(EventPhoto(event_id=created_events[2].id, photo_path="robowars_arena.jpg", caption="RoboWars 2026 Arena Championship Match", uploaded_by="FAC002"))
+        db.session.commit()
+
     print(f"[academic-data-service] Seeded {len(created_clubs)} demo clubs, {len(roles_data)} student roles, {len(events_data)} sample events.")
+
 
 
 def _seed_demo_placements():

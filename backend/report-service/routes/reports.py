@@ -104,10 +104,15 @@ def nba_generate():
     if criterion_param:
         scope = f"criterion:{criterion_param}" if not str(criterion_param).startswith("criterion:") else str(criterion_param)
 
-    fmt               = (data.get("format") or request.args.get("format") or "pdf").lower()
+    raw_fmt = (data.get("format") or data.get("formats") or data.get("formats_requested") or request.args.get("format") or "both").lower()
+    if raw_fmt in ("both", "pdf,docx", "docx,pdf", "all"):
+        fmt = "both"
+    elif raw_fmt in ("pdf", "docx"):
+        fmt = raw_fmt
+    else:
+        fmt = "both"
     expand_narr       = data.get("expand_narratives", False)
     include_event_ids = data.get("include_event_ids") or []
-
 
     # Clean include_event_ids
     if isinstance(include_event_ids, list):
@@ -119,8 +124,7 @@ def nba_generate():
         return jsonify({"error": "department_id is required"}), 400
     if sar_format not in SUPPORTED_FORMATS:
         return jsonify({"error": f"Unsupported sar_format. Supported: {SUPPORTED_FORMATS}"}), 400
-    if fmt not in ("pdf", "docx", "both"):
-        return jsonify({"error": "format must be 'pdf', 'docx', or 'both'"}), 400
+
 
     # Validate that requested criterion is implemented to avoid silent failure
     if scope.startswith("criterion:"):

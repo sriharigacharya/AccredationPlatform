@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, Users, GraduationCap, FileText,
   MessageSquare, Phone, Settings, LogOut, BookOpen,
-  Upload, User, ClipboardList, Calendar
+  Upload, User, ClipboardList, Calendar, ClipboardCheck
 } from 'lucide-react'
 
 /*
@@ -27,6 +27,7 @@ const NAV_SECTIONS = [
   {
     label: 'Academic',
     items: [
+      { to: '/classes',         icon: ClipboardCheck,label: 'Classes & Marks', roles: ['admin', 'teacher'] },
       { to: '/students',        icon: Users,         label: 'Students',        roles: ['admin', 'teacher'] },
       { to: '/faculty',         icon: GraduationCap, label: 'Faculty',         roles: ['admin', 'teacher'] },
       { to: '/assignments',     icon: BookOpen,      label: 'Assignments',     roles: ['admin', 'teacher'] },
@@ -34,6 +35,7 @@ const NAV_SECTIONS = [
       { to: '/historical-data', icon: Upload,        label: 'Historical Data', roles: ['admin', 'teacher', 'worker'] },
     ],
   },
+
 
   {
     label: 'Tools',
@@ -122,25 +124,62 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* User card */}
-      <div className="sidebar-footer">
-        <div className="user-card">
-          <div className="user-avatar">{initials}</div>
+      {/* User card & Logout */}
+      <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px' }}>
+        <div className="user-card" style={{ padding: 0, border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="user-avatar" style={{ width: 32, height: 32, fontSize: 12 }}>{initials}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="user-name truncate">{user.name || 'User'}</div>
-            <div className="user-role" style={{ color: roleStyle.color }}>{roleStyle.label}</div>
+            <div className="user-name truncate" style={{ fontSize: 13 }}>{user.name || 'User'}</div>
+            <div className="user-role" style={{ color: roleStyle.color, fontSize: 11 }}>{roleStyle.label}</div>
           </div>
           <button
             onClick={logout}
-            className="btn btn-icon btn-secondary btn-sm"
-            title="Logout"
-            id="logout-btn"
-            style={{ padding: '6px', flexShrink: 0 }}
+            className="btn btn-ghost btn-xs"
+            title="Sign out"
+            style={{
+              padding: 6,
+              color: '#f87171',
+              background: 'rgba(248,113,113,0.1)',
+              borderRadius: 6,
+              cursor: 'pointer',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <LogOut size={14} />
+            <LogOut size={15} />
           </button>
         </div>
+
+        <button
+          onClick={logout}
+          className="btn btn-secondary btn-sm"
+          id="logout-btn"
+          title="Sign out of AcademiQ"
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '6px 10px',
+            fontSize: 11.5,
+            fontWeight: 600,
+            color: '#f87171',
+            borderColor: 'rgba(248,113,113,0.35)',
+            background: 'rgba(248,113,113,0.08)',
+            cursor: 'pointer',
+            borderRadius: 'var(--radius-md)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <LogOut size={13} />
+          <span>Sign Out</span>
+        </button>
       </div>
+
     </aside>
   )
 }
+

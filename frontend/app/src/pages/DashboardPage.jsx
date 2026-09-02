@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { studentsAPI, facultyAPI, ragAPI, predictAPI } from '../api/client'
+import { Link } from 'react-router-dom'
+import { studentsAPI, facultyAPI, ragAPI, predictAPI, classesAPI } from '../api/client'
 import {
   BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts'
-import { Users, GraduationCap, FileText, AlertTriangle, TrendingUp, BookOpen } from 'lucide-react'
+import { Users, GraduationCap, FileText, AlertTriangle, TrendingUp, BookOpen, ShieldAlert } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const COLORS = ['#34d399', '#fbbf24', '#f87171']
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const [ragStats, setRagStats]= useState(null)
   const [atRisk, setAtRisk]    = useState([])
   const [allStudents, setAllStudents] = useState([])
+  const [teacherClasses, setTeacherClasses] = useState([])
   const [loading, setLoading]  = useState(true)
 
   useEffect(() => {
@@ -48,18 +50,26 @@ export default function DashboardPage() {
       ragAPI.stats().catch(() => null),
       predictAPI.atRisk(0.6).catch(() => ({ data: { at_risk: [] } })),
       studentsAPI.list({}).catch(() => ({ data: [] })),
-    ]).then(([s, f, r, ar, stu]) => {
+      classesAPI.myClasses().catch(() => ({ data: [] })),
+    ]).then(([s, f, r, ar, stu, cls]) => {
       setStats(s?.data)
       setFacStats(f?.data)
       setRagStats(r?.data)
       setAtRisk(ar?.data?.at_risk || [])
       setAllStudents(stu?.data || [])
+      setTeacherClasses(cls?.data || [])
       setLoading(false)
     })
   }, [])
 
+
   // Derive engagement counts from real student data
+  const teacherAtRiskCount = useMemo(() => {
+    return teacherClasses.reduce((sum, c) => sum + (c.at_risk_count || 0), 0)
+  }, [teacherClasses])
+
   const engagementData = useMemo(() => {
+
     if (!allStudents.length) return [
       { name: 'High', value: 0 },
       { name: 'Medium', value: 0 },
@@ -99,8 +109,9 @@ export default function DashboardPage() {
           <div>
             <h1 className="page-title">
               {user?.role === 'admin' ? 'Admin Dashboard' :
-               user?.role === 'faculty' ? 'Faculty Dashboard' : 'Student Dashboard'}
+               (user?.role === 'teacher' || user?.role === 'faculty') ? 'Teacher Dashboard' : 'Student Dashboard'}
             </h1>
+
             <p className="page-desc">
               Welcome back, <strong>{user?.name}</strong> · {new Date().toLocaleDateString('en-IN', { dateStyle: 'full' })}
             </p>
@@ -113,7 +124,51 @@ export default function DashboardPage() {
       </div>
 
       <div className="page-body">
+        {/* ── Teacher Class At-Risk Warning Alert ── */}
+        {user?.role === 'teacher' && teacherAtRiskCount > 0 && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            padding: '14px 18px',
+            borderRadius: 'var(--radius-md)',
+            marginBottom: 20,
+            flexWrap: 'wrap',
+            gap: 12,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.18)',
+                color: '#ef4444',
+                width: 38,
+                height: 38,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <ShieldAlert size={20} />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#ef4444' }}>
+                  Low-Performance & Attendance Alert: {teacherAtRiskCount} Students At Risk in Your Classes
+                </h4>
+                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Students have scored below 48% on CIE evaluations or hold attendance below 75%. Remedial mentoring or parent alerts recommended.
+                </p>
+              </div>
+            </div>
+            <Link to="/classes" className="btn btn-sm btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              Review Class Roster & Alert Parents
+            </Link>
+          </div>
+        )}
+
         {/* ── Stats Row ── */}
+
         <div className="stats-grid">
           <StatCard
             icon={<Users size={20} color="#4f8ef7" />}

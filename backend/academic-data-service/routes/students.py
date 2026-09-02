@@ -89,31 +89,37 @@ def create_student():
         dept = Department.query.first()
         dept_id = dept.id if dept else None
 
-    # Handle courses_data as JSON
-    courses_data = data.get("courses_data")
-    if courses_data and isinstance(courses_data, list):
-        courses_data = json.dumps(courses_data)
+    semester = int(data.get("semester", 1))
+    section = (data.get("section") or "A").upper()
+
+    # Automatically initialize standard curriculum courses for this semester/section
+    courses_list = data.get("courses_data")
+    if not courses_list or not isinstance(courses_list, list):
+        courses_list = Student.get_default_courses_for_semester(semester, section)
+    courses_data_json = json.dumps(courses_list)
 
     s = Student(
-        student_id=data["student_id"],
-        name=data["name"],
+        student_id=data["student_id"].strip().upper(),
+        name=data["name"].strip(),
         email=data.get("email"),
         phone=data.get("phone"),
         department_id=dept_id,
-        semester=data.get("semester", 1),
-        attendance_pct=data.get("attendance_pct", 0.0),
-        internal_marks=data.get("internal_marks", 0.0),
-        assignment_score_pct=data.get("assignment_score_pct", 0.0),
-        previous_gpa=data.get("previous_gpa", 0.0),
-        backlogs=data.get("backlogs", 0),
-        course_performance_pct=data.get("course_performance_pct", 0.0),
+        semester=semester,
+        section=section,
+        attendance_pct=100.0,
+        internal_marks=0.0,
+        assignment_score_pct=0.0,
+        previous_gpa=float(data.get("previous_gpa") or data.get("cgpa") or 0.0),
+        backlogs=int(data.get("backlogs") or 0),
+        course_performance_pct=0.0,
         engagement=data.get("engagement", "Medium"),
-        final_result=data.get("final_result"),
-        courses_data=courses_data,
+        final_result="Pending",
+        courses_data=courses_data_json,
     )
     db.session.add(s)
     db.session.commit()
     return jsonify(s.to_dict()), 201
+
 
 
 @students_bp.get("/<student_id>")

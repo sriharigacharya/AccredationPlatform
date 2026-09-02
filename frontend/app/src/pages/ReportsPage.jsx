@@ -94,9 +94,15 @@ function NbaForm({ departments, onSubmitted }) {
     let active = true
     setLoadingEvents(true)
     eventsAPI.list({ status: 'approved', academic_year: form.academic_year })
-      .then(res => {
+      .then(async res => {
         if (!active) return
-        const evs = res.data || []
+        let evs = res.data || []
+        if (evs.length === 0) {
+          try {
+            const fb = await eventsAPI.list({ status: 'approved' })
+            evs = fb.data || []
+          } catch (_) {}
+        }
         setApprovedEvents(evs)
         // Default to all approved selected for detailed treatment
         setSelectedEventIds(prev => prev.length > 0 ? prev.filter(id => evs.some(e => e.id === id)) : evs.map(e => e.id))
@@ -107,6 +113,7 @@ function NbaForm({ departments, onSubmitted }) {
       .finally(() => {
         if (active) setLoadingEvents(false)
       })
+
     return () => { active = false }
   }, [isCriterion4, form.academic_year, form.department_id])
 
@@ -393,9 +400,14 @@ function NbaForm({ departments, onSubmitted }) {
                   </div>
                 )
               })}
+
             </div>
           )}
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+
         <button type="submit" className="btn btn-primary" id="btn-generate-nba" disabled={loading}>
           {loading
             ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Generating…</>

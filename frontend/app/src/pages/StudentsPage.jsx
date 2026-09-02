@@ -1177,8 +1177,8 @@ export default function StudentsPage() {
                       <th>Section</th>
                       <th>Sem</th>
                       <th>Attendance</th>
-                      <th>SGPA</th>
-                      <th>GPA</th>
+                      <th>Current SGPA</th>
+                      <th>Past CGPA</th>
                       <th>Backlogs</th>
                       <th>Engagement</th>
                       <th>Result</th>
@@ -1228,12 +1228,13 @@ export default function StudentsPage() {
                           <td>
                             <span style={{
                               fontWeight: 700,
-                              color: s.sgpa >= 8.5 ? '#10b981' : s.sgpa >= 7.0 ? '#3b82f6' : s.sgpa >= 5.5 ? '#f59e0b' : '#ef4444'
+                              color: s.sgpa >= 8.5 ? '#10b981' : s.sgpa >= 7.0 ? '#3b82f6' : s.sgpa >= 5.5 ? '#f59e0b' : s.sgpa ? '#ef4444' : 'var(--text-muted)'
                             }}>
-                              {s.sgpa ? s.sgpa.toFixed(2) : '—'}
+                              {s.sgpa ? s.sgpa.toFixed(2) : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Pending</span>}
                             </span>
                           </td>
-                          <td>{s.previous_gpa?.toFixed(1)}</td>
+                          <td>{s.previous_gpa ? s.previous_gpa.toFixed(2) : '—'}</td>
+
                           <td>
                             {s.backlogs > 0 ? (
                               <span style={{ color: 'var(--red)', fontWeight: 700 }}>{s.backlogs}</span>
@@ -1553,13 +1554,15 @@ export default function StudentsPage() {
 
 
 function AddStudentForm({ onClose }) {
-
   const [data, setData] = useState({
-    student_id: '', name: '', email: '', phone: '',
-    section: 'A', semester: 3,
-    attendance_pct: 75, internal_marks: 60,
-    assignment_score_pct: 70, previous_gpa: 7.0, backlogs: 0,
-    course_performance_pct: 68, engagement: 'Medium',
+    student_id: '',
+    name: '',
+    email: '',
+    phone: '',
+    semester: 3,
+    section: 'A',
+    previous_gpa: '',
+    backlogs: 0,
   })
   const [loading, setLoading] = useState(false)
 
@@ -1567,10 +1570,19 @@ function AddStudentForm({ onClose }) {
 
   const submit = async e => {
     e.preventDefault()
+    if (!data.student_id.trim() || !data.name.trim()) {
+      toast.error('Student ID and Full Name are required')
+      return
+    }
     setLoading(true)
     try {
-      await studentsAPI.create(data)
-      toast.success('Student added!')
+      const payload = {
+        ...data,
+        previous_gpa: data.previous_gpa ? parseFloat(data.previous_gpa) : 0.0,
+        backlogs: parseInt(data.backlogs || 0, 10),
+      }
+      await studentsAPI.create(payload)
+      toast.success(`Student ${data.name} enrolled for Semester ${data.semester} Sec ${data.section}!`)
       onClose()
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to add student')
@@ -1585,65 +1597,145 @@ function AddStudentForm({ onClose }) {
       animation: 'fadeSlideUp 0.25s ease',
     }}>
       <div className="flex items-center justify-between mb-md">
-        <div style={{ fontWeight: 600, fontSize: 16 }}>➕ Add New Student</div>
-        <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
+        <div>
+          <div style={{ fontWeight: 700, fontSize: 16 }}>➕ Enroll New Student (Semester Registration)</div>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            Students are registered at the start of the semester. Curriculum courses are linked automatically, and CIE marks/attendance are updated by course teachers once tests and sessions occur.
+          </span>
+        </div>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
       </div>
-      <form onSubmit={submit}>
-        <div className="grid-3" style={{ gap: 12 }}>
-          {[
-            ['student_id', 'Student ID',  'text',  'STU101'],
-            ['name',       'Full Name',   'text',  'Jane Doe'],
-            ['email',      'Email',       'email', 'jane@student.edu'],
-            ['phone',      'Phone',       'text',  '9876543210'],
-          ].map(([k, label, type, ph]) => (
-            <div key={k} className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">{label}</label>
-              <input type={type} className="form-input" value={data[k]}
-                onChange={e => set(k, e.target.value)} placeholder={ph} />
-            </div>
-          ))}
 
-          {/* Section + Semester side by side */}
+      <form onSubmit={submit}>
+        <div className="grid-3" style={{ gap: 14 }}>
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Section</label>
-            <select className="form-select" value={data.section} onChange={e => set('section', e.target.value)}>
-              <option value="A">A (Sem 3)</option>
-              <option value="B">B (Sem 5)</option>
-              <option value="C">C (Sem 7)</option>
+            <label className="form-label">Student ID (USN) *</label>
+            <input
+              type="text"
+              className="form-input"
+              value={data.student_id}
+              onChange={e => set('student_id', e.target.value)}
+              placeholder="e.g. STU101 or 1MS23CS101"
+              required
+            />
+          </div>
+
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Full Name *</label>
+            <input
+              type="text"
+              className="form-input"
+              value={data.name}
+              onChange={e => set('name', e.target.value)}
+              placeholder="e.g. Priya Sharma"
+              required
+            />
+          </div>
+
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Email Address</label>
+            <input
+              type="email"
+              className="form-input"
+              value={data.email}
+              onChange={e => set('email', e.target.value)}
+              placeholder="e.g. priya@student.academiq.edu"
+            />
+          </div>
+
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Phone Number</label>
+            <input
+              type="tel"
+              className="form-input"
+              value={data.phone}
+              onChange={e => set('phone', e.target.value)}
+              placeholder="e.g. 9876543210"
+            />
+          </div>
+
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Enrolling Semester *</label>
+            <select
+              className="form-select"
+              value={data.semester}
+              onChange={e => set('semester', parseInt(e.target.value, 10))}
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
+                <option key={s} value={s}>Semester {s}</option>
+              ))}
             </select>
           </div>
 
-          {[
-            ['semester',              'Semester',     1,   8,   1],
-            ['attendance_pct',        'Attendance %', 0,   100, 0.1],
-            ['internal_marks',        'Internal Marks',0,  100, 1],
-            ['assignment_score_pct',  'Assignment %', 0,   100, 0.1],
-            ['previous_gpa',          'Previous GPA', 0,   10,  0.1],
-            ['backlogs',              'Backlogs',     0,   10,  1],
-            ['course_performance_pct','Course Perf %',0,   100, 0.1],
-          ].map(([k, label, min, max, step]) => (
-            <div key={k} className="form-group" style={{ margin: 0 }}>
-              <label className="form-label">{label}</label>
-              <input type="number" className="form-input" value={data[k]}
-                min={min} max={max} step={step}
-                onChange={e => set(k, parseFloat(e.target.value))} />
-            </div>
-          ))}
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Class Section *</label>
+            <select
+              className="form-select"
+              value={data.section}
+              onChange={e => set('section', e.target.value)}
+            >
+              <option value="A">Section A</option>
+              <option value="B">Section B</option>
+              <option value="C">Section C</option>
+            </select>
+          </div>
 
           <div className="form-group" style={{ margin: 0 }}>
-            <label className="form-label">Engagement</label>
-            <select className="form-select" value={data.engagement} onChange={e => set('engagement', e.target.value)}>
-              {['Low', 'Medium', 'High'].map(v => <option key={v}>{v}</option>)}
-            </select>
+            <label className="form-label">Past Cumulative CGPA</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="10"
+              className="form-input"
+              value={data.previous_gpa}
+              onChange={e => set('previous_gpa', e.target.value)}
+              placeholder="e.g. 7.85 (leave blank if 1st Sem)"
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Historical CGPA before current semester</span>
+          </div>
+
+          <div className="form-group" style={{ margin: 0 }}>
+            <label className="form-label">Standing Backlogs</label>
+            <input
+              type="number"
+              min="0"
+              max="15"
+              className="form-input"
+              value={data.backlogs}
+              onChange={e => set('backlogs', e.target.value)}
+              placeholder="0"
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Standing backlogs from prior semesters</span>
           </div>
         </div>
+
+        <div style={{
+          marginTop: 14,
+          padding: '10px 14px',
+          background: 'rgba(59, 130, 246, 0.08)',
+          border: '1px solid rgba(59, 130, 246, 0.2)',
+          borderRadius: 'var(--radius-sm)',
+          fontSize: 12,
+          color: 'var(--text-secondary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+          <span>💡 <strong>Academic Workflow:</strong> CIE 1, CIE 2, Quizzes, Experiential Learning, and Daily Attendance are recorded live by course faculty as sessions and tests take place via the <strong>Classes & Marks</strong> portal.</span>
+        </div>
+
         <div className="flex justify-end gap-sm mt-md">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            Cancel
+          </button>
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Saving…' : 'Add Student'}
+            {loading ? 'Enrolling…' : 'Enroll Student'}
           </button>
         </div>
       </form>
     </div>
   )
 }
+
 

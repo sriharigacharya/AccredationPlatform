@@ -36,9 +36,10 @@ def app():
         dept = Department(code="CSE", name="Computer Science & Engineering")
         db.session.add(dept)
 
-        s1 = Student(student_id="STU069", name="Aarav Sharma", email="aarav@test.edu", department_code="CSE", section="A", semester=7)
-        s2 = Student(student_id="STU070", name="Bhavna Rao", email="bhavna@test.edu", department_code="CSE", section="A", semester=7)
-        s3 = Student(student_id="STU072", name="Chetan Kumar", email="chetan@test.edu", department_code="CSE", section="B", semester=5)
+        s1 = Student(student_id="STU069", name="Aarav Sharma", email="aarav@test.edu", department_id=dept.id, section="A", semester=7)
+        s2 = Student(student_id="STU070", name="Bhavna Rao", email="bhavna@test.edu", department_id=dept.id, section="A", semester=7)
+        s3 = Student(student_id="STU072", name="Chetan Kumar", email="chetan@test.edu", department_id=dept.id, section="B", semester=5)
+
         db.session.add_all([s1, s2, s3])
         db.session.commit()
 
