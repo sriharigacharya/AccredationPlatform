@@ -702,19 +702,45 @@ function Criterion4PreviewSection({ previewData, loading, academicYear, deptCode
                           Layer 2 Detailed Summary Sheets ({sub.summary_sheets.length} Selected Events):
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
-                          {sub.summary_sheets.map((sheet, sIdx) => (
-                            <div key={sIdx} style={{
-                              padding: 8,
-                              borderRadius: 4,
-                              background: 'var(--surface, #ffffff)',
-                              border: '1px solid var(--border-color, #e2e8f0)',
-                              fontSize: 11,
-                            }}>
-                              <div style={{ fontWeight: 600, color: 'var(--primary, #3b82f6)' }}>{sheet.title}</div>
-                              <div style={{ color: 'var(--text-secondary)' }}>Resource: {sheet.resource_person || '—'}</div>
-                              <div style={{ color: 'var(--text-secondary)' }}>Photos: {sheet.photos?.length || 0} attached</div>
-                            </div>
-                          ))}
+                          {sub.summary_sheets.map((sheet, sIdx) => {
+                            const firstPhoto = sheet.photos_formatted?.[0] || (sheet.photos && sheet.photos[0])
+                            const photoSrc = firstPhoto?.photo_data_url || firstPhoto?.photo_url
+                            const photoCount = sheet.photos_formatted?.length || sheet.photos?.length || 0
+                            return (
+                              <div key={sIdx} style={{
+                                padding: 8,
+                                borderRadius: 6,
+                                background: 'var(--surface, #ffffff)',
+                                border: '1px solid var(--border-color, #e2e8f0)',
+                                fontSize: 11,
+                                display: 'flex',
+                                gap: 8,
+                                alignItems: 'center',
+                              }}>
+                                {photoSrc && (
+                                  <img
+                                    src={photoSrc}
+                                    alt="Event"
+                                    style={{
+                                      width: 48,
+                                      height: 48,
+                                      borderRadius: 4,
+                                      objectFit: 'cover',
+                                      border: '1px solid #cbd5e0',
+                                      flexShrink: 0,
+                                    }}
+                                  />
+                                )}
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div style={{ fontWeight: 600, color: 'var(--primary, #3b82f6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sheet.title}</div>
+                                  <div style={{ color: 'var(--text-secondary)' }}>Resource: {sheet.resource_person || '—'}</div>
+                                  <div style={{ color: 'var(--text-secondary)', fontSize: 10 }}>
+                                    📷 {photoCount} photo{photoCount !== 1 ? 's' : ''} attached
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
                     )}

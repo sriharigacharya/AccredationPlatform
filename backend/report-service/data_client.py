@@ -264,14 +264,15 @@ def fetch_image_base64(base_url: str, photo_path: str, category: str = "event") 
     endpoint = f"/event-photos/{photo_path}" if category == "event" else f"/achievement-photos/{photo_path}"
     try:
         url = f"{base_url.rstrip('/')}{endpoint}"
-        resp = _SESSION.get(url, timeout=5)
+        resp = requests.get(url, timeout=10)
         if resp.status_code == 200 and resp.content:
             mime = resp.headers.get("Content-Type", "image/jpeg")
             encoded = base64.b64encode(resp.content).decode("utf-8")
             return f"data:{mime};base64,{encoded}"
     except Exception as e:
-        logger.debug(f"[data_client] Could not fetch image {photo_path}: {e}")
+        logger.warning(f"[data_client] Could not fetch image {photo_path}: {e}")
     return None
+
 
 
 def fetch_event_summary_sheets(base_url: str, event_ids: list[int] | None = None) -> list[dict]:

@@ -679,14 +679,16 @@ def _seed_demo_clubs():
 
     # Seed Event Photos
     created_events = Event.query.all()
-    if created_events and EventPhoto.query.count() == 0:
-        if len(created_events) >= 1:
-            db.session.add(EventPhoto(event_id=created_events[0].id, photo_path="codestorm_hackathon.jpg", caption="CodeStorm 2026 Hackathon Final Presentations", uploaded_by="FAC001"))
-        if len(created_events) >= 2:
-            db.session.add(EventPhoto(event_id=created_events[1].id, photo_path="k8s_workshop.jpg", caption="Kubernetes Hands-on Lab Session", uploaded_by="FAC001"))
-        if len(created_events) >= 3:
-            db.session.add(EventPhoto(event_id=created_events[2].id, photo_path="robowars_arena.jpg", caption="RoboWars 2026 Arena Championship Match", uploaded_by="FAC002"))
+    if created_events:
+        for idx, (ev, photo_name) in enumerate([
+            (created_events[0] if len(created_events) >= 1 else None, "codestorm_hackathon.jpg"),
+            (created_events[1] if len(created_events) >= 2 else None, "k8s_workshop.jpg"),
+            (created_events[2] if len(created_events) >= 3 else None, "robowars_arena.jpg"),
+        ]):
+            if ev and not EventPhoto.query.filter_by(event_id=ev.id).first():
+                db.session.add(EventPhoto(event_id=ev.id, file_path=photo_name))
         db.session.commit()
+
 
     print(f"[academic-data-service] Seeded {len(created_clubs)} demo clubs, {len(roles_data)} student roles, {len(events_data)} sample events.")
 
