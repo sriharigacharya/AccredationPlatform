@@ -36,10 +36,12 @@ def build_report_data(
     scope: str,
     report_id: str = "",
     report_type: str = "nba",
+    include_event_ids: list[int] | None = None,
 ) -> ReportData:
     """
     Main entry point for NBA report assembly.
     app_config: Flask app.config (for service URLs).
+    include_event_ids: list of event IDs selected for detailed Summary Sheets.
     """
     academic_url = app_config.get("ACADEMIC_DATA_SERVICE_URL", "http://academic-data-service:8002")
 
@@ -54,8 +56,19 @@ def build_report_data(
     required_faculty = data_client.derive_required_faculty(len(students))
 
     # ── Resolve scope ─────────────────────────────────────────
+    # Note on section counts:
+    # When scope="criterion:4", resolve_scope returns 12 nodes in exact SAR tree hierarchy:
+    #   - 3 Structural Header Sections (marks=0, criterion_header):
+    #       1. "4"   — Students' Performance (Root Criterion Header)
+    #       2. "4.2" — Success Rate in Stipulated Period (Sub-criterion 4.2 Group Header)
+    #       3. "4.6" — Professional Activities (Sub-criterion 4.6 Group Header)
+    #   - 9 Leaf Content Subsections (marks=150 total):
+    #       4. "4.1"   (20m), 5. "4.2.1" (25m), 6. "4.2.2" (15m), 7. "4.3" (15m),
+    #       8. "4.4"   (15m), 9. "4.5"   (40m), 10. "4.6.1" (5m), 11. "4.6.2" (5m), 12. "4.6.3" (10m)
+    # Total compiled document sections = 3 headers + 9 leaf subsections = 12 sections.
     node_ids        = resolve_scope(sar_format, scope)
     nodes_dict, _   = get_tree(sar_format)
+
 
     # ── Build sections ────────────────────────────────────────
     sections: list[ReportSection] = []
@@ -73,6 +86,7 @@ def build_report_data(
             required_faculty=required_faculty,
             academic_year=academic_year,
             app_config=app_config,
+            include_event_ids=include_event_ids,
         )
         sections.append(section)
 
@@ -83,6 +97,7 @@ def build_report_data(
         academic_year=academic_year,
         generated_at=datetime.now(timezone.utc).isoformat(),
         department=dept,
+
         sections=sections,
         institution_name=dept.get("name", "Institution"),
         program_name="B.E. " + dept.get("name", "Engineering"),
@@ -177,6 +192,7 @@ def _build_section(
     required_faculty: int,
     academic_year: str,
     app_config: dict,
+    include_event_ids: list[int] | None = None,
 ) -> ReportSection:
     """Dispatch to the appropriate builder based on node type."""
     base = dict(
@@ -193,19 +209,64 @@ def _build_section(
     if node.node_type == "static":
         return ReportSection(**base, narrative=_static_content(node.id))
 
-    if node.node_type == "narrative":
+    # For any leaf or sub-node in unbuilt criteria (Criteria 1, 2, 3, 5, 6, 7, 8, 9)
+    root_id = node.id.split(".")[0]
+    if root_id.isdigit() and root_id != "4":
         return ReportSection(
             **base,
-            narrative=f"[{node.title}]\n\nPlease enter content for this section. "
-                       "Use the 'Expand with AI' button to generate a draft from bullet points.",
+            narrative=(
+                f"[{node.title}]\n\n"
+                "Status: Not Available — Section Not Yet Implemented\n\n"
+                "This section is part of the NBA SAR UG Tier-II format schema, but its automated data "
+                f"compilation pipeline is scheduled for a future release. (Marks allocated: {node.marks:.0f})"
+            ),
+            has_placeholders=True,
         )
 
-    if node.node_type in ("table", "formula_table"):
+    if node.node_type == "narrative":
+        narrative_text = ""
+        has_placeholder = True
+        try:
+            from models import ReportNarrative
+            dept_code = dept.get("code") or dept.get("id") or "CSE"
+            rec = ReportNarrative.query.filter_by(
+                node_id=node.id,
+                department_id=dept_code,
+                academic_year=academic_year,
+            ).first()
+            if rec and rec.narrative_text:
+                narrative_text = rec.narrative_text
+                has_placeholder = False
+        except Exception:
+            pass
+
+        if not narrative_text:
+            if node.id == "4.6.2":
+                narrative_text = (
+                    f"[{node.title}]\n\n"
+                    "Data not available: Narrative has not yet been authored by Department Admin.\n"
+                    "Use the narrative editor to document technical magazines, newsletters, and student editorial contributions.\n"
+                    f"(Assessment Marks: {node.marks} marks)"
+                )
+            else:
+                narrative_text = (
+                    f"[{node.title}]\n\nPlease enter content for this section. "
+                    "Use the 'Expand with AI' button to generate a draft from bullet points."
+                )
+
+        return ReportSection(
+            **base,
+            narrative=narrative_text,
+            has_placeholders=has_placeholder,
+        )
+
+    if node.node_type in ("table", "formula_table", "events_table"):
         return _build_formula_or_table_section(
             node=node, base=base, dept=dept, students=students,
             faculty=faculty, qual_counts=qual_counts,
             cadre_counts=cadre_counts, required_faculty=required_faculty,
-            academic_year=academic_year,
+            academic_year=academic_year, app_config=app_config,
+            include_event_ids=include_event_ids,
         )
 
     return ReportSection(**base)
@@ -214,80 +275,307 @@ def _build_section(
 def _build_formula_or_table_section(
     node, base, dept, students, faculty,
     qual_counts, cadre_counts, required_faculty, academic_year,
+    app_config: dict | None = None,
+    include_event_ids: list[int] | None = None,
 ) -> ReportSection:
     """Run the appropriate formula and build a table-format section."""
     fn = node.formula_fn
+    academic_url = (app_config or {}).get("ACADEMIC_DATA_SERVICE_URL", "http://academic-data-service:8002")
 
     # ── Criterion 4 ───────────────────────────────────────────
-    if fn == "enrolment_ratio":
-        enrol = data_client.get_enrolment_data(dept)
-        result = formulas.enrolment_ratio(enrol["enrolled"], enrol["sanctioned_intake"])
+    if fn == "club_events_summary" or node.id == "4.6.1":
+        all_approved = data_client.fetch_approved_events(
+            academic_url,
+            department_code=dept.get("code"),
+            academic_year=academic_year,
+        )
+
+        table_rows = []
+        if all_approved:
+            for idx, ev in enumerate(all_approved):
+                table_rows.append([
+                    idx + 1,
+                    ev.get("title", "—"),
+                    ev.get("club_name") or f"Club #{ev.get('club_id')}",
+                    (ev.get("event_type") or "other").capitalize(),
+                    (ev.get("event_date") or "")[:10] or "—",
+                    ev.get("venue") or "—",
+                    ev.get("attendee_count") or "—",
+                ])
+            is_placeholder = False
+        else:
+            table_rows = [["—", "Data not available", "—", "—", "—", "—", "—"]]
+            is_placeholder = True
+
+        # Layer 2 Summary Sheets: Only for selected events in include_event_ids
+        summary_sheets = []
+        if include_event_ids:
+            summary_sheets = data_client.fetch_event_summary_sheets(
+                academic_url,
+                event_ids=include_event_ids,
+            )
+
         return ReportSection(
             **base,
-            formula_result=result,
-            table_headers=["Parameter", "Value"],
-            table_rows=[
-                ["Sanctioned Intake", enrol["sanctioned_intake"]],
-                ["Students Enrolled", enrol["enrolled"]],
-                ["Enrolment Ratio (%)", f"{result['er_pct']:.1f}"],
+            table_headers=["Sl. No", "Event Title", "Club / Society", "Type", "Date", "Venue", "Attendees"],
+            table_rows=table_rows,
+            summary_sheets=summary_sheets,
+            has_placeholders=is_placeholder,
+            source_data={
+                "total_approved_events": len(all_approved),
+                "detailed_event_ids": include_event_ids or [],
+                "summary_sheets_count": len(summary_sheets),
+            },
+        )
+
+    if node.id == "4.6.3":
+        report_data = data_client.fetch_verified_student_achievements(
+            academic_url,
+            academic_year=academic_year,
+        )
+        unified_by_year = report_data.get("unified_by_year", [])
+        table_rows = []
+        sl_no = 1
+        for yr_grp in unified_by_year:
+            for ach in yr_grp.get("achievements", []):
+                stu_names = ach.get("student", {}).get("name") if isinstance(ach.get("student"), dict) else (ach.get("student_id") or "—")
+                table_rows.append([
+                    sl_no,
+                    stu_names,
+                    ach.get("event_name", "—"),
+                    (ach.get("activity_type") or "other").capitalize(),
+                    (ach.get("event_scope") or "within_state").replace("_", " ").title(),
+                    (ach.get("event_date") or "")[:10] or "—",
+                    ach.get("venue") or "—",
+                    ach.get("result_description") or "—",
+                ])
+                sl_no += 1
+
+        is_placeholder = len(table_rows) == 0
+        if is_placeholder:
+            table_rows = [["—", "Data not available", "—", "—", "—", "—", "—", "—"]]
+
+        return ReportSection(
+            **base,
+            table_headers=["Sl. No", "Student Name / ID", "Event Name", "Activity Type", "Scope", "Date", "Venue", "Result / Prize"],
+            table_rows=table_rows,
+            has_placeholders=is_placeholder,
+            source_data={
+                "total_verified_achievements": report_data.get("total_verified_achievements", 0 if is_placeholder else len(table_rows)),
+                "academic_years_count": report_data.get("academic_years_count", len(unified_by_year)),
+            },
+        )
+
+    if fn == "enrolment_ratio" or node.id == "4.1":
+        verified_admissions = data_client.fetch_verified_admission_records(
+            academic_url,
+            department=dept.get("code"),
+            academic_year=academic_year,
+        )
+        if verified_admissions:
+            rec = verified_admissions[0]
+            enrolled = rec.get("total_admitted", 0) or rec.get("first_year_admitted_net_migration", 0)
+            intake   = rec.get("sanctioned_intake", 0)
+            is_placeholder = False
+            result = formulas.enrolment_ratio(enrolled, intake)
+            table_rows = [
+                ["Sanctioned Intake (N)", intake],
+                ["Students Admitted (N1+N2+N3)", enrolled],
+                ["Enrolment Ratio (%)", f"{result['er_pct']:.1f}%"],
                 ["Marks Scored", f"{result['marks']:.0f} / 20"],
-            ],
-            has_placeholders=enrol.get("_placeholder", False),
-            source_data=enrol,
-        )
+            ]
+        else:
+            is_placeholder = True
+            result = {"enrolled": 0, "sanctioned_intake": 0, "er_pct": 0.0, "marks": 0.0}
+            table_rows = [
+                ["Sanctioned Intake (N)", "Data not available"],
+                ["Students Admitted (N1+N2+N3)", "Data not available"],
+                ["Enrolment Ratio (%)", "Data not available"],
+                ["Marks Scored", "0 / 20"],
+            ]
 
-    if fn == "success_rate":
-        sr_pct = data_client.get_success_rate_data(students)
-        result = formulas.success_rate(sr_pct)
         return ReportSection(
             **base,
             formula_result=result,
             table_headers=["Parameter", "Value"],
-            table_rows=[
-                ["Average Success Rate (%)", f"{sr_pct:.1f}"],
-                ["Marks Scored", f"{result['marks']:.1f} / 15"],
-            ],
-            has_placeholders=True,  # year-cohort data needs schema extension
-            source_data={"success_rate_pct": sr_pct},
+            table_rows=table_rows,
+            has_placeholders=is_placeholder,
+            source_data={"enrolled": result.get("enrolled", 0), "sanctioned_intake": result.get("sanctioned_intake", 0), "records": verified_admissions},
         )
 
-    if fn in ("api_year1", "api_year2", "api_year3"):
-        sem_map = {"api_year1": 1, "api_year2": 3, "api_year3": 5}
-        sem = sem_map[fn]
-        api_data = data_client.get_api_data(students, semester_filter=sem)
-        result   = formulas.academic_performance_index(**api_data)
-        year_label = {"api_year1": "1st", "api_year2": "2nd", "api_year3": "3rd"}[fn]
+    if fn == "success_rate_without_backlog" or node.id == "4.2.1":
+        batches_summary = data_client.fetch_verified_batch_progress_summary(
+            academic_url,
+            department=dept.get("code", "CSE"),
+        )
+        completed_batches = [b for b in batches_summary if b.get("year_IV")]
+        if completed_batches:
+            si_values = [
+                (b["year_IV"]["students_without_backlog"] / b["total_admitted"]) if b.get("total_admitted", 0) > 0 else 0.0
+                for b in completed_batches
+            ]
+            avg_si = sum(si_values) / len(si_values) if si_values else 0.0
+            result = formulas.success_rate_without_backlog(avg_si)
+            table_rows = [
+                ["Average Success Index (Without Backlog)", f"{result['avg_si']:.4f}"],
+                ["Success Rate (%)", f"{result['avg_si_pct']:.1f}%"],
+                ["Assessment Marks", f"{result['marks']:.1f} / 25"],
+            ]
+            is_placeholder = False
+        else:
+            result = {"avg_si": 0.0, "avg_si_pct": 0.0, "marks": 0.0}
+            table_rows = [
+                ["Average Success Index (Without Backlog)", "Data not available"],
+                ["Success Rate (%)", "Data not available"],
+                ["Assessment Marks", "0.0 / 25"],
+            ]
+            is_placeholder = True
+
         return ReportSection(
             **base,
             formula_result=result,
             table_headers=["Parameter", "Value"],
-            table_rows=[
-                ["Students in Assessment Semester", result["total_students"]],
-                ["Average GPA", f"{result['avg_gpa']:.2f}"],
-                ["API Marks", f"{result['marks']:.1f} / 10"],
-            ],
-            source_data=api_data,
+            table_rows=table_rows,
+            has_placeholders=is_placeholder,
+            source_data={"avg_si": result.get("avg_si", 0.0), "batches": completed_batches},
         )
 
-    if fn == "placement_index":
-        placement = data_client.get_placement_data(dept)
-        result    = formulas.placement_index(placement)
-        rows = []
-        for p in placement:
-            total = p.get("total", 0)
-            pct   = ((p.get("placed", 0) + p.get("higher_studies", 0) +
-                      p.get("entrepreneurs", 0)) / total * 100) if total else 0
-            rows.append([p.get("year", "—"), p.get("placed", 0),
-                         p.get("higher_studies", 0), p.get("entrepreneurs", 0),
-                         total, f"{pct:.1f}%"])
+    if fn == "success_rate_with_backlog" or node.id == "4.2.2":
+        batches_summary = data_client.fetch_verified_batch_progress_summary(
+            academic_url,
+            department=dept.get("code", "CSE"),
+        )
+        completed_batches = [b for b in batches_summary if b.get("year_IV")]
+        if completed_batches:
+            si_values = [
+                (b["year_IV"]["students_total_passed"] / b["total_admitted"]) if b.get("total_admitted", 0) > 0 else 0.0
+                for b in completed_batches
+            ]
+            avg_si = sum(si_values) / len(si_values) if si_values else 0.0
+            result = formulas.success_rate_with_backlog(avg_si)
+            table_rows = [
+                ["Average Success Index (With Backlogs Allowed)", f"{result['avg_si']:.4f}"],
+                ["Success Rate (%)", f"{result['avg_si_pct']:.1f}%"],
+                ["Assessment Marks", f"{result['marks']:.1f} / 15"],
+            ]
+            is_placeholder = False
+        else:
+            result = {"avg_si": 0.0, "avg_si_pct": 0.0, "marks": 0.0}
+            table_rows = [
+                ["Average Success Index (With Backlogs Allowed)", "Data not available"],
+                ["Success Rate (%)", "Data not available"],
+                ["Assessment Marks", "0.0 / 15"],
+            ]
+            is_placeholder = True
+
         return ReportSection(
             **base,
             formula_result=result,
-            table_headers=["Year", "Placed", "Higher Studies", "Entrepreneurs", "Total", "P (%)"],
-            table_rows=rows,
-            has_placeholders=any(p.get("_placeholder") for p in placement),
-            source_data={"placement": placement},
+            table_headers=["Parameter", "Value"],
+            table_rows=table_rows,
+            has_placeholders=is_placeholder,
+            source_data={"avg_si": result.get("avg_si", 0.0), "batches": completed_batches},
         )
+
+    if fn in ("api_year1", "api_year2", "api_year3") or node.id in ("4.3", "4.4"):
+        study_year_map = {"api_year1": "I", "api_year2": "II", "api_year3": "III"}
+        study_yr = study_year_map.get(fn, "II" if node.id == "4.3" else "III")
+        perf_records = data_client.fetch_verified_academic_performance(
+            academic_url,
+            department=dept.get("code"),
+            academic_year=academic_year,
+            year_of_study=study_yr,
+        )
+
+        if perf_records:
+            records_data = [
+                {
+                    "academic_year": r.get("academic_year"),
+                    "year_of_study": r.get("year_of_study"),
+                    "mean_cgpa_or_percentage": float(r.get("mean_cgpa_or_percentage") or 0.0),
+                    "successful_students_count": int(r.get("successful_students_count") or 0),
+                    "appeared_students_count": int(r.get("appeared_students_count") or 0),
+                }
+                for r in perf_records
+            ]
+            result = formulas.academic_performance_index(records_by_year=records_data, max_marks=float(node.marks or 15.0))
+            rows = []
+            for y in result.get("years", []):
+                rows.append([
+                    y.get("academic_year") or "—",
+                    y.get("appeared_students_count", 0),
+                    y.get("successful_students_count", 0),
+                    f"{y.get('mean_cgpa_or_percentage', 0.0):.2f}",
+                    f"{y.get('success_ratio', 0.0):.4f}",
+                    f"{y.get('api', 0.0):.2f}",
+                ])
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=["Academic Year", "Appeared Students", "Successful Students", "Mean CGPA", "Success Ratio", "API"],
+                table_rows=rows,
+                has_placeholders=False,
+                source_data={"records": perf_records, "summary": result},
+            )
+        else:
+            result = {"avg_api": 0.0, "marks": 0.0, "years": []}
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=["Academic Year", "Appeared Students", "Successful Students", "Mean CGPA", "Success Ratio", "API"],
+                table_rows=[["Data not available", "—", "—", "—", "—", "—"]],
+                has_placeholders=True,
+                source_data={"records": []},
+            )
+
+    if fn == "placement_index" or node.id == "4.5":
+        placement_summary = data_client.fetch_verified_placement_summary(academic_url)
+        years_data = placement_summary.get("years", [])
+
+        if years_data:
+            placements_for_formula = [
+                {
+                    "cohort_year": y.get("cohort_year"),
+                    "academic_year": y.get("academic_year"),
+                    "total": y.get("final_year_cohort_total", 0),
+                    "placed": y.get("verified_placed", 0),
+                    "higher_studies": y.get("verified_higher_studies", 0),
+                    "entrepreneurs": y.get("verified_entrepreneurs", 0),
+                }
+                for y in years_data
+            ]
+            result = formulas.placement_index(placements_for_formula)
+            rows = []
+            for y in result.get("years", []):
+                rows.append([
+                    y.get("academic_year") or str(y.get("cohort_year")),
+                    y.get("total", 0),
+                    y.get("placed", 0),
+                    y.get("higher_studies", 0),
+                    y.get("entrepreneurs", 0),
+                    y.get("career_positive_total", 0),
+                    f"{y.get('placement_index_pct', 0.0):.1f}%",
+                ])
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=["Academic Year", "Cohort Total (N)", "Placed (x)", "Higher Studies (y)", "Entrepreneurs (z)", "Total (x+y+z)", "Placement Index P (%)"],
+                table_rows=rows,
+                has_placeholders=False,
+                source_data=placement_summary,
+            )
+        else:
+            result = {"avg_placement_index_pct": 0.0, "marks": 0.0, "years": []}
+            return ReportSection(
+                **base,
+                formula_result=result,
+                table_headers=["Academic Year", "Cohort Total (N)", "Placed (x)", "Higher Studies (y)", "Entrepreneurs (z)", "Total (x+y+z)", "Placement Index P (%)"],
+                table_rows=[["Data not available", "—", "—", "—", "—", "—", "—"]],
+                has_placeholders=True,
+                source_data={"placement": []},
+            )
+
+
 
     # ── Criterion 5 ───────────────────────────────────────────
     if fn == "student_faculty_ratio":
@@ -299,8 +587,9 @@ def _build_formula_or_table_section(
             table_rows=[
                 ["Total Students", len(students)],
                 ["Total Faculty", len(faculty)],
-                ["SFR", f"{result['sfr']:.1f} : 1"],
+                ["SFR", f"{result['sfr']:.1f} : 1" if result.get("sfr") is not None else "—"],
                 ["Marks Scored", f"{result['marks']:.0f} / 30"],
+
             ],
             source_data={"students": len(students), "faculty": len(faculty)},
         )

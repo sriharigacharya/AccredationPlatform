@@ -57,6 +57,32 @@ ROUTE_TABLE = [
     ("/departments",    "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
     ("/assignments",    "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
 
+    # ── Clubs & Events ────────────────────────────────────────
+    # Fine-grained role checks (mentor-only approve, head/council submit)
+    # happen inside academic-data-service, not at gateway level.
+    ("/clubs",          "ACADEMIC_DATA_SERVICE_URL",  True, _ALL_AUTH),
+    ("/student-roles",  "ACADEMIC_DATA_SERVICE_URL",  True, _ALL_AUTH),
+    ("/events",         "ACADEMIC_DATA_SERVICE_URL",  True, _ALL_AUTH),
+    ("/event-photos",   "ACADEMIC_DATA_SERVICE_URL",  True, _ALL_AUTH),
+
+    # ── Placements & Offer Letters ────────────────────────────
+    ("/profile/placement", "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+    ("/placements",        "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+    ("/offer-letters",     "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+
+    # ── Student Achievements (External Competitions) ──────────
+    ("/student-achievements", "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+    ("/achievement-proofs",   "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+    ("/achievement-photos",   "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+
+    # ── Historical Criterion 4 Data (Admission, Batches, Performance) ──
+    ("/admission-records",    "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+    ("/batch-progress",       "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+    ("/academic-performance", "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+    ("/academic-batches",     "ACADEMIC_DATA_SERVICE_URL", True, _ALL_AUTH),
+
+
+
     # ── Parent contact ────────────────────────────────────────
     # Worker has NO access to parent-contact-service
     ("/parents",        "PARENT_CONTACT_SERVICE_URL", True, _STAFF),
@@ -78,11 +104,16 @@ ROUTE_TABLE = [
     ("/predict",        "PREDICTION_SERVICE_URL",     True, _NO_WORKER),
 
     # ── Reports ───────────────────────────────────────────────
+    # Criteria discovery: accessible to all authenticated roles (Admin, Teacher, Student, Worker)
+    ("/criteria",         "REPORT_SERVICE_URL",          True, _ALL_AUTH),
+    ("/reports/criteria", "REPORT_SERVICE_URL",          True, _ALL_AUTH),
     # NBA generation: admin and teacher only (workers/students cannot generate NBA SARs)
-    ("/reports/nba",   "REPORT_SERVICE_URL",          True, _ADMIN_TEACHER),
+    ("/reports/nba",      "REPORT_SERVICE_URL",          True, _ADMIN_TEACHER),
     # Adhoc + download + history: admin, teacher, student (no worker)
-    ("/reports",       "REPORT_SERVICE_URL",          True, _NO_WORKER),
+    ("/reports",          "REPORT_SERVICE_URL",          True, _NO_WORKER),
 ]
+
+
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

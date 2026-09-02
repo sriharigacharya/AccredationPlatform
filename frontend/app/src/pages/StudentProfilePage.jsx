@@ -1,10 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { studentsAPI, parentsAPI, contactAPI, predictAPI } from '../api/client'
+import { studentsAPI, parentsAPI, contactAPI, predictAPI, placementsAPI } from '../api/client'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
          PieChart, Pie } from 'recharts'
-import { ArrowLeft, Phone, MessageSquare, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Phone, MessageSquare, AlertTriangle, Briefcase,
+         ShieldCheck, CheckCircle2, XCircle, ExternalLink, Clock, Lock, Unlock } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 // ── Grade helpers ─────────────────────────────────────────────────────────
@@ -37,6 +38,7 @@ export default function StudentProfilePage() {
   const [analytics, setAnalytics] = useState(null)
   const [prediction, setPrediction] = useState(null)
   const [parent, setParent]     = useState(null)
+  const [placement, setPlacement] = useState(null)
   const [loading, setLoading]   = useState(true)
   const [calling, setCalling]   = useState(false)
   const [smsMsg, setSmsMsg]     = useState('')
@@ -47,15 +49,42 @@ export default function StudentProfilePage() {
       studentsAPI.get(id),
       studentsAPI.analytics(id),
       parentsAPI.get(id).catch(() => null),
-    ]).then(([s, a, p]) => {
+      placementsAPI.getForStudent(id).catch(() => ({ data: null })),
+    ]).then(([s, a, p, pl]) => {
       setStudent(s.data)
       setAnalytics(a.data)
       setParent(p?.data || null)
+      if (pl?.data && pl.data.id) {
+        setPlacement(pl.data)
+      }
       // Run prediction
       predictAPI.student(s.data).then(r => setPrediction(r.data)).catch(() => {})
       setLoading(false)
     }).catch(() => { toast.error('Student not found'); navigate('/students') })
   }, [id])
+
+  const handleVerifyPlacement = async () => {
+    if (!placement?.id) return
+    try {
+      const { data } = await placementsAPI.verify(placement.id)
+      setPlacement(data)
+      toast.success('Placement record verified for NBA Criterion 4.')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Verification failed')
+    }
+  }
+
+  const handleUnverifyPlacement = async () => {
+    if (!placement?.id) return
+    try {
+      const { data } = await placementsAPI.unverify(placement.id)
+      setPlacement(data)
+      toast.success('Placement verification reopened for student edits.')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to reopen')
+    }
+  }
+
 
   const handleCall = async () => {
     if (!parent) { toast.error('No parent contact on record'); return }
@@ -425,8 +454,124 @@ export default function StudentProfilePage() {
           </div>
         </div>
 
+        {/* ── PLACEMENT & OFFER LETTER CARD (CRITERION 4) ────────────── */}
+        <div className="card mb-lg" style={{ border: placement?.verified_by_admin ? '1px solid rgba(52,211,153,0.3)' : '1px solid rgba(79,142,247,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-md)', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>💼 Placement & Career Outcomes</h2>
+                {placement?.verified_by_admin ? (
+                  <span className="status-badge approved" style={{ fontSize: 11 }}>
+                    <ShieldCheck size={13} /> Verified by Admin
+                  </span>
+                ) : placement?.status && placement.status !== 'not_placed' ? (
+                  <span className="status-badge pending" style={{ fontSize: 11 }}>
+                    <Clock size={13} /> Pending Verification
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: 4, color: 'var(--text-muted)' }}>
+                    No Submission
+                  </span>
+                )}
+              </div>
+              <p className="text-muted text-xs" style={{ marginTop: 2 }}>
+                Student self-submitted career record and verified offer letter for NBA Criterion 4.5.
+              </p>
+            </div>
+
+            {placement?.id && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                {!placement.verified_by_admin ? (
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={handleVerifyPlacement}
+                  >
+                    <CheckCircle2 size={14} /> Verify Placement
+                  </button>
+                ) : (
+                  <button
+                    className="btn btn-secondary btn-sm"
+                    onClick={handleUnverifyPlacement}
+                    title="Reopen to allow student to edit record"
+                  >
+                    <Unlock size={14} /> Reopen for Edits
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {placement?.id ? (
+            <div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, background: 'rgba(255,255,255,0.02)', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                <div>
+                  <div className="text-muted text-xs">CAREER STATUS</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, textTransform: 'capitalize', color: 'var(--text-primary)', marginTop: 2 }}>
+                    {placement.status?.replace('_', ' ')}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-muted text-xs">COMPANY / INSTITUTION</div>
+                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginTop: 2 }}>
+                    {placement.company_or_institution || '—'}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-muted text-xs">ROLE / PROGRAM</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    {placement.role_or_program || '—'}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-muted text-xs">CTC / STIPEND</div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent)', marginTop: 2 }}>
+                    {placement.ctc_or_stipend || '—'}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-muted text-xs">ACADEMIC & COHORT YEAR</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    {placement.academic_year} (Batch {placement.final_year_cohort_year})
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-muted text-xs">OFFER LETTER DOCUMENT</div>
+                  {placement.offer_letter_path ? (
+                    <a
+                      href={`/api/v1/offer-letters/${placement.offer_letter_path}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 12, fontWeight: 600, marginTop: 4, textDecoration: 'none' }}
+                    >
+                      <ExternalLink size={13} /> View Offer Letter
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Not uploaded</span>
+                  )}
+                </div>
+              </div>
+
+              {placement.verified_by_admin && (
+                <div style={{ marginTop: 10, fontSize: 11, color: '#34d399', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <ShieldCheck size={13} /> Verified by {placement.verified_by || 'Admin'} on {placement.verified_at ? new Date(placement.verified_at).toLocaleDateString() : 'N/A'}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: 13 }}>
+              No placement or offer letter details submitted yet by student.
+            </div>
+          )}
+        </div>
+
         {/* ── Grade Distribution + Risk Flags ─────────────────────────── */}
         <div className="grid-2 mb-lg">
+
           {/* Grade Distribution */}
           <div className="card">
             <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 'var(--space-md)' }}>Grade Distribution</div>

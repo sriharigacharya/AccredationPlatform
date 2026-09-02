@@ -142,10 +142,79 @@
     </table>
     {% endif %}
 
+    {# Detailed Event Summary Sheets (for Section 4.6.1) #}
+    {% if section.summary_sheets %}
+    <div class="summary-sheets-container" style="margin-top: 14pt;">
+      <h4 style="color: #1a365d; font-size: 10.5pt; border-bottom: 1.5pt solid #e2e8f0; padding-bottom: 4pt; margin-bottom: 10pt;">
+        Detailed Activity Summary Sheets ({{ section.summary_sheets | length }} Selected Events)
+      </h4>
+      {% for sheet in section.summary_sheets %}
+      <div class="event-summary-card" style="border: 1pt solid #cbd5e0; border-radius: 4pt; padding: 10pt; margin-bottom: 14pt; page-break-inside: avoid; background-color: #fafafa;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6pt;">
+          <div>
+            <h5 style="margin: 0; font-size: 10.5pt; color: #2d3748; font-weight: 700;">{{ sheet.title }}</h5>
+            <div style="font-size: 8.5pt; color: #4a5568; margin-top: 2pt;">
+              <strong>Organized by:</strong> {{ sheet.club_name or 'College Club' }}
+              {% if sheet.reviewer_name %} &nbsp;|&nbsp; <strong>Mentor/Reviewer:</strong> {{ sheet.reviewer_name }}{% endif %}
+            </div>
+          </div>
+          <span style="font-size: 8pt; font-weight: 700; background-color: #ebf8ff; color: #2b6cb0; padding: 2pt 6pt; border-radius: 3pt; text-transform: uppercase;">
+            {{ sheet.event_type }}
+          </span>
+        </div>
+
+        <table class="data-table" style="font-size: 8.5pt; margin-bottom: 6pt;">
+          <tbody>
+            <tr>
+              <td style="width: 25%; font-weight: 600; background-color: #edf2f7;">Date & Venue</td>
+              <td style="width: 25%;">{{ sheet.event_date[:10] if sheet.event_date else '—' }} ({{ sheet.venue or 'Campus' }})</td>
+              <td style="width: 25%; font-weight: 600; background-color: #edf2f7;">Attendee Count</td>
+              <td style="width: 25%;">{{ sheet.attendee_count or '—' }} participants</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600; background-color: #edf2f7;">Resource Person / Guests</td>
+              <td>{{ sheet.resource_person or (sheet.guest_names_list | join(', ')) or '—' }}</td>
+              <td style="font-weight: 600; background-color: #edf2f7;">Skill Orientation</td>
+              <td>{{ sheet.skill_orientation or '—' }}</td>
+            </tr>
+            <tr>
+              <td style="font-weight: 600; background-color: #edf2f7;">PO / PSO Mapping</td>
+              <td colspan="3"><strong style="color: #2b6cb0;">{{ sheet.po_mapping or 'PO1, PO2, PO5, PO12' }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        {% if sheet.report_text or sheet.description %}
+        <div style="font-size: 8.5pt; line-height: 1.4; color: #2d3748; margin-bottom: 6pt; background: #ffffff; padding: 6pt 8pt; border: 0.5pt solid #e2e8f0; border-radius: 3pt;">
+          <strong>Report / Outcomes:</strong> {{ sheet.report_text or sheet.description }}
+        </div>
+        {% endif %}
+
+        {% if sheet.photos_formatted %}
+        <div style="margin-top: 6pt;">
+          <div style="font-size: 8pt; font-weight: 700; color: #4a5568; margin-bottom: 4pt;">Event Photographs:</div>
+          <div style="display: flex; gap: 6pt; flex-wrap: wrap;">
+            {% for photo in sheet.photos_formatted %}
+            <div style="text-align: center; max-width: 140pt;">
+              <img src="{{ photo.photo_url }}" alt="Event photo" style="max-height: 80pt; max-width: 130pt; border: 1pt solid #cbd5e0; border-radius: 3pt; object-fit: cover;" onerror="this.style.display='none'" />
+              {% if photo.caption %}
+              <div style="font-size: 7pt; color: #718096; margin-top: 1pt;">{{ photo.caption }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
     {# Narrative / static text #}
     {% if section.narrative %}
     <div class="narrative-content">{{ section.narrative }}</div>
     {% endif %}
+
 
   </div>
   {% endif %}

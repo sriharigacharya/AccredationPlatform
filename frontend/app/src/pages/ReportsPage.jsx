@@ -1,18 +1,12 @@
-/**
- * ReportsPage.jsx
- * NBA SAR & Ad-hoc AI Report generation interface.
- * Features: tab between NBA/AI modes, history table, real-time status polling,
- * download PDF/DOCX with blob streaming.
- */
-
 import React, { useState, useEffect, useRef } from 'react'
-import { reportsAPI, departmentsAPI } from '../api/client'
+import { reportsAPI, departmentsAPI, eventsAPI } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
 import {
   FileText, Cpu, Clock, Download, RefreshCw,
   ChevronRight, AlertTriangle, CheckCircle, Loader,
-  ClipboardList, Sparkles
+  ClipboardList, Sparkles, CheckSquare, Square, Calendar,
+  MapPin, Users, Info, Award, Image, Eye, Edit3, Save, Check
 } from 'lucide-react'
 
 // ── Status helpers ────────────────────────────────────────────────────────────
@@ -46,22 +40,122 @@ function NbaForm({ departments, onSubmitted }) {
     expand_narratives: false,
   })
   const [loading, setLoading] = useState(false)
+  const [approvedEvents, setApprovedEvents] = useState([])
+  const [selectedEventIds, setSelectedEventIds] = useState([])
+  const [loadingEvents, setLoadingEvents] = useState(false)
+  const [criteriaList, setCriteriaList] = useState([])
+  const [loadingCriteria, setLoadingCriteria] = useState(false)
+  const [previewData, setPreviewData] = useState(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
 
-  const scopeOptions = [
-    { value: 'full',            label: 'Full SAR (all 9 criteria)' },
-    { value: 'criterion:4',     label: 'Criterion 4 — Students Performance' },
-    { value: 'criterion:5',     label: 'Criterion 5 — Faculty Information' },
-    { value: 'criterion:6',     label: 'Criterion 6 — Faculty Contributions' },
-    { value: 'criterion:7',     label: 'Criterion 7 — Facilities' },
-    { value: 'criterion:9',     label: 'Criterion 9 — Student Support' },
+
+  // Default fallback criteria list (9 root criteria) if API is loading
+  const defaultCriteria = [
+    { id: '1', criterion_number: 1, title: 'Outcome-Based Curriculum', marks: 120, is_implemented: false, scope: 'criterion:1', tooltip: 'Not yet available — Coming Soon' },
+    { id: '2', criterion_number: 2, title: 'Outcome-Based Teaching Learning Processes', marks: 120, is_implemented: false, scope: 'criterion:2', tooltip: 'Not yet available — Coming Soon' },
+    { id: '3', criterion_number: 3, title: 'Outcome-Based Assessment', marks: 120, is_implemented: false, scope: 'criterion:3', tooltip: 'Not yet available — Coming Soon' },
+    { id: '4', criterion_number: 4, title: "Students' Performance", marks: 150, is_implemented: true, scope: 'criterion:4', tooltip: 'Available for report generation' },
+    { id: '5', criterion_number: 5, title: 'Faculty Information and Contributions', marks: 100, is_implemented: false, scope: 'criterion:5', tooltip: 'Not yet available — Coming Soon' },
+    { id: '6', criterion_number: 6, title: 'Faculty Contributions', marks: 120, is_implemented: false, scope: 'criterion:6', tooltip: 'Not yet available — Coming Soon' },
+    { id: '7', criterion_number: 7, title: 'Facilities and Technical Support', marks: 80, is_implemented: false, scope: 'criterion:7', tooltip: 'Not yet available — Coming Soon' },
+    { id: '8', criterion_number: 8, title: 'Continuous Improvement', marks: 70, is_implemented: false, scope: 'criterion:8', tooltip: 'Not yet available — Coming Soon' },
+    { id: '9', criterion_number: 9, title: 'Student Support System and Governance', marks: 120, is_implemented: false, scope: 'criterion:9', tooltip: 'Not yet available — Coming Soon' },
   ]
+
+  // Fetch dynamic criteria list directly from tree definitions
+  useEffect(() => {
+    let active = true
+    setLoadingCriteria(true)
+    reportsAPI.getCriteria(form.sar_format)
+      .then(res => {
+        if (!active) return
+        const list = res.data?.criteria
+        if (Array.isArray(list) && list.length > 0) {
+          setCriteriaList(list)
+        }
+      })
+      .catch(err => {
+        console.error('Failed to fetch criteria list:', err)
+      })
+      .finally(() => {
+        if (active) setLoadingCriteria(false)
+      })
+    return () => { active = false }
+  }, [form.sar_format])
+
+  const activeCriteria = criteriaList.length > 0 ? criteriaList : defaultCriteria
+  const isCriterion4 = form.scope === 'full' || form.scope === 'criterion:4'
+
+
+  // Fetch approved events for the selected academic year & department
+  useEffect(() => {
+    if (!isCriterion4) return
+    let active = true
+    setLoadingEvents(true)
+    eventsAPI.list({ status: 'approved', academic_year: form.academic_year })
+      .then(res => {
+        if (!active) return
+        const evs = res.data || []
+        setApprovedEvents(evs)
+        // Default to all approved selected for detailed treatment
+        setSelectedEventIds(prev => prev.length > 0 ? prev.filter(id => evs.some(e => e.id === id)) : evs.map(e => e.id))
+      })
+      .catch(err => {
+        console.error('Failed to load approved events:', err)
+      })
+      .finally(() => {
+        if (active) setLoadingEvents(false)
+      })
+    return () => { active = false }
+  }, [isCriterion4, form.academic_year, form.department_id])
+
+  function toggleEvent(id) {
+    setSelectedEventIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  function selectAllEvents() {
+    setSelectedEventIds(approvedEvents.map(e => e.id))
+  }
+
+  function clearAllEvents() {
+    setSelectedEventIds([])
+  }
+
+  async function handleFetchPreview() {
+    if (!form.department_id) {
+      toast.error('Select a department first')
+      return
+    }
+    setLoadingPreview(true)
+    setShowPreview(true)
+    try {
+      const res = await reportsAPI.previewCriterion4({
+        department_id: form.department_id,
+        academic_year: form.academic_year,
+        include_event_ids: selectedEventIds.join(','),
+      })
+      setPreviewData(res.data)
+      toast.success('Criterion 4 preview generated!')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to load preview')
+    } finally {
+      setLoadingPreview(false)
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.department_id) { toast.error('Select a department'); return }
     setLoading(true)
     try {
-      const res = await reportsAPI.generateNba(form)
+      const payload = {
+        ...form,
+        include_event_ids: isCriterion4 ? selectedEventIds : [],
+      }
+      const res = await reportsAPI.generateNba(payload)
       toast.success(`Report generated! ID: ${res.data.report_id?.slice(0, 8)}…`)
       onSubmitted(res.data)
     } catch (err) {
@@ -73,6 +167,7 @@ function NbaForm({ departments, onSubmitted }) {
 
   return (
     <form onSubmit={handleSubmit} className="report-form">
+
       <div className="form-grid-2">
         <div className="form-group">
           <label className="form-label">SAR Format</label>
@@ -107,14 +202,38 @@ function NbaForm({ departments, onSubmitted }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Scope</label>
-          <select className="form-select" value={form.scope}
-                  onChange={e => setForm(p => ({ ...p, scope: e.target.value }))}>
-            {scopeOptions.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
+          <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Scope</span>
+            {loadingCriteria && <small style={{ color: 'var(--text-muted)' }}>Syncing criteria…</small>}
+          </label>
+          <select
+            className="form-select"
+            value={form.scope}
+            onChange={e => setForm(p => ({ ...p, scope: e.target.value }))}
+          >
+            <option value="full">Full SAR (all 9 criteria)</option>
+            <optgroup label="Individual Criteria (1–9)">
+              {activeCriteria.map(c => {
+                const isAvail = c.is_implemented
+                const num = c.criterion_number || c.id
+                const label = `Criterion ${num} — ${c.title} (${c.marks} marks)${isAvail ? '' : ' [Coming Soon]'}`
+                const tip = c.tooltip || (isAvail ? 'Available for report generation' : 'Not yet available — Coming Soon')
+                return (
+                  <option
+                    key={c.id || num}
+                    value={c.scope || `criterion:${num}`}
+                    disabled={!isAvail}
+                    title={tip}
+                    style={!isAvail ? { color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' } : { fontWeight: 600 }}
+                  >
+                    {label}
+                  </option>
+                )
+              })}
+            </optgroup>
           </select>
         </div>
+
 
         <div className="form-group">
           <label className="form-label">Output Format</label>
@@ -139,15 +258,466 @@ function NbaForm({ departments, onSubmitted }) {
         </div>
       </div>
 
-      <button type="submit" className="btn btn-primary" id="btn-generate-nba" disabled={loading}
-              style={{ marginTop: 8 }}>
-        {loading
-          ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Generating…</>
-          : <><FileText size={14} /> Generate SAR Report</>}
-      </button>
+      {/* ── Event Selection for Detailed Summary Sheets (Criterion 4) ── */}
+      {isCriterion4 && (
+        <div style={{
+          marginTop: 18,
+          marginBottom: 16,
+          padding: 16,
+          background: 'var(--surface-sunken, #f8fafc)',
+          borderRadius: 8,
+          border: '1px solid var(--border-color, #e2e8f0)',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Award size={18} style={{ color: 'var(--primary, #3b82f6)' }} />
+              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+                Include Events for Detailed Treatment (Section 4.6.1)
+              </h4>
+              <span className="badge badge-blue" style={{ fontSize: 11 }}>
+                {selectedEventIds.length} / {approvedEvents.length} selected
+              </span>
+            </div>
+            {approvedEvents.length > 0 && (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button type="button" className="btn btn-xs btn-outline" onClick={selectAllEvents}>
+                  <CheckSquare size={11} /> Select All
+                </button>
+                <button type="button" className="btn btn-xs btn-ghost" onClick={clearAllEvents}>
+                  <Square size={11} /> Clear
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div style={{
+            fontSize: 12,
+            color: 'var(--text-secondary)',
+            background: 'var(--surface, #ffffff)',
+            padding: '8px 12px',
+            borderRadius: 6,
+            border: '1px solid var(--border-color, #e2e8f0)',
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 6,
+          }}>
+            <Info size={14} style={{ color: 'var(--primary, #3b82f6)', flexShrink: 0, marginTop: 2 }} />
+            <span>
+              <strong>NBA SAR Rule:</strong> All mentor-approved club & college events appear in the compact Layer 1 summary table.
+              Checked events below will additionally receive a full detailed <strong>Summary Sheet</strong> (with PO mapping, resource person, outcomes, and event photos) in Section 4.6.1.
+            </span>
+          </div>
+
+          {loadingEvents ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, fontSize: 13, color: 'var(--text-secondary)' }}>
+              <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Loading approved events…
+            </div>
+          ) : approvedEvents.length === 0 ? (
+            <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
+              No approved events found for academic year {form.academic_year}. The compact table will still render normally.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+              {approvedEvents.map(ev => {
+                const isSelected = selectedEventIds.includes(ev.id)
+                return (
+                  <div
+                    key={ev.id}
+                    onClick={() => toggleEvent(ev.id)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 10,
+                      padding: 10,
+                      borderRadius: 6,
+                      background: isSelected ? 'rgba(59, 130, 246, 0.06)' : 'var(--surface, #ffffff)',
+                      border: `1.5px solid ${isSelected ? 'var(--primary, #3b82f6)' : 'var(--border-color, #e2e8f0)'}`,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {}} // handled by card click
+                      style={{ marginTop: 3, cursor: 'pointer' }}
+                    />
+                    {ev.thumbnail_url ? (
+                      <img
+                        src={ev.thumbnail_url}
+                        alt="Event"
+                        style={{ width: 44, height: 44, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }}
+                        onError={e => { e.target.style.display = 'none' }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 4,
+                        background: 'var(--surface-sunken, #e2e8f0)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--text-secondary)',
+                        flexShrink: 0,
+                      }}>
+                        <Award size={20} />
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {ev.title}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
+                        <span className="badge badge-purple" style={{ fontSize: 10, padding: '1px 5px' }}>
+                          {ev.event_type}
+                        </span>
+                        <span className="badge" style={{ fontSize: 10, padding: '1px 5px' }}>
+                          {ev.club_name || `Club #${ev.club_id}`}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                          <Calendar size={11} /> {(ev.event_date || '').slice(0, 10)}
+                        </span>
+                        {ev.attendee_count && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                            <Users size={11} /> {ev.attendee_count}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+      <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
+        <button type="submit" className="btn btn-primary" id="btn-generate-nba" disabled={loading}>
+          {loading
+            ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Generating…</>
+            : <><FileText size={14} /> Generate SAR Report</>}
+        </button>
+
+        {isCriterion4 && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            id="btn-preview-c4"
+            disabled={loadingPreview}
+            onClick={handleFetchPreview}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            {loadingPreview
+              ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Loading Preview…</>
+              : <><Eye size={14} /> Live Preview Criterion 4 (150 Marks)</>}
+          </button>
+        )}
+      </div>
+
+      {/* ── Criterion 4 Interactive Preview Section ── */}
+      {showPreview && isCriterion4 && (
+        <Criterion4PreviewSection
+          previewData={previewData}
+          loading={loadingPreview}
+          academicYear={form.academic_year}
+          deptCode={form.department_id || 'CSE'}
+          onRefresh={handleFetchPreview}
+        />
+      )}
     </form>
   )
 }
+
+
+// ── Criterion 4 Live Preview Component ────────────────────────────────────────
+
+function Criterion4PreviewSection({ previewData, loading, academicYear, deptCode, onRefresh }) {
+  const [narrativeText, setNarrativeText] = useState('')
+  const [savingNarrative, setSavingNarrative] = useState(false)
+  const [isEditingNarrative, setIsEditingNarrative] = useState(false)
+
+  // Sync 4.6.2 narrative from preview
+  useEffect(() => {
+    if (previewData?.subsections) {
+      const sec462 = previewData.subsections.find(s => s.id === '4.6.2')
+      if (sec462) {
+        setNarrativeText(sec462.narrative || '')
+      }
+    }
+  }, [previewData])
+
+  async function handleSaveNarrative() {
+    if (!narrativeText.trim()) {
+      toast.error('Narrative text cannot be empty')
+      return
+    }
+    setSavingNarrative(true)
+    try {
+      await reportsAPI.saveNarrative('4.6.2', {
+        department_id: deptCode,
+        academic_year: academicYear,
+        narrative_text: narrativeText,
+        sar_format: 'ug_tier_ii_gapc_v4',
+      })
+      toast.success('Section 4.6.2 narrative saved successfully!')
+      setIsEditingNarrative(false)
+      onRefresh()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to save narrative')
+    } finally {
+      setSavingNarrative(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div style={{
+        marginTop: 24,
+        padding: 32,
+        background: 'var(--surface, #ffffff)',
+        borderRadius: 8,
+        border: '1px solid var(--border-color, #e2e8f0)',
+        textAlign: 'center',
+      }}>
+        <Loader size={24} style={{ animation: 'spin 1s linear infinite', color: 'var(--primary, #3b82f6)', marginBottom: 8 }} />
+        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Compiling Criterion 4 SAR Tree Preview…</div>
+        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Calculating verified admission ratios, success indices, APIs, and placement scores</div>
+      </div>
+    )
+  }
+
+  if (!previewData) return null
+
+  const totalMarks = previewData.max_marks || 150
+  const computedMarks = previewData.computed_marks_total || 0
+  const pct = Math.round((computedMarks / totalMarks) * 100)
+
+  return (
+    <div style={{
+      marginTop: 24,
+      background: 'var(--surface, #ffffff)',
+      borderRadius: 8,
+      border: '1px solid var(--border-color, #e2e8f0)',
+      overflow: 'hidden',
+    }}>
+      {/* ── Header Summary ── */}
+      <div style={{
+        padding: '16px 20px',
+        background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(99, 102, 241, 0.05))',
+        borderBottom: '1px solid var(--border-color, #e2e8f0)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: 12,
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+              Criterion 4 — Students' Performance (NBA SAR UG Tier-II)
+            </h3>
+            <span className="badge badge-blue">Verified Data</span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+            Department: <strong>{deptCode}</strong> | Academic Year: <strong>{academicYear}</strong> | 9 Canonical Subsections
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Total Score
+            </div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary, #3b82f6)' }}>
+              {computedMarks} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>/ {totalMarks} Marks ({pct}%)</span>
+            </div>
+          </div>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={onRefresh} title="Refresh Preview">
+            <RefreshCw size={14} /> Refresh
+          </button>
+        </div>
+      </div>
+
+      {/* ── Subsections List in Canonical Order ── */}
+      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {previewData.subsections?.map((sub, idx) => {
+          const isNarrative = sub.id === '4.6.2'
+          const isEvents = sub.id === '4.6.1'
+
+          return (
+            <div
+              key={sub.id}
+              style={{
+                border: '1px solid var(--border-color, #e2e8f0)',
+                borderRadius: 6,
+                background: 'var(--surface-sunken, #f8fafc)',
+                overflow: 'hidden',
+              }}
+            >
+              {/* Section Header */}
+              <div style={{
+                padding: '10px 14px',
+                background: 'var(--surface, #ffffff)',
+                borderBottom: '1px solid var(--border-color, #e2e8f0)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 8,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 28,
+                    height: 28,
+                    borderRadius: '50%',
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    color: 'var(--primary, #3b82f6)',
+                    fontWeight: 700,
+                    fontSize: 12,
+                  }}>
+                    {sub.id}
+                  </span>
+                  <div>
+                    <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{sub.title}</strong>
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      Weight: {sub.marks_allocated} Marks | Format: {sub.content_type}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {sub.has_placeholders ? (
+                    <span className="badge badge-yellow" style={{ fontSize: 11 }}>Data not available</span>
+                  ) : (
+                    <span className="badge badge-green" style={{ fontSize: 11 }}>
+                      <Check size={10} /> Verified
+                    </span>
+                  )}
+                  <span className="badge badge-purple" style={{ fontSize: 12, fontWeight: 700 }}>
+                    {sub.marks_computed} / {sub.marks_allocated} M
+                  </span>
+                </div>
+              </div>
+
+              {/* Section Body */}
+              <div style={{ padding: 12 }}>
+                {/* 4.6.2 Narrative Editor */}
+                {isNarrative ? (
+                  <div>
+                    {isEditingNarrative ? (
+                      <div>
+                        <textarea
+                          className="form-textarea"
+                          rows={4}
+                          value={narrativeText}
+                          onChange={e => setNarrativeText(e.target.value)}
+                          placeholder="Author publication details, magazine issues, newsletters, editorial board members, and student contributions…"
+                          style={{ width: '100%', fontSize: 13 }}
+                        />
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-primary"
+                            onClick={handleSaveNarrative}
+                            disabled={savingNarrative}
+                          >
+                            {savingNarrative ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={12} />} Save Narrative
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-ghost"
+                            onClick={() => setIsEditingNarrative(false)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                          {narrativeText || sub.narrative}
+                        </p>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-outline"
+                          onClick={() => setIsEditingNarrative(true)}
+                          style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <Edit3 size={11} /> Edit Publication Narrative
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Tables for other 8 sections */
+                  <div>
+                    {sub.table_headers?.length > 0 && (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table className="data-table" style={{ fontSize: 12, margin: 0 }}>
+                          <thead>
+                            <tr>
+                              {sub.table_headers.map((h, i) => (
+                                <th key={i}>{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {sub.table_rows?.map((row, rIdx) => (
+                              <tr key={rIdx}>
+                                {row.map((cell, cIdx) => (
+                                  <td key={cIdx}>
+                                    {typeof cell === 'number' ? cell : String(cell ?? '—')}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {/* 4.6.1 Summary Sheets Preview */}
+                    {isEvents && sub.summary_sheets?.length > 0 && (
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-color, #e2e8f0)' }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
+                          Layer 2 Detailed Summary Sheets ({sub.summary_sheets.length} Selected Events):
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
+                          {sub.summary_sheets.map((sheet, sIdx) => (
+                            <div key={sIdx} style={{
+                              padding: 8,
+                              borderRadius: 4,
+                              background: 'var(--surface, #ffffff)',
+                              border: '1px solid var(--border-color, #e2e8f0)',
+                              fontSize: 11,
+                            }}>
+                              <div style={{ fontWeight: 600, color: 'var(--primary, #3b82f6)' }}>{sheet.title}</div>
+                              <div style={{ color: 'var(--text-secondary)' }}>Resource: {sheet.resource_person || '—'}</div>
+                              <div style={{ color: 'var(--text-secondary)' }}>Photos: {sheet.photos?.length || 0} attached</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+
 
 // ── Ad-hoc AI form ────────────────────────────────────────────────────────────
 

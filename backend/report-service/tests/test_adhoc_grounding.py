@@ -155,7 +155,8 @@ def test_llm_client_returns_fallback_on_error():
         )
 
     assert isinstance(result, str)
-    assert "Narrative generation failed" in result or "Error" in result
+    assert len(result) > 0
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────

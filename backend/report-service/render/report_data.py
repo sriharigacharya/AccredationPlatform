@@ -38,8 +38,12 @@ class ReportSection:
     # Placeholder flag — displayed as a banner in the rendered output
     has_placeholders: bool = False
 
+    # Detailed Summary Sheets (e.g. for Criterion 4.6.1 club/college events with photos)
+    summary_sheets:   list[dict[str, Any]] = field(default_factory=list)
+
     # Raw data that was used to populate this section (for audit/grounding)
     source_data:  dict[str, Any] = field(default_factory=dict)
+
 
 
 @dataclass

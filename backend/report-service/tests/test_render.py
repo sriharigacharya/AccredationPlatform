@@ -62,11 +62,17 @@ class TestDocxRenderer:
 
 class TestPDFRenderer:
     def test_pdf_renders_without_error(self):
-        """PDF generation should not raise from a valid ReportData."""
+        """
+        PDF generation should not raise from a valid ReportData.
+        NOTE ON SKIPPED RUNS: WeasyPrint requires native GTK/Cairo/Pango C-libraries installed
+        in the Linux Docker container (Dockerfile). On Windows host dev environments without GTK,
+        this test gracefully skips while DOCX and data-integrity tests run locally.
+        """
         try:
+            from weasyprint import HTML
             from render.pdf_renderer import render_pdf
         except ImportError:
-            pytest.skip("WeasyPrint not installed in this environment")
+            pytest.skip("WeasyPrint / GTK libraries not installed on host OS; validated in Docker container CI")
 
         report = make_minimal_report_data()
         pdf_bytes = render_pdf(report)
@@ -78,8 +84,10 @@ class TestPDFRenderer:
         """
         PDF and DOCX must contain the same number of sections.
         This test enforces that neither renderer silently drops a section.
+        NOTE ON SKIPPED RUNS: Skipped on host OS when WeasyPrint native C-bindings are unavailable.
         """
         try:
+            from weasyprint import HTML
             from render.pdf_renderer import render_pdf
             from render.docx_renderer import render_docx
             from docx import Document
@@ -95,7 +103,8 @@ class TestPDFRenderer:
             for sec in report.sections:
                 assert sec.title in all_text, f"DOCX missing: {sec.title}"
         except ImportError:
-            pytest.skip("WeasyPrint not installed")
+            pytest.skip("WeasyPrint / GTK libraries not installed on host OS; validated in Docker container CI")
+
 
 
 class TestSARTree:

@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { studentsAPI, predictAPI, parentsAPI, assignmentsAPI } from '../api/client'
+import { studentsAPI, predictAPI, parentsAPI, assignmentsAPI, placementsAPI, achievementsAPI } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
          BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
          PieChart, Pie } from 'recharts'
-import { FileText, Briefcase, Calendar, CheckCircle2, Clock } from 'lucide-react'
+import { FileText, Briefcase, Calendar, CheckCircle2, Clock, Upload,
+         Lock, ShieldCheck, Building, GraduationCap, Rocket, FileCheck, ExternalLink,
+         Trophy, Medal, Plus, Trash2, Image, Users, AlertCircle, X } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 // ── Grade helpers ─────────────────────────────────────────────────────────
@@ -31,7 +33,7 @@ function getGradeColor(grade) {
 }
 
 /**
- * Student's own read-only academic record.
+ * Student's own read-only academic record + self-service Placement & External Achievements submission.
  * Fetches by linked_id from JWT (forwarded as X-Linked-Id by gateway).
  */
 export default function MyRecordPage() {
@@ -40,7 +42,44 @@ export default function MyRecordPage() {
   const [prediction, setPrediction] = useState(null)
   const [parent, setParent] = useState(null)
   const [assignments, setAssignments] = useState([])
+  const [placement, setPlacement] = useState(null)
+  const [placementForm, setPlacementForm] = useState({
+    status: 'not_placed',
+    company_or_institution: '',
+    role_or_program: '',
+    ctc_or_stipend: '',
+    academic_year: '2025-26',
+    final_year_cohort_year: 2026,
+  })
+  const [offerFile, setOfferFile] = useState(null)
+  const [savingPlacement, setSavingPlacement] = useState(false)
+
+  // Achievements state
+  const [achievements, setAchievements] = useState([])
+  const [showAchievementModal, setShowAchievementModal] = useState(false)
+  const [submittingAchievement, setSubmittingAchievement] = useState(false)
+  const [achievementForm, setAchievementForm] = useState({
+    event_name: '',
+    organizing_body: '',
+    activity_type: 'technical',
+    event_scope: 'national',
+    event_date: new Date().toISOString().split('T')[0],
+    academic_year: '2025-26',
+    venue: '',
+    result_description: '',
+    student_ids: '',
+    remarks: '',
+  })
+  const [proofDocFile, setProofDocFile] = useState(null)
+  const [photoFiles, setPhotoFiles] = useState([])
+
   const [loading, setLoading] = useState(true)
+
+  const fetchMyAchievements = () => {
+    achievementsAPI.myList()
+      .then(res => setAchievements(res.data || []))
+      .catch(() => {})
+  }
 
   useEffect(() => {
     if (!user?.linked_id) {
@@ -51,10 +90,24 @@ export default function MyRecordPage() {
       studentsAPI.get(user.linked_id),
       parentsAPI.get(user.linked_id).catch(() => null),
       assignmentsAPI.myList().catch(() => ({ data: [] })),
-    ]).then(([s, p, a]) => {
+      placementsAPI.myPlacement().catch(() => ({ data: null })),
+      achievementsAPI.myList().catch(() => ({ data: [] })),
+    ]).then(([s, p, a, pl, ach]) => {
       setStudent(s.data)
       setParent(p?.data || null)
       setAssignments(a?.data || [])
+      setAchievements(ach?.data || [])
+      if (pl?.data) {
+        setPlacement(pl.data)
+        setPlacementForm({
+          status: pl.data.status || 'not_placed',
+          company_or_institution: pl.data.company_or_institution || '',
+          role_or_program: pl.data.role_or_program || '',
+          ctc_or_stipend: pl.data.ctc_or_stipend || '',
+          academic_year: pl.data.academic_year || '2025-26',
+          final_year_cohort_year: pl.data.final_year_cohort_year || 2026,
+        })
+      }
       return predictAPI.student(s.data)
     }).then(r => {
       setPrediction(r.data)
@@ -62,6 +115,76 @@ export default function MyRecordPage() {
       toast.error('Could not load your record.')
     }).finally(() => setLoading(false))
   }, [user])
+
+  const handleAchievementSubmit = async (e) => {
+    e.preventDefault()
+    if (!achievementForm.event_name.trim() || !achievementForm.organizing_body.trim() || !achievementForm.venue.trim() || !achievementForm.result_description.trim()) {
+      toast.error('Please complete all required fields.')
+      return
+    }
+    if (!proofDocFile) {
+      toast.error('Certificate or proof document is required.')
+      return
+    }
+
+    setSubmittingAchievement(true)
+    const formData = new FormData()
+    formData.append('event_name', achievementForm.event_name.trim())
+    formData.append('organizing_body', achievementForm.organizing_body.trim())
+    formData.append('activity_type', achievementForm.activity_type)
+    formData.append('event_scope', achievementForm.event_scope)
+    formData.append('event_date', achievementForm.event_date)
+    formData.append('academic_year', achievementForm.academic_year)
+    formData.append('venue', achievementForm.venue.trim())
+    formData.append('result_description', achievementForm.result_description.trim())
+    if (achievementForm.remarks.trim()) {
+      formData.append('remarks', achievementForm.remarks.trim())
+    }
+    if (achievementForm.student_ids.trim()) {
+      formData.append('student_ids', achievementForm.student_ids.trim())
+    }
+    formData.append('proof_file', proofDocFile)
+    for (let i = 0; i < photoFiles.length; i++) {
+      formData.append('photos', photoFiles[i])
+    }
+
+    try {
+      await achievementsAPI.create(formData)
+      toast.success('Achievement submitted! It will appear in Criterion 4 report after Faculty verification.')
+      setShowAchievementModal(false)
+      setAchievementForm({
+        event_name: '',
+        organizing_body: '',
+        activity_type: 'technical',
+        event_scope: 'national',
+        event_date: new Date().toISOString().split('T')[0],
+        academic_year: '2025-26',
+        venue: '',
+        result_description: '',
+        student_ids: '',
+        remarks: '',
+      })
+      setProofDocFile(null)
+      setPhotoFiles([])
+      fetchMyAchievements()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Submission failed')
+    } finally {
+      setSubmittingAchievement(false)
+    }
+  }
+
+  const handleDeleteAchievement = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this achievement submission?')) return
+    try {
+      await achievementsAPI.delete(id)
+      toast.success('Achievement deleted.')
+      fetchMyAchievements()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to delete')
+    }
+  }
+
 
   // ── Derived data ───────────────────────────────────────────────────
   const courses = useMemo(() => student?.courses || [], [student])
@@ -103,11 +226,50 @@ export default function MyRecordPage() {
     ]
   }, [student, courses, sgpa, totalCredits])
 
+  const handlePlacementSubmit = async (e) => {
+    e.preventDefault()
+    if (placement?.verified_by_admin) {
+      toast.error('This record is verified and locked for edits.')
+      return
+    }
+
+    if (placementForm.status === 'placed' && !offerFile && !placement?.offer_letter_path) {
+      toast.error('An offer letter document (PDF/image) is mandatory when status is "Placed".')
+      return
+    }
+
+    setSavingPlacement(true)
+    const formData = new FormData()
+    formData.append('status', placementForm.status)
+    formData.append('company_or_institution', placementForm.company_or_institution)
+    formData.append('role_or_program', placementForm.role_or_program)
+    formData.append('ctc_or_stipend', placementForm.ctc_or_stipend)
+    formData.append('academic_year', placementForm.academic_year)
+    formData.append('final_year_cohort_year', placementForm.final_year_cohort_year)
+    if (offerFile) {
+      formData.append('offer_letter', offerFile)
+    }
+
+    try {
+      const res = await placementsAPI.submit(formData)
+      setPlacement(res.data)
+      setOfferFile(null)
+      toast.success('Placement details submitted! Awaiting administrator verification.')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to submit placement')
+    } finally {
+      setSavingPlacement(false)
+    }
+  }
+
+  const isVerified = Boolean(placement?.verified_by_admin)
+
   if (loading) return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
       <div className="spinner spinner-lg" />
     </div>
   )
+
 
   if (!user?.linked_id) return (
     <div className="page-enter">
@@ -559,9 +721,571 @@ export default function MyRecordPage() {
           )}
         </div>
 
-        {/* ── Evaluation Scheme Info ──────────────────────────────────── */}
-        <div className="card">
+        {/* ── PLACEMENT & CAREER OUTCOMES CARD (CRITERION 4) ──────────── */}
+        <div className="card mb-lg" style={{ border: isVerified ? '1px solid rgba(52,211,153,0.3)' : '1px solid rgba(79,142,247,0.25)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-md)', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>💼 Placement & Career Outcomes</h2>
+                {isVerified ? (
+                  <span className="status-badge approved" style={{ fontSize: 11 }}>
+                    <ShieldCheck size={13} /> Verified by Admin
+                  </span>
+                ) : placement?.status && placement.status !== 'not_placed' ? (
+                  <span className="status-badge pending" style={{ fontSize: 11 }}>
+                    <Clock size={13} /> Pending Verification
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: 4, color: 'var(--text-muted)' }}>
+                    Not Submitted
+                  </span>
+                )}
+              </div>
+              <p className="text-muted text-xs" style={{ marginTop: 2 }}>
+                Record your employment offer, higher studies admission, or startup venture. Feeds into NBA Criterion 4.5 Placement Index.
+              </p>
+            </div>
+
+            {isVerified && (
+              <div style={{ fontSize: 12, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '4px 10px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(52,211,153,0.2)' }}>
+                <Lock size={12} style={{ display: 'inline', marginRight: 4 }} /> Record Locked
+              </div>
+            )}
+          </div>
+
+          {isVerified && (
+            <div className="alert alert-success mb-md" style={{ fontSize: 12 }}>
+              <ShieldCheck size={16} />
+              <div>
+                <strong>Verified by Institution:</strong> Your placement information and offer letter have been verified
+                for NBA SAR accreditation reporting. To make revisions, please contact the placement officer / administrator.
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handlePlacementSubmit}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 'var(--space-md)' }}>
+              {/* Career Status */}
+              <div>
+                <label className="label">Placement Status *</label>
+                <select
+                  className="input"
+                  value={placementForm.status}
+                  onChange={(e) => setPlacementForm({ ...placementForm, status: e.target.value })}
+                  disabled={isVerified}
+                  required
+                >
+                  <option value="not_placed">Not Placed / Seeking Opportunities</option>
+                  <option value="placed">Campus / Off-Campus Placement (Placed)</option>
+                  <option value="higher_studies">Higher Studies (Master's / Ph.D)</option>
+                  <option value="entrepreneur">Entrepreneurship / Startup Founder</option>
+                </select>
+              </div>
+
+              {/* Company / Institution */}
+              <div>
+                <label className="label">
+                  {placementForm.status === 'higher_studies' ? 'University / Institution Name' :
+                   placementForm.status === 'entrepreneur' ? 'Startup / Venture Name' :
+                   'Hiring Company / Organization Name'}
+                  {placementForm.status !== 'not_placed' && ' *'}
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder={
+                    placementForm.status === 'higher_studies' ? 'e.g. Carnegie Mellon University' :
+                    placementForm.status === 'entrepreneur' ? 'e.g. NextGen Robotics Pvt Ltd' :
+                    'e.g. Microsoft India, TCS, Infosys'
+                  }
+                  value={placementForm.company_or_institution}
+                  onChange={(e) => setPlacementForm({ ...placementForm, company_or_institution: e.target.value })}
+                  disabled={isVerified || placementForm.status === 'not_placed'}
+                  required={placementForm.status !== 'not_placed'}
+                />
+              </div>
+
+              {/* Role / Program */}
+              <div>
+                <label className="label">
+                  {placementForm.status === 'higher_studies' ? 'Degree & Specialization' :
+                   placementForm.status === 'entrepreneur' ? 'Designation / Co-founder Role' :
+                   'Job Designation / Role'}
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder={
+                    placementForm.status === 'higher_studies' ? 'e.g. MS in Computer Science' :
+                    placementForm.status === 'entrepreneur' ? 'e.g. Founder & Chief Technology Officer' :
+                    'e.g. Software Development Engineer (SDE 1)'
+                  }
+                  value={placementForm.role_or_program}
+                  onChange={(e) => setPlacementForm({ ...placementForm, role_or_program: e.target.value })}
+                  disabled={isVerified || placementForm.status === 'not_placed'}
+                />
+              </div>
+
+              {/* Package / CTC / Stipend */}
+              <div>
+                <label className="label">
+                  {placementForm.status === 'higher_studies' ? 'Scholarship / Assistantship' :
+                   placementForm.status === 'entrepreneur' ? 'Grant / Initial Capital' :
+                   'Annual CTC / Compensation'}
+                </label>
+                <input
+                  type="text"
+                  className="input"
+                  placeholder={
+                    placementForm.status === 'higher_studies' ? 'e.g. $2,200/mo or Fully Funded' :
+                    placementForm.status === 'entrepreneur' ? 'e.g. ₹10,00,000 Seed Grant' :
+                    'e.g. 14.5 LPA or ₹65,000/mo'
+                  }
+                  value={placementForm.ctc_or_stipend}
+                  onChange={(e) => setPlacementForm({ ...placementForm, ctc_or_stipend: e.target.value })}
+                  disabled={isVerified || placementForm.status === 'not_placed'}
+                />
+              </div>
+            </div>
+
+            {/* Offer Letter Upload & Preview */}
+            {placementForm.status !== 'not_placed' && (
+              <div style={{ marginTop: 'var(--space-md)', padding: 14, background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 240 }}>
+                    <label className="label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <FileCheck size={14} color="var(--accent)" />
+                      {placementForm.status === 'placed' ? 'Offer Letter Document (Mandatory) *' :
+                       placementForm.status === 'higher_studies' ? 'Admission / Admit Letter (PDF/Image)' :
+                       'Incubation / Registration Certificate (PDF/Image)'}
+                    </label>
+                    {!isVerified ? (
+                      <input
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg,.webp"
+                        className="input"
+                        onChange={(e) => setOfferFile(e.target.files[0] || null)}
+                      />
+                    ) : (
+                      <div className="text-muted text-xs">Upload disabled for verified records.</div>
+                    )}
+                    <span className="text-muted text-xs" style={{ display: 'block', marginTop: 4 }}>
+                      Supported formats: PDF, PNG, JPG (Max 10MB)
+                    </span>
+                  </div>
+
+                  {placement?.offer_letter_path && (
+                    <div style={{ padding: '8px 14px', background: 'rgba(79,142,247,0.1)', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(79,142,247,0.2)' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 2 }}>Current Document on File:</div>
+                      <a
+                        href={`/api/v1/offer-letters/${placement.offer_letter_path}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+                      >
+                        <ExternalLink size={13} /> View Uploaded Offer Letter
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!isVerified && (
+              <div style={{ marginTop: 'var(--space-md)', display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={savingPlacement}
+                >
+                  <Upload size={15} /> {savingPlacement ? 'Submitting...' : 'Save & Submit Placement'}
+                </button>
+              </div>
+            )}
+          </form>
+        </div>
+
+        {/* ── EXTERNAL ACHIEVEMENTS CARD (CRITERION 4.6.3) ──────── */}
+        <div className="card mb-lg" style={{ border: '1px solid rgba(232,201,110,0.25)' }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-md)', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>🏆 External Student Achievements</h2>
+                <span className="badge badge-neutral" style={{ fontSize: 11 }}>{achievements.length} records</span>
+              </div>
+              <p className="text-muted text-xs" style={{ marginTop: 2 }}>
+                Inter-college hackathons, sports meets, cultural fests, and technical competitions. Feeds into NBA Criterion 4 (Section 4.6.3).
+              </p>
+            </div>
+
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => setShowAchievementModal(true)}
+            >
+              <Plus size={14} /> Submit Achievement
+            </button>
+          </div>
+
+          {achievements.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '36px 20px', color: 'var(--text-muted)' }}>
+              <Trophy size={36} color="var(--gold)" style={{ margin: '0 auto 10px', opacity: 0.8 }} />
+              <div style={{ fontWeight: 600, fontSize: 14 }}>No external achievements recorded yet</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}>
+                Represented the college in a hackathon, sports championship, or cultural festival? Click <strong>"Submit Achievement"</strong> to upload your certificate and photos.
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+              {achievements.map(ach => {
+                const isVerified = ach.verification_status === 'verified'
+                const isRejected = ach.verification_status === 'rejected'
+
+                return (
+                  <div key={ach.id} style={{
+                    background: 'var(--bg-800)',
+                    border: `1px solid ${isVerified ? 'rgba(52,211,153,0.3)' : isRejected ? 'rgba(239,68,68,0.3)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    padding: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                  }}>
+                    <div>
+                      {/* Status + Scope Badges */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <span style={{
+                            fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, textTransform: 'uppercase',
+                            background: ach.activity_type === 'technical' ? 'rgba(79,142,247,0.15)' :
+                                       ach.activity_type === 'sports' ? 'rgba(52,211,153,0.15)' :
+                                       ach.activity_type === 'cultural' ? 'rgba(232,201,110,0.15)' : 'rgba(255,255,255,0.06)',
+                            color: ach.activity_type === 'technical' ? 'var(--accent)' :
+                                   ach.activity_type === 'sports' ? '#34d399' :
+                                   ach.activity_type === 'cultural' ? 'var(--gold)' : 'var(--text-muted)',
+                          }}>
+                            {ach.activity_type}
+                          </span>
+                          <span style={{ fontSize: 10, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                            {ach.event_scope?.replace('_', ' ')}
+                          </span>
+                        </div>
+
+                        <div>
+                          {isVerified ? (
+                            <span className="status-badge approved" style={{ fontSize: 10 }}>
+                              <ShieldCheck size={11} /> Verified
+                            </span>
+                          ) : isRejected ? (
+                            <span className="status-badge rejected" style={{ fontSize: 10 }}>
+                              <AlertCircle size={11} /> Rejected
+                            </span>
+                          ) : (
+                            <span className="status-badge pending" style={{ fontSize: 10 }}>
+                              <Clock size={11} /> Pending
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Event Name & Org */}
+                      <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text-primary)', marginBottom: 2 }}>
+                        {ach.event_name}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                        {ach.organizing_body} • <span style={{ color: 'var(--text-muted)' }}>{ach.venue}</span>
+                      </div>
+
+                      {/* Result / Award */}
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', background: 'rgba(232,201,110,0.12)', border: '1px solid rgba(232,201,110,0.25)', borderRadius: 4, color: 'var(--gold)', fontWeight: 700, fontSize: 12, marginBottom: 8 }}>
+                        <Medal size={14} /> {ach.result_description}
+                      </div>
+
+                      {/* Team details if applicable */}
+                      {ach.is_team && (
+                        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                          <span style={{ fontWeight: 600, color: 'var(--text-muted)' }}>Team ({ach.team_size} members): </span>
+                          {ach.team_members?.map(m => m.name || m.student_id).join(', ')}
+                        </div>
+                      )}
+
+                      {/* Remarks */}
+                      {ach.remarks && (
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 8 }}>
+                          "{ach.remarks}"
+                        </div>
+                      )}
+
+                      {/* Rejection Notice */}
+                      {isRejected && ach.rejection_reason && (
+                        <div className="alert alert-error" style={{ fontSize: 11, padding: '6px 10px', marginBottom: 8 }}>
+                          <strong>Reason:</strong> {ach.rejection_reason}
+                        </div>
+                      )}
+
+                      {/* Photos thumbnails */}
+                      {ach.photo_paths?.length > 0 && (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                          {ach.photo_paths.map((p, idx) => (
+                            <a
+                              key={idx}
+                              href={`/api/v1/achievement-photos/${p}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ display: 'inline-block', width: 44, height: 44, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border)', background: 'var(--bg-700)' }}
+                            >
+                              <img
+                                src={`/api/v1/achievement-photos/${p}`}
+                                alt="Event Thumbnail"
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                onError={(e) => { e.target.style.display = 'none' }}
+                              />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 8, marginTop: 4 }}>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {ach.event_date ? new Date(ach.event_date).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : ''} ({ach.academic_year})
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        {ach.proof_file_path && (
+                          <a
+                            href={`/api/v1/achievement-proofs/${ach.proof_file_path}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}
+                          >
+                            <FileCheck size={13} /> Certificate
+                          </a>
+                        )}
+
+                        {!isVerified && (
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            style={{ padding: '2px 6px', color: 'var(--red)', border: 'none', background: 'transparent' }}
+                            onClick={() => handleDeleteAchievement(ach.id)}
+                            title="Delete unverified entry"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* ── SUBMIT ACHIEVEMENT MODAL ────────────────────────────────── */}
+        {showAchievementModal && (
+          <div style={{
+            position: 'fixed', inset: 0, zIndex: 999,
+            background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}>
+            <div style={{
+              background: 'var(--bg-800)', border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-lg)', width: '100%', maxWidth: 640,
+              maxHeight: '90vh', overflowY: 'auto', padding: 24, boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Trophy size={20} color="var(--gold)" />
+                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>Submit External Achievement</h3>
+                </div>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowAchievementModal(false)}
+                  style={{ padding: '4px 8px' }}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <form onSubmit={handleAchievementSubmit}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Event / Competition Name *</label>
+                    <input
+                      type="text"
+                      className="input"
+                      required
+                      placeholder="e.g. Smart India Hackathon 2026, VTU State Athletic Meet"
+                      value={achievementForm.event_name}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, event_name: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Organizing Institution / Body *</label>
+                    <input
+                      type="text"
+                      className="input"
+                      required
+                      placeholder="e.g. IIT Bombay, AICTE, VTU"
+                      value={achievementForm.organizing_body}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, organizing_body: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Activity Category *</label>
+                    <select
+                      className="input"
+                      value={achievementForm.activity_type}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, activity_type: e.target.value })}
+                    >
+                      <option value="technical">Technical (Hackathons, Coding, Robotics)</option>
+                      <option value="sports">Sports & Athletics</option>
+                      <option value="cultural">Cultural & Arts (Music, Dance, Drama)</option>
+                      <option value="other">Other / Literary / Debating</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Event Scope *</label>
+                    <select
+                      className="input"
+                      value={achievementForm.event_scope}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, event_scope: e.target.value })}
+                    >
+                      <option value="within_state">Within State / State Level</option>
+                      <option value="outside_state">Outside State / Zonal</option>
+                      <option value="national">National Level</option>
+                      <option value="international">International Level</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Event Date *</label>
+                    <input
+                      type="date"
+                      className="input"
+                      required
+                      value={achievementForm.event_date}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, event_date: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Academic Year *</label>
+                    <select
+                      className="input"
+                      value={achievementForm.academic_year}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, academic_year: e.target.value })}
+                    >
+                      <option value="2025-26">2025-26 (Current CAY)</option>
+                      <option value="2024-25">2024-25</option>
+                      <option value="2023-24">2023-24</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Venue / Location *</label>
+                    <input
+                      type="text"
+                      className="input"
+                      required
+                      placeholder="e.g. Banaras Hindu University, Varanasi"
+                      value={achievementForm.venue}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, venue: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Award / Result Description *</label>
+                    <input
+                      type="text"
+                      className="input"
+                      required
+                      placeholder="e.g. 1st Prize & ₹1,00,000 Cash Award, Gold Medal in 100m Sprint"
+                      value={achievementForm.result_description}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, result_description: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>
+                      Team Member Student IDs (optional, comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      className="input"
+                      placeholder="e.g. STU069, STU070, STU073"
+                      value={achievementForm.student_ids}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, student_ids: e.target.value })}
+                    />
+                    <span className="text-muted text-xs">For team achievements, enter student IDs of all participating teammates.</span>
+                  </div>
+
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Remarks / Project Abstract (optional)</label>
+                    <textarea
+                      className="input"
+                      rows={2}
+                      placeholder="Brief note about the project, performance, or score..."
+                      value={achievementForm.remarks}
+                      onChange={(e) => setAchievementForm({ ...achievementForm, remarks: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Certificate / Proof Document *</label>
+                    <input
+                      type="file"
+                      className="input"
+                      required
+                      accept=".pdf,.png,.jpg,.jpeg,.webp"
+                      onChange={(e) => setProofDocFile(e.target.files[0] || null)}
+                    />
+                    <span className="text-muted text-xs">PDF or image of certificate (Max 15MB)</span>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontSize: 11, fontWeight: 600 }}>Event Photos (optional, multiple)</label>
+                    <input
+                      type="file"
+                      className="input"
+                      multiple
+                      accept="image/*"
+                      onChange={(e) => setPhotoFiles(Array.from(e.target.files || []))}
+                    />
+                    <span className="text-muted text-xs">Stage, podium, or team photos</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowAchievementModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={submittingAchievement}
+                  >
+                    <Trophy size={15} /> {submittingAchievement ? 'Submitting...' : 'Submit for Faculty Verification'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        <div className="card mb-lg">
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 'var(--space-md)' }}>📋 Evaluation Scheme</div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
             <div style={schemeCard}>
               <div style={schemeLabel}>Continuous Internal Evaluation (CIE)</div>

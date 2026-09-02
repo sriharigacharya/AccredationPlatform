@@ -49,6 +49,11 @@ def create_app():
     from routes.reports import reports_bp
     app.register_blueprint(reports_bp, url_prefix="/reports")
 
+    @app.get("/criteria")
+    def criteria():
+        from routes.reports import list_criteria
+        return list_criteria()
+
     @app.get("/health")
     def health():
         return {
@@ -58,10 +63,27 @@ def create_app():
             "sar_formats": ["ug_tier_ii_gapc_v4"],
         }
 
+
     with app.app_context():
         db.create_all()
+        _run_db_migrations()
 
     return app
+
+
+def _run_db_migrations():
+    """Add any missing columns for existing report_jobs table."""
+    from sqlalchemy import text
+    migrations = [
+        "ALTER TABLE report_jobs ADD COLUMN IF NOT EXISTS include_event_ids JSON",
+    ]
+    for sql in migrations:
+        try:
+            db.session.execute(text(sql))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
 
 
 if __name__ == "__main__":

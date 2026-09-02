@@ -4,15 +4,15 @@ import { useAuth } from '../context/AuthContext'
 import {
   LayoutDashboard, Users, GraduationCap, FileText,
   MessageSquare, Phone, Settings, LogOut, BookOpen,
-  Upload, User, ClipboardList
+  Upload, User, ClipboardList, Calendar
 } from 'lucide-react'
 
 /*
   Role → nav items:
   admin   → everything
-  teacher → dashboard, students, faculty, documents, chat, contact
-  student → my-record, chat
-  worker  → documents ONLY (no sidebar for other pages)
+  teacher → dashboard, students, faculty, assignments, events, documents, chat, contact
+  student → my-record, events, chat, reports
+  worker  → documents, events
 */
 
 const NAV_SECTIONS = [
@@ -27,11 +27,14 @@ const NAV_SECTIONS = [
   {
     label: 'Academic',
     items: [
-      { to: '/students',    icon: Users,         label: 'Students',    roles: ['admin', 'teacher'] },
-      { to: '/faculty',     icon: GraduationCap, label: 'Faculty',     roles: ['admin', 'teacher'] },
-      { to: '/assignments', icon: BookOpen,      label: 'Assignments', roles: ['admin', 'teacher'] },
+      { to: '/students',        icon: Users,         label: 'Students',        roles: ['admin', 'teacher'] },
+      { to: '/faculty',         icon: GraduationCap, label: 'Faculty',         roles: ['admin', 'teacher'] },
+      { to: '/assignments',     icon: BookOpen,      label: 'Assignments',     roles: ['admin', 'teacher'] },
+      { to: '/events',          icon: Calendar,      label: 'Events',          roles: ['admin', 'teacher', 'student', 'worker'] },
+      { to: '/historical-data', icon: Upload,        label: 'Historical Data', roles: ['admin', 'teacher', 'worker'] },
     ],
   },
+
   {
     label: 'Tools',
     items: [

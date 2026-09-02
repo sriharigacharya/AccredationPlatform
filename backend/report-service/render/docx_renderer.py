@@ -194,7 +194,39 @@ def _add_section(doc, sec: ReportSection):
 
         doc.add_paragraph()
 
+    # Detailed Summary Sheets (Section 4.6.1)
+    if getattr(sec, "summary_sheets", None):
+        h_sum = doc.add_paragraph(style="Heading 3")
+        h_sum.add_run(f"Detailed Activity Summary Sheets ({len(sec.summary_sheets)} Selected Events)")
+
+        for sheet in sec.summary_sheets:
+            p_title = doc.add_paragraph()
+            r_title = p_title.add_run(f"Event: {sheet.get('title', '—')}")
+            r_title.bold = True
+            r_title.font.size = Pt(11)
+
+            p_meta = doc.add_paragraph()
+            p_meta.add_run(f"Club: {sheet.get('club_name', '—')}  |  Type: {sheet.get('event_type', '—').capitalize()}  |  Date: {(sheet.get('event_date') or '')[:10]}")
+
+            tbl_s = doc.add_table(rows=3, cols=2)
+            tbl_s.style = "Table Grid"
+            tbl_s.cell(0, 0).text = f"Venue: {sheet.get('venue') or 'Campus'}"
+            tbl_s.cell(0, 1).text = f"Attendees: {sheet.get('attendee_count') or '—'}"
+            tbl_s.cell(1, 0).text = f"Resource Person: {sheet.get('resource_person') or '—'}"
+            tbl_s.cell(1, 1).text = f"Skill Orientation: {sheet.get('skill_orientation') or '—'}"
+            tbl_s.cell(2, 0).text = f"PO Mapping: {sheet.get('po_mapping') or 'PO1, PO2, PO5, PO12'}"
+            tbl_s.cell(2, 1).text = f"Mentor/Reviewer: {sheet.get('reviewer_name') or '—'}"
+
+            if sheet.get("report_text") or sheet.get("description"):
+                p_rep = doc.add_paragraph()
+                r_rep_lbl = p_rep.add_run("Report / Outcomes: ")
+                r_rep_lbl.bold = True
+                p_rep.add_run(sheet.get("report_text") or sheet.get("description"))
+
+            doc.add_paragraph()
+
     # Narrative / static text
     if sec.narrative:
         for line in sec.narrative.split("\n"):
             doc.add_paragraph(line)
+

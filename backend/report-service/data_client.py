@@ -227,3 +227,141 @@ def fetch_batch_predictions(predict_url: str, students: list[dict]) -> list[dict
     resp = requests.post(url, json={"students": students}, timeout=_TIMEOUT)
     resp.raise_for_status()
     return resp.json().get("predictions", [])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Club & College Events (Feature 2 / Criterion 4.6.1)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_approved_events(
+    base_url: str,
+    department_code: str | None = None,
+    academic_year: str | None = None,
+    from_date: str | None = None,
+    to_date: str | None = None,
+) -> list[dict]:
+    """Fetch all mentor-approved club/college events from academic-data-service."""
+    params = {"status": "approved", "include_photos": "true"}
+    if academic_year:
+        params["academic_year"] = academic_year
+    if from_date:
+        params["from"] = from_date
+    if to_date:
+        params["to"] = to_date
+    try:
+        res = _get(base_url, "/events", params)
+        return res if isinstance(res, list) else []
+    except Exception as e:
+        logger.warning(f"[data_client] Could not fetch approved events: {e}")
+        return []
+
+
+def fetch_event_summary_sheets(base_url: str, event_ids: list[int] | None = None) -> list[dict]:
+    """Fetch full detailed summary sheets for specific events (or all approved)."""
+    params = {}
+    if event_ids:
+        params["event_ids"] = ",".join(str(i) for i in event_ids)
+    try:
+        res = _get(base_url, "/events/summary-sheets", params)
+        return res if isinstance(res, list) else []
+    except Exception as e:
+        logger.warning(f"[data_client] Could not fetch event summary sheets: {e}")
+        return []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Historical Criterion 4 Data (Verified Only)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fetch_verified_admission_records(
+    base_url: str,
+    department: str | None = None,
+    academic_year: str | None = None,
+) -> list[dict]:
+    """Fetch only verified admission records (Table 4.1)."""
+    params = {"status": "verified"}
+    if department:
+        params["department"] = department
+    if academic_year:
+        params["academic_year"] = academic_year
+    try:
+        res = _get(base_url, "/admission-records", params)
+        return res if isinstance(res, list) else []
+    except Exception as e:
+        logger.warning(f"[data_client] Could not fetch verified admission records: {e}")
+        return []
+
+
+def fetch_verified_batch_progress_summary(base_url: str, department: str = "CSE") -> list[dict]:
+    """Fetch verified batch progress summary for Success Rate (Table 4.2)."""
+    params = {"status": "verified", "department": department}
+    try:
+        res = _get(base_url, "/batch-progress/summary", params)
+        return res if isinstance(res, list) else []
+    except Exception as e:
+        logger.warning(f"[data_client] Could not fetch verified batch progress summary: {e}")
+        return []
+
+
+def fetch_verified_academic_performance(
+    base_url: str,
+    department: str | None = None,
+    academic_year: str | None = None,
+    year_of_study: str | None = None,
+) -> list[dict]:
+    """Fetch verified academic performance API records (Table 4.3/4.4)."""
+    params = {"status": "verified"}
+    if department:
+        params["department"] = department
+    if academic_year:
+        params["academic_year"] = academic_year
+    if year_of_study:
+        params["year_of_study"] = year_of_study
+    try:
+        res = _get(base_url, "/academic-performance", params)
+        return res if isinstance(res, list) else []
+    except Exception as e:
+        logger.warning(f"[data_client] Could not fetch verified academic performance records: {e}")
+        return []
+
+
+def fetch_verified_placement_summary(
+    base_url: str,
+    cohort_years: list[int] | None = None,
+) -> dict:
+    """
+    Fetch verified 4-year placement summary from /placements/summary (Feature 4).
+    Feeds Criterion 4.5: Assessment = 40 × Average Placement Index.
+    """
+    params = {}
+    if cohort_years:
+        params["cohort_years"] = ",".join(str(y) for y in cohort_years)
+    try:
+        res = _get(base_url, "/placements/summary", params)
+        return res if isinstance(res, dict) else {}
+    except Exception as e:
+        logger.warning(f"[data_client] Could not fetch verified placement summary: {e}")
+        return {}
+
+
+def fetch_verified_student_achievements(
+    base_url: str,
+    academic_year: str | None = None,
+) -> dict:
+    """
+    Fetch verified student achievements from /student-achievements/report (Feature 5).
+    Feeds Criterion 4.6.3: Student Participation in Inter-Institute Events (10 marks).
+    """
+    params = {}
+    if academic_year:
+        params["academic_year"] = academic_year
+    try:
+        res = _get(base_url, "/student-achievements/report", params)
+        return res if isinstance(res, dict) else {}
+    except Exception as e:
+        logger.warning(f"[data_client] Could not fetch verified student achievements: {e}")
+        return {}
+
+
+
+

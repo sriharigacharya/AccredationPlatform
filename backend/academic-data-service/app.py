@@ -1,16 +1,28 @@
 """
 Academic Data Service — AcademiQ
-Handles: students, faculty, departments CRUD + analytics.
+Handles: students, faculty, departments CRUD + analytics + clubs/events.
 """
 
 import os
+from datetime import datetime
 from flask import Flask
+
 from flask_cors import CORS
 from models import db
-from routes.students    import students_bp
-from routes.faculty     import faculty_bp
-from routes.departments import departments_bp
-from routes.assignments import assignments_bp
+from routes.students       import students_bp
+from routes.faculty        import faculty_bp
+from routes.departments    import departments_bp
+from routes.assignments    import assignments_bp
+from routes.clubs          import clubs_bp
+from routes.student_roles  import student_roles_bp
+from routes.events         import events_bp
+from routes.placements     import placements_bp
+from routes.student_achievements import student_achievements_bp
+from routes.historical_data import historical_data_bp
+import event_models        # noqa: F401
+import placement_models    # noqa: F401
+import achievement_models  # noqa: F401
+import historical_models   # noqa: F401 — ensure tables are registered with SQLAlchemy
 
 
 def create_app():
@@ -30,10 +42,16 @@ def create_app():
 
     db.init_app(app)
 
-    app.register_blueprint(students_bp,    url_prefix="/students")
-    app.register_blueprint(faculty_bp,     url_prefix="/faculty")
-    app.register_blueprint(departments_bp, url_prefix="/departments")
-    app.register_blueprint(assignments_bp, url_prefix="/assignments")
+    app.register_blueprint(students_bp,             url_prefix="/students")
+    app.register_blueprint(faculty_bp,              url_prefix="/faculty")
+    app.register_blueprint(departments_bp,          url_prefix="/departments")
+    app.register_blueprint(assignments_bp,          url_prefix="/assignments")
+    app.register_blueprint(clubs_bp,                url_prefix="/clubs")
+    app.register_blueprint(student_roles_bp,        url_prefix="/student-roles")
+    app.register_blueprint(events_bp)               # routes use /clubs/:id/events + /events/
+    app.register_blueprint(placements_bp)           # routes use /profile/placement + /placements/
+    app.register_blueprint(student_achievements_bp) # routes use /student-achievements + /achievement-proofs/
+    app.register_blueprint(historical_data_bp)      # routes use /admission-records, /batch-progress, /academic-performance
 
     @app.get("/health")
     def health():
@@ -41,9 +59,36 @@ def create_app():
 
     with app.app_context():
         db.create_all()
+        _run_db_migrations()
         _seed_demo_data()
+        _seed_demo_clubs()
+        _seed_demo_placements()
+        _seed_demo_achievements()
+        _seed_demo_historical_data()
 
     return app
+
+
+def _run_db_migrations():
+    """Add any missing columns to existing tables for backwards compatibility."""
+    from sqlalchemy import text
+    migrations = [
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS courses_data TEXT",
+        "ALTER TABLE departments ADD COLUMN IF NOT EXISTS academic_activities TEXT",
+        "ALTER TABLE departments ADD COLUMN IF NOT EXISTS training_programmes TEXT",
+        "ALTER TABLE departments ADD COLUMN IF NOT EXISTS clubs TEXT",
+        "ALTER TABLE departments ADD COLUMN IF NOT EXISTS awards TEXT",
+        "ALTER TABLE departments ADD COLUMN IF NOT EXISTS industry_interaction TEXT",
+    ]
+    for sql in migrations:
+        try:
+            db.session.execute(text(sql))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
+
 
 
 def _seed_demo_data():
@@ -494,9 +539,661 @@ def _seed_demo_data():
     print(f"[academic-data-service] Demo data seeded: 1 department, {len(faculty_records)} faculty, {len(students_raw)} students across 3 sections.")
 
 
+def _seed_demo_clubs():
+    """Seed demo clubs, student roles, and sample events on first boot."""
+    from event_models import Club, StudentRole, Event, EventPhoto
+    from datetime import datetime, timedelta
+    import json
+
+    if Club.query.count() > 0:
+        return  # already seeded
+
+    # ── 3 Demo Clubs ──────────────────────────────────────────────────────────
+    clubs_data = [
+        {
+            "name": "ACM Student Chapter",
+            "category": "technical",
+            "description": "Association for Computing Machinery student chapter. Organizes hackathons, coding contests, and tech talks.",
+            "mentor_faculty_id": "FAC001",
+        },
+        {
+            "name": "Robotics Club",
+            "category": "technical",
+            "description": "Design, build and program robots. Participates in national robotics competitions and conducts workshops.",
+            "mentor_faculty_id": "FAC002",
+        },
+        {
+            "name": "Literary & Debate Club",
+            "category": "literary",
+            "description": "Fosters public speaking, creative writing, and critical thinking through debates, MUNs, and literary fests.",
+            "mentor_faculty_id": "FAC001",
+        },
+    ]
+
+    created_clubs = []
+    for cd in clubs_data:
+        club = Club(**cd)
+        db.session.add(club)
+        db.session.flush()
+        created_clubs.append(club)
+
+    # ── Student Role Assignments ──────────────────────────────────────────────
+    roles_data = [
+        {"student_id": "STU001", "club_id": created_clubs[0].id, "role": "head",    "assigned_by": "U001"},
+        {"student_id": "STU004", "club_id": created_clubs[0].id, "role": "council", "assigned_by": "U001"},
+        {"student_id": "STU007", "club_id": created_clubs[0].id, "role": "member",  "assigned_by": "U001"},
+        {"student_id": "STU036", "club_id": created_clubs[1].id, "role": "head",    "assigned_by": "U001"},
+        {"student_id": "STU039", "club_id": created_clubs[1].id, "role": "council", "assigned_by": "U001"},
+        {"student_id": "STU069", "club_id": created_clubs[2].id, "role": "head",    "assigned_by": "U001"},
+        {"student_id": "STU072", "club_id": created_clubs[2].id, "role": "council", "assigned_by": "U001"},
+    ]
+
+    for rd in roles_data:
+        sr = StudentRole(**rd)
+        db.session.add(sr)
+
+    db.session.flush()
+
+    # ── Sample Events ─────────────────────────────────────────────────────────
+    now = datetime.utcnow()
+    events_data = [
+        {
+            "club_id":                 created_clubs[0].id,
+            "title":                   "CodeStorm 2026 — 24hr Hackathon",
+            "event_type":              "hackathon",
+            "description":             "Annual 24-hour hackathon with 50+ teams building solutions for sustainable development goals. Industry mentors from TCS, Infosys, and Zoho.",
+            "venue":                   "Main Auditorium & CS Labs",
+            "event_date":              now - timedelta(days=30),
+            "organized_by_student_id": "STU001",
+            "submitted_via":           "club_head",
+            "attendee_count":          180,
+            "guest_names":             json.dumps(["Mr. Ramesh Kumar (TCS)", "Ms. Priya Nair (Infosys)", "Dr. Venkat Raman (Zoho)"]),
+            "report_text":             "CodeStorm 2026 was a resounding success with 52 teams participating. The winning team built an AI-powered waste segregation system. Judges praised the quality of submissions.",
+            "po_mapping":              "PO1, PO3, PO5, PO9, PO12",
+            "resource_person":         "Mr. Ramesh Kumar, Senior Architect, TCS",
+            "skill_orientation":       "Problem solving, Teamwork, Innovation, Technical implementation",
+            "status":                  "approved",
+            "reviewed_by":             "FAC001",
+            "reviewed_at":             now - timedelta(days=25),
+        },
+        {
+            "club_id":                 created_clubs[0].id,
+            "title":                   "Workshop: Cloud-Native Development with Kubernetes",
+            "event_type":              "workshop",
+            "description":             "Hands-on workshop covering Docker containerization, Kubernetes orchestration, and CI/CD pipelines.",
+            "venue":                   "Computer Lab 3",
+            "event_date":              now - timedelta(days=10),
+            "organized_by_student_id": "STU004",
+            "submitted_via":           "club_head",
+            "attendee_count":          65,
+            "guest_names":             json.dumps(["Mr. Anil Mehta (Google Cloud)"]),
+            "report_text":             "Intensive 6-hour workshop. Students deployed a multi-container application to GKE. Excellent feedback with 4.7/5 satisfaction rating.",
+            "status":                  "pending",
+        },
+        {
+            "club_id":                 created_clubs[1].id,
+            "title":                   "RoboWars 2026 — Inter-College Competition",
+            "event_type":              "competition",
+            "description":             "Battle-bot competition featuring 20 teams from 8 colleges. Categories: lightweight, heavyweight, and autonomous.",
+            "venue":                   "Sports Complex",
+            "event_date":              now - timedelta(days=45),
+            "organized_by_student_id": "STU036",
+            "submitted_via":           "club_head",
+            "attendee_count":          300,
+            "guest_names":             json.dumps(["Prof. S. Krishnamurthy (IIT Madras)", "Mr. Dinesh Babu (Fanuc India)"]),
+            "report_text":             "Successfully conducted inter-college robotics competition. Our college team won 2nd place in heavyweight category. Event covered by The Hindu and local TV channels.",
+            "po_mapping":              "PO1, PO2, PO3, PO4, PO5, PO9",
+            "resource_person":         "Prof. S. Krishnamurthy, Dept of Mechanical Engineering, IIT Madras",
+            "skill_orientation":       "Engineering design, Embedded systems, Teamwork, Competition spirit",
+            "status":                  "approved",
+            "reviewed_by":             "FAC002",
+            "reviewed_at":             now - timedelta(days=40),
+        },
+        {
+            "club_id":                 created_clubs[2].id,
+            "title":                   "Inter-Department Debate Championship",
+            "event_type":              "competition",
+            "description":             "Annual debate championship covering topics on AI ethics, climate policy, and education reform.",
+            "venue":                   "Seminar Hall A",
+            "event_date":              now - timedelta(days=5),
+            "organized_by_student_id": "STU069",
+            "submitted_via":           "club_head",
+            "attendee_count":          120,
+            "guest_names":             json.dumps(["Adv. Lakshmi Narayanan (High Court)", "Dr. Padma Subramaniam (JNU)"]),
+            "report_text":             "8 departments participated with 3 rounds of elimination. CSE team reached finals. Event enhanced critical thinking and public speaking skills.",
+            "status":                  "rejected",
+            "reviewed_by":             "FAC001",
+            "reviewed_at":             now - timedelta(days=3),
+            "rejection_reason":        "Report lacks detailed attendance sheet and individual participant feedback. Please resubmit with the signed attendance register scan and participant feedback summary.",
+        },
+    ]
+
+    for ed in events_data:
+        event = Event(**ed)
+        db.session.add(event)
+
+    db.session.commit()
+    print(f"[academic-data-service] Seeded {len(created_clubs)} demo clubs, {len(roles_data)} student roles, {len(events_data)} sample events.")
+
+
+def _seed_demo_placements():
+    """Seed sample placement data for final-year students (Section C / Semester 7)."""
+    from placement_models import StudentPlacement
+    from datetime import datetime, timedelta
+
+    if StudentPlacement.query.count() > 0:
+        return  # already seeded
+
+    now = datetime.utcnow()
+    demo_placements = [
+        {
+            "student_id": "STU069",
+            "status": "placed",
+            "company_or_institution": "Microsoft India",
+            "role_or_program": "Software Development Engineer (SDE 1)",
+            "ctc_or_stipend": "18.5 LPA",
+            "offer_letter_path": "demo_offer_msft_stu069.pdf",
+            "academic_year": "2025-26",
+            "final_year_cohort_year": 2026,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=20),
+        },
+        {
+            "student_id": "STU070",
+            "status": "placed",
+            "company_or_institution": "Tata Consultancy Services (TCS Digital)",
+            "role_or_program": "Digital Innovator / Systems Engineer",
+            "ctc_or_stipend": "7.5 LPA",
+            "offer_letter_path": "demo_offer_tcs_stu070.pdf",
+            "academic_year": "2025-26",
+            "final_year_cohort_year": 2026,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=18),
+        },
+        {
+            "student_id": "STU072",
+            "status": "higher_studies",
+            "company_or_institution": "Carnegie Mellon University",
+            "role_or_program": "Master of Science in Computer Science (MS CS)",
+            "ctc_or_stipend": "Teaching Assistantship ($2,400/mo)",
+            "offer_letter_path": "demo_admit_cmu_stu072.pdf",
+            "academic_year": "2025-26",
+            "final_year_cohort_year": 2026,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=15),
+        },
+        {
+            "student_id": "STU073",
+            "status": "placed",
+            "company_or_institution": "Infosys Ltd",
+            "role_or_program": "Specialist Programmer",
+            "ctc_or_stipend": "9.5 LPA",
+            "offer_letter_path": "demo_offer_infosys_stu073.pdf",
+            "academic_year": "2025-26",
+            "final_year_cohort_year": 2026,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=12),
+        },
+        {
+            "student_id": "STU075",
+            "status": "entrepreneur",
+            "company_or_institution": "NextGen AI Labs Pvt Ltd",
+            "role_or_program": "Founder & CTO (Incubated at Campus AIC)",
+            "ctc_or_stipend": "Seed grant: ₹10,00,000",
+            "offer_letter_path": "demo_incubator_cert_stu075.pdf",
+            "academic_year": "2025-26",
+            "final_year_cohort_year": 2026,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=10),
+        },
+        {
+            "student_id": "STU076",
+            "status": "placed",
+            "company_or_institution": "Amazon Web Services (AWS)",
+            "role_or_program": "Cloud Support Associate",
+            "ctc_or_stipend": "14.0 LPA",
+            "offer_letter_path": "demo_offer_aws_stu076.pdf",
+            "academic_year": "2025-26",
+            "final_year_cohort_year": 2026,
+            "verified_by_admin": False,
+        },
+        {
+            "student_id": "STU078",
+            "status": "higher_studies",
+            "company_or_institution": "IISc Bangalore",
+            "role_or_program": "M.Tech in Artificial Intelligence (GATE AIR 42)",
+            "ctc_or_stipend": "MHRD Scholarship (₹12,400/mo)",
+            "offer_letter_path": "demo_iisc_admit_stu078.pdf",
+            "academic_year": "2025-26",
+            "final_year_cohort_year": 2026,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=8),
+        },
+        {
+            "student_id": "STU001",
+            "status": "placed",
+            "company_or_institution": "Google India",
+            "role_or_program": "Software Engineering Intern -> FTE",
+            "ctc_or_stipend": "22.0 LPA",
+            "offer_letter_path": "demo_offer_google_stu001.pdf",
+            "academic_year": "2025-26",
+            "final_year_cohort_year": 2026,
+            "verified_by_admin": False,
+        },
+    ]
+
+    # Historical Cohort 2025 (LYG 2024-25) — 24 Verified
+    for i in range(1, 21):
+        demo_placements.append({
+            "student_id": f"ALUM_2025_{i:02d}",
+            "status": "placed",
+            "company_or_institution": ["Oracle India", "Cisco", "Qualcomm", "Wipro", "TCS", "Accenture", "Zoho"][i % 7],
+            "role_or_program": "Associate Software Engineer",
+            "ctc_or_stipend": f"{6.5 + (i % 8) * 1.5:.1f} LPA",
+            "offer_letter_path": f"hist_offer_2025_{i}.pdf",
+            "academic_year": "2024-25",
+            "final_year_cohort_year": 2025,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=380),
+        })
+    for i in range(21, 24):
+        demo_placements.append({
+            "student_id": f"ALUM_2025_{i:02d}",
+            "status": "higher_studies",
+            "company_or_institution": ["University of Texas at Dallas", "TU Munich", "IIT Bombay"][i - 21],
+            "role_or_program": "MS in Data Science / Informatics",
+            "ctc_or_stipend": "Graduate Assistantship",
+            "offer_letter_path": f"hist_admit_2025_{i}.pdf",
+            "academic_year": "2024-25",
+            "final_year_cohort_year": 2025,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=375),
+        })
+    demo_placements.append({
+        "student_id": "ALUM_2025_24",
+        "status": "entrepreneur",
+        "company_or_institution": "Kavach CyberSec Solutions",
+        "role_or_program": "Co-founder & Security Lead",
+        "ctc_or_stipend": "Bootstrapped Revenue",
+        "offer_letter_path": "hist_cert_2025_24.pdf",
+        "academic_year": "2024-25",
+        "final_year_cohort_year": 2025,
+        "verified_by_admin": True,
+        "verified_by": "U001",
+        "verified_at": now - timedelta(days=370),
+    })
+
+    # Historical Cohort 2024 (LYGm1 2023-24) — 26 Verified
+    for i in range(1, 23):
+        demo_placements.append({
+            "student_id": f"ALUM_2024_{i:02d}",
+            "status": "placed",
+            "company_or_institution": ["Capgemini", "Cognizant", "Dell Technologies", "IBM", "Intel", "SAP Labs"][i % 6],
+            "role_or_program": "Graduate Trainee / Systems Engineer",
+            "ctc_or_stipend": f"{7.0 + (i % 7) * 1.2:.1f} LPA",
+            "offer_letter_path": f"hist_offer_2024_{i}.pdf",
+            "academic_year": "2023-24",
+            "final_year_cohort_year": 2024,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=740),
+        })
+    for i in range(23, 26):
+        demo_placements.append({
+            "student_id": f"ALUM_2024_{i:02d}",
+            "status": "higher_studies",
+            "company_or_institution": ["NYU Tandon", "Northeastern University", "IIT Delhi"][i - 23],
+            "role_or_program": "MS in Cybersecurity / CS",
+            "ctc_or_stipend": "Fellowship",
+            "offer_letter_path": f"hist_admit_2024_{i}.pdf",
+            "academic_year": "2023-24",
+            "final_year_cohort_year": 2024,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=730),
+        })
+    demo_placements.append({
+        "student_id": "ALUM_2024_26",
+        "status": "entrepreneur",
+        "company_or_institution": "Edutech VR Lab",
+        "role_or_program": "Founder",
+        "ctc_or_stipend": "Seed Capital",
+        "offer_letter_path": "hist_cert_2024_26.pdf",
+        "academic_year": "2023-24",
+        "final_year_cohort_year": 2024,
+        "verified_by_admin": True,
+        "verified_by": "U001",
+        "verified_at": now - timedelta(days=725),
+    })
+
+    # Historical Cohort 2023 (LYGm2 2022-23) — 25 Verified
+    for i in range(1, 22):
+        demo_placements.append({
+            "student_id": f"ALUM_2023_{i:02d}",
+            "status": "placed",
+            "company_or_institution": ["Mindtree", "LTI", "Hexaware", "TCS", "Accenture", "Infosys"][i % 6],
+            "role_or_program": "Software Engineer",
+            "ctc_or_stipend": f"{6.0 + (i % 6) * 1.0:.1f} LPA",
+            "offer_letter_path": f"hist_offer_2023_{i}.pdf",
+            "academic_year": "2022-23",
+            "final_year_cohort_year": 2023,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=1100),
+        })
+    for i in range(22, 25):
+        demo_placements.append({
+            "student_id": f"ALUM_2023_{i:02d}",
+            "status": "higher_studies",
+            "company_or_institution": ["Arizona State University", "IIT Madras", "BITS Pilani"][i - 22],
+            "role_or_program": "M.Tech / MS in Software Engineering",
+            "ctc_or_stipend": "Research Assistantship",
+            "offer_letter_path": f"hist_admit_2023_{i}.pdf",
+            "academic_year": "2022-23",
+            "final_year_cohort_year": 2023,
+            "verified_by_admin": True,
+            "verified_by": "U001",
+            "verified_at": now - timedelta(days=1090),
+        })
+    demo_placements.append({
+        "student_id": "ALUM_2023_25",
+        "status": "entrepreneur",
+        "company_or_institution": "AgriTech Drone AI",
+        "role_or_program": "Founder & CEO",
+        "ctc_or_stipend": "Govt Startup Grant",
+        "offer_letter_path": "hist_cert_2023_25.pdf",
+        "academic_year": "2022-23",
+        "final_year_cohort_year": 2023,
+        "verified_by_admin": True,
+        "verified_by": "U001",
+        "verified_at": now - timedelta(days=1085),
+    })
+
+    for pd in demo_placements:
+        sp = StudentPlacement(**pd)
+        db.session.add(sp)
+
+    db.session.commit()
+    print(f"[academic-data-service] Seeded {len(demo_placements)} demo student placement records across 4 cohorts.")
+
+
+def _seed_demo_achievements():
+    """Seed sample external student achievements for NBA Criterion 4 (Section 4.6.3)."""
+    from achievement_models import StudentAchievement
+
+    from datetime import date, datetime, timedelta
+
+    if StudentAchievement.query.count() > 0:
+        return
+
+    now = datetime.utcnow()
+    demo_achievements = [
+        {
+            "student_id": "STU069",
+            "student_ids": ["STU069", "STU070", "STU073"],
+            "activity_type": "technical",
+            "event_name": "Smart India Hackathon (SIH 2025)",
+            "organizing_body": "Ministry of Education & AICTE, Govt. of India",
+            "event_scope": "national",
+            "event_date": date(2025, 11, 22),
+            "academic_year": "2025-26",
+            "venue": "IIT Roorkee Nodal Center, Uttarakhand",
+            "result_description": "1st Prize & ₹1,00,000 Cash Award in AI/Healthcare Category",
+            "remarks": "Developed automated diabetic retinopathy screening model using edge AI.",
+            "proof_file_path": "sih_2025_winner_cert.pdf",
+            "photo_paths": ["sih_2025_team_photo.jpg", "sih_2025_award_ceremony.jpg"],
+            "submitted_via": "student",
+            "submitted_by": "STU069",
+            "verification_status": "verified",
+            "verified_by": "FAC001",
+            "verified_at": now - timedelta(days=40),
+        },
+        {
+            "student_id": "STU072",
+            "student_ids": ["STU072"],
+            "activity_type": "sports",
+            "event_name": "VTU 24th Inter-Collegiate State Athletics Meet",
+            "organizing_body": "Visvesvaraya Technological University (VTU)",
+            "event_scope": "within_state",
+            "event_date": date(2025, 10, 15),
+            "academic_year": "2025-26",
+            "venue": "Kanteerava Stadium, Bengaluru",
+            "result_description": "Gold Medal in 100m Sprint (Timing: 10.84s)",
+            "remarks": "Qualified for All India Inter-University Nationals.",
+            "proof_file_path": "vtu_athletics_gold_cert.pdf",
+            "photo_paths": ["athletics_100m_podium.jpg"],
+            "submitted_via": "student",
+            "submitted_by": "STU072",
+            "verification_status": "verified",
+            "verified_by": "FAC002",
+            "verified_at": now - timedelta(days=60),
+        },
+        {
+            "student_id": "STU001",
+            "student_ids": ["STU001", "STU075"],
+            "activity_type": "technical",
+            "event_name": "RoboSub International Challenge — Techfest 2025",
+            "organizing_body": "IIT Bombay",
+            "event_scope": "national",
+            "event_date": date(2025, 12, 28),
+            "academic_year": "2025-26",
+            "venue": "IIT Bombay Campus, Powai, Mumbai",
+            "result_description": "2nd Runner Up & Trophy in Autonomous Underwater Vehicle Track",
+            "remarks": "Autonomous sonar navigation and optical target acquisition.",
+            "proof_file_path": "techfest_robosub_cert.pdf",
+            "photo_paths": ["robosub_team_trophy.jpg", "robosub_pool_test.jpg"],
+            "submitted_via": "student",
+            "submitted_by": "STU001",
+            "verification_status": "verified",
+            "verified_by": "FAC001",
+            "verified_at": now - timedelta(days=25),
+        },
+        {
+            "student_id": "STU078",
+            "student_ids": ["STU078"],
+            "activity_type": "cultural",
+            "event_name": "National Youth Cultural Festival (Yuva Utsav 2025)",
+            "organizing_body": "Association of Indian Universities (AIU)",
+            "event_scope": "national",
+            "event_date": date(2025, 9, 18),
+            "academic_year": "2025-26",
+            "venue": "Banaras Hindu University (BHU), Varanasi",
+            "result_description": "1st Prize in Solo Classical Carnatic Vocal",
+            "remarks": "Scored 98/100 by national jury.",
+            "proof_file_path": "yuva_utsav_vocal_cert.pdf",
+            "photo_paths": ["yuva_utsav_stage_photo.jpg"],
+            "submitted_via": "worker",
+            "submitted_by": "WORKER_DATA_ENTRY",
+            "verification_status": "verified",
+            "verified_by": "FAC003",
+            "verified_at": now - timedelta(days=90),
+        },
+        {
+            "student_id": "STU069",
+            "student_ids": ["STU069", "STU076"],
+            "activity_type": "technical",
+            "event_name": "ACM-ICPC Asia-Amritapuri Regional Contest 2024",
+            "organizing_body": "International Collegiate Programming Contest (ICPC)",
+            "event_scope": "outside_state",
+            "event_date": date(2024, 12, 14),
+            "academic_year": "2024-25",
+            "venue": "Amrita Vishwa Vidyapeetham, Kollam, Kerala",
+            "result_description": "Rank 14 / 120 Teams & Honorable Mention Award",
+            "remarks": "Solved 7 out of 11 algorithmic problems within 5 hours.",
+            "proof_file_path": "icpc_regional_2024_cert.pdf",
+            "photo_paths": ["icpc_team_hall.jpg"],
+            "submitted_via": "student",
+            "submitted_by": "STU069",
+            "verification_status": "verified",
+            "verified_by": "FAC001",
+            "verified_at": now - timedelta(days=320),
+        },
+        {
+            "student_id": "STU002",
+            "student_ids": ["STU002"],
+            "activity_type": "sports",
+            "event_name": "South Zone Inter-University Badminton Championship 2024",
+            "organizing_body": "SRM Institute of Science and Technology",
+            "event_scope": "outside_state",
+            "event_date": date(2024, 11, 5),
+            "academic_year": "2024-25",
+            "venue": "Chennai, Tamil Nadu",
+            "result_description": "Silver Medal (Men's Singles Runner-Up)",
+            "remarks": "Represented VTU university team.",
+            "proof_file_path": "southzone_badminton_silver.pdf",
+            "photo_paths": ["badminton_podium_silver.jpg"],
+            "submitted_via": "admin",
+            "submitted_by": "ADMIN_SPORTS_DEPT",
+            "verification_status": "verified",
+            "verified_by": "FAC002",
+            "verified_at": now - timedelta(days=340),
+        },
+        {
+            "student_id": "STU075",
+            "student_ids": ["STU075", "STU076"],
+            "activity_type": "technical",
+            "event_name": "Kavach National Cybersecurity Hackathon 2026",
+            "organizing_body": "MoE Innovation Cell & Bureau of Police Research (BPR&D)",
+            "event_scope": "national",
+            "event_date": date(2026, 2, 10),
+            "academic_year": "2025-26",
+            "venue": "IIT Delhi, New Delhi",
+            "result_description": "Top 5 Finalist & ₹25,000 Consolation Prize",
+            "remarks": "Dark web threat intelligence scraper and visualizer.",
+            "proof_file_path": "kavach_hackathon_finalist.pdf",
+            "photo_paths": ["kavach_presentation_booth.jpg"],
+            "submitted_via": "student",
+            "submitted_by": "STU075",
+            "verification_status": "pending",
+        },
+        {
+            "student_id": "STU073",
+            "student_ids": ["STU073"],
+            "activity_type": "cultural",
+            "event_name": "State Youth Parliament Festival 2026",
+            "organizing_body": "Ministry of Youth Affairs & Sports, Regional Directorate",
+            "event_scope": "within_state",
+            "event_date": date(2026, 1, 20),
+            "academic_year": "2025-26",
+            "venue": "Vidhana Soudha Banquet Hall, Bengaluru",
+            "result_description": "Best Delegate Award & State Level Commendation",
+            "remarks": "Spoke on National Education Policy and Digital Inclusion.",
+            "proof_file_path": "youth_parliament_best_delegate.pdf",
+            "photo_paths": ["parliament_speech_stage.jpg"],
+            "submitted_via": "student",
+            "submitted_by": "STU073",
+            "verification_status": "pending",
+        },
+    ]
+
+    for ad in demo_achievements:
+        ach = StudentAchievement(**ad)
+        db.session.add(ach)
+
+    db.session.commit()
+    print(f"[academic-data-service] Seeded {len(demo_achievements)} demo student achievement records.")
+
+
+def _seed_demo_historical_data():
+    """Seed verified historical Criterion 4 data (Admission, Batch Progression, Academic Performance) and pending queue items."""
+    from historical_models import AdmissionRecord, AcademicBatch, BatchYearProgress, AcademicPerformanceRecord
+
+    # 1. Seed Admission Records (Table 4.1)
+    if AdmissionRecord.query.count() == 0:
+        demo_admissions = [
+            # Verified records
+            {"academic_year": "2025-26", "department": "CSE", "sanctioned_intake": 180, "first_year_admitted_net_migration": 175, "lateral_entry_admitted": 18, "separate_division_admitted": 0, "total_admitted": 193, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified", "verified_by": "U_ADM001", "verified_at": datetime.utcnow()},
+            {"academic_year": "2024-25", "department": "CSE", "sanctioned_intake": 180, "first_year_admitted_net_migration": 172, "lateral_entry_admitted": 18, "separate_division_admitted": 0, "total_admitted": 190, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified", "verified_by": "U_ADM001", "verified_at": datetime.utcnow()},
+            {"academic_year": "2023-24", "department": "CSE", "sanctioned_intake": 120, "first_year_admitted_net_migration": 118, "lateral_entry_admitted": 12, "separate_division_admitted": 0, "total_admitted": 130, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified", "verified_by": "U_ADM001", "verified_at": datetime.utcnow()},
+            {"academic_year": "2022-23", "department": "CSE", "sanctioned_intake": 120, "first_year_admitted_net_migration": 115, "lateral_entry_admitted": 12, "separate_division_admitted": 0, "total_admitted": 127, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified", "verified_by": "U_ADM001", "verified_at": datetime.utcnow()},
+            # Pending Worker submission for verification queue
+            {"academic_year": "2026-27", "department": "CSE", "sanctioned_intake": 180, "first_year_admitted_net_migration": 178, "lateral_entry_admitted": 18, "separate_division_admitted": 0, "total_admitted": 196, "uploaded_by": "U_WRK001", "submitted_via": "worker", "verification_status": "pending"},
+        ]
+        for item in demo_admissions:
+            db.session.add(AdmissionRecord(**item))
+        db.session.commit()
+        print(f"[academic-data-service] Seeded {len(demo_admissions)} demo admission records.")
+
+    # 2. Seed Academic Batches & Progression (Table 4.2)
+    if AcademicBatch.query.count() == 0:
+        batches_data = [
+            {
+                "year_of_entry": "2021-22", "department": "CSE", "total_admitted": 190,
+                "progress": [
+                    {"year_of_study": "I",   "students_without_backlog": 165, "students_total_passed": 185, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "II",  "students_without_backlog": 158, "students_total_passed": 182, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "III", "students_without_backlog": 152, "students_total_passed": 180, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "IV",  "students_without_backlog": 148, "students_total_passed": 178, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                ]
+            },
+            {
+                "year_of_entry": "2020-21", "department": "CSE", "total_admitted": 190,
+                "progress": [
+                    {"year_of_study": "I",   "students_without_backlog": 162, "students_total_passed": 184, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "II",  "students_without_backlog": 154, "students_total_passed": 180, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "III", "students_without_backlog": 150, "students_total_passed": 178, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "IV",  "students_without_backlog": 145, "students_total_passed": 176, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                ]
+            },
+            {
+                "year_of_entry": "2019-20", "department": "CSE", "total_admitted": 130,
+                "progress": [
+                    {"year_of_study": "I",   "students_without_backlog": 110, "students_total_passed": 125, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "II",  "students_without_backlog": 105, "students_total_passed": 122, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "III", "students_without_backlog": 102, "students_total_passed": 120, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "IV",  "students_without_backlog": 98,  "students_total_passed": 118, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                ]
+            },
+            {
+                "year_of_entry": "2022-23", "department": "CSE", "total_admitted": 190,
+                "progress": [
+                    {"year_of_study": "I",   "students_without_backlog": 168, "students_total_passed": 186, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "II",  "students_without_backlog": 160, "students_total_passed": 184, "verification_status": "verified", "submitted_via": "admin", "uploaded_by": "U_ADM001"},
+                    {"year_of_study": "III", "students_without_backlog": 155, "students_total_passed": 181, "verification_status": "pending",  "submitted_via": "worker", "uploaded_by": "U_WRK001"},
+                ]
+            },
+        ]
+
+        for bdata in batches_data:
+            progs = bdata.pop("progress")
+            batch = AcademicBatch(**bdata)
+            db.session.add(batch)
+            db.session.flush()
+            for p in progs:
+                db.session.add(BatchYearProgress(batch_id=batch.id, **p))
+        db.session.commit()
+        print(f"[academic-data-service] Seeded {len(batches_data)} academic batches with progression records.")
+
+    # 3. Seed Academic Performance (API) Records (Table 4.3/4.4)
+    if AcademicPerformanceRecord.query.count() == 0:
+        demo_perf = [
+            {"academic_year": "2024-25", "year_of_study": "II",  "department": "CSE", "mean_cgpa_or_percentage": 7.85, "successful_students_count": 180, "appeared_students_count": 185, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified"},
+            {"academic_year": "2024-25", "year_of_study": "III", "department": "CSE", "mean_cgpa_or_percentage": 8.12, "successful_students_count": 176, "appeared_students_count": 180, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified"},
+            {"academic_year": "2023-24", "year_of_study": "II",  "department": "CSE", "mean_cgpa_or_percentage": 7.62, "successful_students_count": 174, "appeared_students_count": 180, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified"},
+            {"academic_year": "2023-24", "year_of_study": "III", "department": "CSE", "mean_cgpa_or_percentage": 7.95, "successful_students_count": 170, "appeared_students_count": 175, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified"},
+            {"academic_year": "2022-23", "year_of_study": "II",  "department": "CSE", "mean_cgpa_or_percentage": 7.50, "successful_students_count": 115, "appeared_students_count": 120, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified"},
+            {"academic_year": "2022-23", "year_of_study": "III", "department": "CSE", "mean_cgpa_or_percentage": 7.80, "successful_students_count": 112, "appeared_students_count": 118, "uploaded_by": "U_ADM001", "submitted_via": "admin", "verification_status": "verified"},
+            # Pending Worker submission for verification queue
+            {"academic_year": "2025-26", "year_of_study": "II",  "department": "CSE", "mean_cgpa_or_percentage": 7.92, "successful_students_count": 185, "appeared_students_count": 190, "uploaded_by": "U_WRK001", "submitted_via": "worker", "verification_status": "pending"},
+        ]
+        for item in demo_perf:
+            db.session.add(AcademicPerformanceRecord(**item))
+        db.session.commit()
+        print(f"[academic-data-service] Seeded {len(demo_perf)} academic performance records.")
+
 
 if __name__ == "__main__":
     port = int(os.getenv("SERVICE_PORT", 8002))
     app = create_app()
     app.run(host="0.0.0.0", port=port, debug=os.getenv("FLASK_DEBUG", "0") == "1")
+
+
 

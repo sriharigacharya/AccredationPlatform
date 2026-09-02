@@ -17,6 +17,9 @@ import SettingsPage       from './pages/SettingsPage'
 import MyRecordPage       from './pages/MyRecordPage'
 import ReportsPage        from './pages/ReportsPage'
 import AssignmentsPage    from './pages/AssignmentsPage'
+import EventsPage         from './pages/EventsPage'
+import HistoricalDataPage from './pages/HistoricalDataPage'
+
 
 // ── Route guard ────────────────────────────────────────────────────────────────
 // roles prop = array of roles allowed; null/undefined = any authenticated user
@@ -109,6 +112,13 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* Events — admin + teacher + student + worker */}
+      <Route path="/events" element={
+        <ProtectedRoute roles={['admin', 'teacher', 'student', 'worker']}>
+          <AppLayout><EventsPage /></AppLayout>
+        </ProtectedRoute>
+      } />
+
       {/* Documents — admin + teacher + worker */}
       <Route path="/documents" element={
         <ProtectedRoute roles={['admin', 'teacher', 'worker']}>
@@ -143,6 +153,14 @@ function AppRoutes() {
           <AppLayout><ReportsPage /></AppLayout>
         </ProtectedRoute>
       } />
+
+      {/* Historical Data Upload & Verification — admin + teacher (read-only) + worker */}
+      <Route path="/historical-data" element={
+        <ProtectedRoute roles={['admin', 'teacher', 'worker']}>
+          <AppLayout><HistoricalDataPage /></AppLayout>
+        </ProtectedRoute>
+      } />
+
 
       {/* Root → role-aware redirect */}
       <Route path="/" element={<RootRedirect />} />

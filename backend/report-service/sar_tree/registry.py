@@ -39,7 +39,37 @@ def get_tree(sar_format: str) -> tuple[dict, list[str]]:
     return mod.NODES, mod.ROOT_ORDER
 
 
+def get_criteria_list(sar_format: str = "ug_tier_ii_gapc_v4") -> list[dict]:
+    """
+    Returns list of all 9 root criteria with implemented / not_implemented status
+    dynamically computed from the SAR tree definition.
+    """
+    if sar_format not in _REGISTRY:
+        raise ValueError(
+            f"Unknown SAR format '{sar_format}'. "
+            f"Supported: {SUPPORTED_FORMATS}"
+        )
+    import importlib
+    mod = importlib.import_module(_REGISTRY[sar_format])
+    if hasattr(mod, "get_criteria_list"):
+        return mod.get_criteria_list()
+    return []
+
+
+def get_criterion_implementation_status(criterion_id: str, sar_format: str = "ug_tier_ii_gapc_v4") -> dict:
+    """
+    Returns implementation status dictionary for a specific root criterion_id (e.g. '4').
+    """
+    criteria = get_criteria_list(sar_format)
+    for c in criteria:
+        if str(c["id"]) == str(criterion_id):
+            return c
+    raise ValueError(f"Criterion '{criterion_id}' not found in SAR format '{sar_format}'")
+
+
 def resolve_scope(
+
+
     sar_format: str,
     scope: str,
 ) -> list[str]:

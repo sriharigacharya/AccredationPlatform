@@ -64,7 +64,7 @@ def success_rate(
     max_marks: float = 15.0,
 ) -> dict[str, Any]:
     """
-    4.2 Success Rate in Stipulated Period (15 marks).
+    4.2 Success Rate in Stipulated Period (15 marks / composite).
     marks = 1.5 × avg_sr_pct / 10, capped at 15.
     avg_sr_pct = average success rate % over last 3 assessment years.
     """
@@ -72,47 +72,175 @@ def success_rate(
     return {"avg_sr_pct": round(avg_sr_pct, 2), "marks": round(marks, 2)}
 
 
-def academic_performance_index(
-    grade_points_sum: float,
-    total_students: int,
-    max_marks: float = 10.0,
+def success_rate_without_backlog(
+    avg_si: float,
+    max_marks: float = 25.0,
 ) -> dict[str, Any]:
     """
-    4.3/4.4/4.5 Academic Performance Index (API) — 10 marks per year.
-    Parameterized by year_offset; caller fetches correct year's data.
-    API = (grade_points_sum / total_students) scaled to max_marks.
-    GPA is out of 10; marks = (avg_gpa / 10) × max_marks.
-    # VERIFY: confirm exact NBA API formula from document.
+    4.2.1 Success Index without Backlog in Any Year of Study (25 marks).
+    Assessment = 25 × Average SI (capped at 25 marks).
+    SI = (Students cleared without backlog) / (Total Admitted N).
     """
-    if total_students <= 0:
-        return {"avg_gpa": 0.0, "marks": 0.0, "total_students": 0}
-    avg_gpa = grade_points_sum / total_students
-    marks   = _cap((avg_gpa / 10.0) * max_marks, max_marks)
-    return {"avg_gpa": round(avg_gpa, 3), "marks": round(marks, 2),
-            "total_students": total_students}
+    marks = _cap(25.0 * avg_si, max_marks)
+    return {
+        "avg_si": round(avg_si, 4),
+        "avg_si_pct": round(avg_si * 100, 2),
+        "marks": round(marks, 2),
+        "max_marks": max_marks,
+    }
+
+
+def success_rate_with_backlog(
+    avg_si: float,
+    max_marks: float = 15.0,
+) -> dict[str, Any]:
+    """
+    4.2.2 Success Index in Stipulated Period with Backlogs Allowed (15 marks).
+    Assessment = 15 × Average SI (capped at 15 marks).
+    SI = (Total Students Passed in Stipulated Period) / (Total Admitted N).
+    """
+    marks = _cap(15.0 * avg_si, max_marks)
+    return {
+        "avg_si": round(avg_si, 4),
+        "avg_si_pct": round(avg_si * 100, 2),
+        "marks": round(marks, 2),
+        "max_marks": max_marks,
+    }
+
+
+
+def academic_performance_index(
+    records_by_year: list[dict] | None = None,
+    mean_cgpa_or_percentage: float | None = None,
+    successful_students_count: int | None = None,
+    appeared_students_count: int | None = None,
+    max_marks: float = 15.0,
+    # Legacy args for backward compatibility
+    grade_points_sum: float | None = None,
+    total_students: int | None = None,
+) -> dict[str, Any]:
+    """
+    4.3 / 4.4 Academic Performance Index (API) — 15 marks each.
+    For each assessment year:
+      API = mean_cgpa_or_percentage × (successful_students_count / appeared_students_count)
+    Average API = sum(API_year) / k (where k = number of assessment years, up to 3)
+    Assessment = 1.5 × Average API (capped at max_marks = 15.0).
+    """
+    years_breakdown = []
+    api_values = []
+
+    if records_by_year:
+        for r in records_by_year:
+            mean_cgpa = float(r.get("mean_cgpa_or_percentage") or 0.0)
+            succ = int(r.get("successful_students_count") or 0)
+            app = int(r.get("appeared_students_count") or 0)
+            ratio = (succ / app) if app > 0 else 0.0
+            api = mean_cgpa * ratio
+            api_values.append(api)
+            years_breakdown.append({
+                "academic_year": r.get("academic_year"),
+                "year_of_study": r.get("year_of_study"),
+                "mean_cgpa_or_percentage": round(mean_cgpa, 3),
+                "successful_students_count": succ,
+                "appeared_students_count": app,
+                "success_ratio": round(ratio, 4),
+                "api": round(api, 3),
+            })
+    elif mean_cgpa_or_percentage is not None:
+        mean_cgpa = float(mean_cgpa_or_percentage)
+        succ = int(successful_students_count or 0)
+        app = int(appeared_students_count or 0)
+        ratio = (succ / app) if app > 0 else 0.0
+        api = mean_cgpa * ratio
+        api_values.append(api)
+        years_breakdown.append({
+            "mean_cgpa_or_percentage": round(mean_cgpa, 3),
+            "successful_students_count": succ,
+            "appeared_students_count": app,
+            "success_ratio": round(ratio, 4),
+            "api": round(api, 3),
+        })
+    elif grade_points_sum is not None and total_students is not None and total_students > 0:
+        mean_cgpa = grade_points_sum / total_students
+        api = mean_cgpa
+        api_values.append(api)
+        years_breakdown.append({
+            "mean_cgpa_or_percentage": round(mean_cgpa, 3),
+            "successful_students_count": total_students,
+            "appeared_students_count": total_students,
+            "success_ratio": 1.0,
+            "api": round(api, 3),
+        })
+
+    k = len(api_values)
+    avg_api = sum(api_values) / k if k > 0 else 0.0
+    marks = _cap(1.5 * avg_api, max_marks)
+
+    return {
+        "avg_api": round(avg_api, 3),
+        "marks": round(marks, 2),
+        "max_marks": max_marks,
+        "years_count": k,
+        "years": years_breakdown,
+        "avg_gpa": round(avg_api, 3),
+        "total_students": sum(y.get("appeared_students_count", 0) for y in years_breakdown) if years_breakdown else 0,
+    }
+
+
+# Aliases matching tree formula_fn names
+api_year1 = academic_performance_index
+api_year2 = academic_performance_index
+api_year3 = academic_performance_index
 
 
 def placement_index(
+
     placements_by_year: list[dict],
-    max_marks: float = 30.0,
+    max_marks: float = 40.0,
 ) -> dict[str, Any]:
     """
-    4.6 Placement/Higher Studies/Entrepreneurship (30 marks).
-    P(year) = ((placed + higher_studies + entrepreneurs) / final_year_total) × 100
-    marks = 0.3 × avg(P over 3 years), flat multiplier, no banding.
+    4.5 Placement/Higher Studies/Entrepreneurship (40 marks).
+    P(year) = (placed + higher_studies + entrepreneurs) / final_year_total
+    Average Placement = sum(P(year)) / k (where k = available years, up to 4)
+    Assessment = 40 × Average Placement (max 40 marks).
     placements_by_year: list of {placed, higher_studies, entrepreneurs, total}.
     """
     p_values = []
+    years_breakdown = []
     for yr in placements_by_year:
-        total = yr.get("total", 0)
+        total  = yr.get("total", 0)
+        placed = yr.get("placed", 0)
+        higher = yr.get("higher_studies", 0)
+        entre  = yr.get("entrepreneurs", 0)
+        pos    = placed + higher + entre
         if total > 0:
-            p = ((yr.get("placed", 0) + yr.get("higher_studies", 0) +
-                  yr.get("entrepreneurs", 0)) / total) * 100
-            p_values.append(p)
-    avg_p = sum(p_values) / len(p_values) if p_values else 0.0
-    marks = _cap(0.3 * avg_p, max_marks)
-    return {"avg_placement_pct": round(avg_p, 2), "marks": round(marks, 2),
-            "years": len(p_values)}
+            p_ratio = pos / total
+            p_pct   = p_ratio * 100.0
+            p_values.append(p_ratio)
+            years_breakdown.append({
+                "cohort_year": yr.get("cohort_year"),
+                "academic_year": yr.get("academic_year"),
+                "total": total,
+                "placed": placed,
+                "higher_studies": higher,
+                "entrepreneurs": entre,
+                "career_positive_total": pos,
+                "placement_index_ratio": round(p_ratio, 4),
+                "placement_index_pct": round(p_pct, 2),
+            })
+    k = len(p_values)
+    avg_p_ratio = sum(p_values) / k if k > 0 else 0.0
+    avg_p_pct   = avg_p_ratio * 100.0
+    marks = _cap(40.0 * avg_p_ratio, max_marks)
+    is_provisional = (k < 4)
+    return {
+        "avg_placement_index": round(avg_p_ratio, 4),
+        "avg_placement_pct": round(avg_p_pct, 2),
+        "marks": round(marks, 2),
+        "years_count": k,
+        "is_provisional": is_provisional,
+        "years": years_breakdown,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

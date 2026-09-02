@@ -2,6 +2,14 @@
 NBA SAR Criterion Tree — UG Tier-II GAPC V4.0 (January 2025)
 Format identifier: "ug_tier_ii_gapc_v4"
 
+IMPLEMENTATION STATUS & ROADMAP NOTE:
+  The complete 9-criterion, 1000-mark tree structure is defined here to establish
+  the structural schema and enforce total marks integrity (assert _leaf_marks == 1000).
+  Currently, ONLY Criterion 4 (Students' Performance & Professional Activities: 4.1–4.6.3)
+  has live, active formulas and service integrations connected end-to-end.
+  Criteria 1–3 and 5–9 contain structural node definitions and formula placeholders
+  laying the architectural foundation for future full-SAR generators.
+
 IMPORTANT — Do not merge with ug_tier_i_gapc_v4:
   Node IDs (e.g. 6.1.2.2, 4.1, 5.1) exist in BOTH trees but have
   different mark caps and formula parameters. Keep trees in separate
@@ -18,6 +26,7 @@ Each SARNode carries:
   level       — 1=criterion, 2=sub-criterion, 3=sub-sub-criterion
   parent_id   — dot-notation ID of parent node (None for top-level criteria)
 """
+
 
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -88,18 +97,20 @@ _raw: list[SARNode] = [
     _n("3.7.2", "CO Attainment — Recorded Attainment Levels",        20, "formula_table",    "academic-data-service",      level=3, parent_id="3.7", formula_fn="co_attainment"),
     _n("3.8",   "PO and PSO Attainment (Direct + Indirect)",         25, "formula_table",    "academic-data-service",      level=2, parent_id="3",   formula_fn="po_attainment"),
 
-    # ── Criterion 4: Students' Performance (120 marks) ────────────────────
+    # ── Criterion 4: Students' Performance (150 marks) ────────────────────
     _n("4",     "Students' Performance",                              0,  "criterion_header", "computed"),
     _n("4.1",   "Enrolment Ratio",                                   20, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="enrolment_ratio"),
-    _n("4.2",   "Success Rate in Stipulated Period",                 15, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="success_rate"),
-    _n("4.3",   "Academic Performance — First Year (API)",           10, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="api_year1"),
-    _n("4.4",   "Academic Performance — Second Year (API)",          10, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="api_year2"),
-    _n("4.5",   "Academic Performance — Third Year (API)",           10, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="api_year3"),
-    _n("4.6",   "Placement / Higher Studies / Entrepreneurship",     30, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="placement_index"),
-    _n("4.7.1", "Professional Societies and Technical Events",        5, "table",            "manual",                     level=3, parent_id="4.7"),
-    _n("4.7.2", "Student Participation in Professional Activities",  10, "table",            "manual",                     level=3, parent_id="4.7"),
-    _n("4.7.3", "Publication of Journals / Magazines / Newsletters",  5, "table",            "manual",                     level=3, parent_id="4.7"),
-    _n("4.7.4", "Student Publications",                               5, "table",            "manual",                     level=3, parent_id="4.7"),
+    _n("4.2",   "Success Rate in Stipulated Period",                  0,  "criterion_header", "computed",                  level=2, parent_id="4"),
+    _n("4.2.1", "Success Index without Backlog",                     25, "formula_table",    "academic-data-service",      level=3, parent_id="4.2", formula_fn="success_rate_without_backlog"),
+    _n("4.2.2", "Success Index with Backlog",                        15, "formula_table",    "academic-data-service",      level=3, parent_id="4.2", formula_fn="success_rate_with_backlog"),
+    _n("4.3",   "Academic Performance — Second Year (API)",          15, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="api_year2"),
+    _n("4.4",   "Academic Performance — Third Year (API)",           15, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="api_year3"),
+    _n("4.5",   "Placement, Higher Studies and Entrepreneurship",    40, "formula_table",    "academic-data-service",      level=2, parent_id="4",   formula_fn="placement_index"),
+    _n("4.6",   "Professional Activities",                            0,  "criterion_header", "computed",                  level=2, parent_id="4"),
+    _n("4.6.1", "Professional Activities and Club Events (Summary Sheets)", 5, "events_table", "academic-data-service",    level=3, parent_id="4.6", formula_fn="club_events_summary"),
+    _n("4.6.2", "Publication of Technical Magazines, Newsletters, etc.", 5, "narrative",     "manual",                     level=3, parent_id="4.6"),
+    _n("4.6.3", "Participation in Inter-Institute Events by Students", 10, "table",          "academic-data-service",      level=3, parent_id="4.6"),
+
 
     # ── Criterion 5: Faculty Information (100 marks) ──────────────────────
     _n("5",     "Faculty Information and Contributions",              0,  "criterion_header", "computed"),
@@ -129,21 +140,22 @@ _raw: list[SARNode] = [
     _n("6.2.4",   "Consultancy Work",                                15,  "formula_table",    "manual",                     level=3, parent_id="6.2", formula_fn="consultancy_score"),
     _n("6.2.5",   "Institution Seed Money / Internal Research Grant", 10, "formula_table",    "manual",                     level=3, parent_id="6.2", formula_fn="seed_money_score"),
 
-    # ── Criterion 7: Facilities and Technical Support (100 marks) ─────────
+    # ── Criterion 7: Facilities and Technical Support (80 marks) ──────────
     _n("7",     "Facilities and Technical Support",                   0,  "criterion_header", "computed"),
-    _n("7.1",   "Laboratories and Technical Support Manpower",       50,  "table",            "manual",                     level=2, parent_id="7"),
+    _n("7.1",   "Laboratories and Technical Support Manpower",       30,  "table",            "manual",                     level=2, parent_id="7"),
     _n("7.2",   "Additional Facilities",                             20,  "table",            "manual",                     level=2, parent_id="7"),
     _n("7.3",   "Maintenance and Ambiance",                          10,  "narrative",        "manual",                     level=2, parent_id="7"),
     _n("7.4",   "Safety Measures in Laboratories",                   10,  "table",            "manual",                     level=2, parent_id="7"),
     _n("7.5",   "Project / Research Lab / Centre of Excellence",     10,  "table",            "manual",                     level=2, parent_id="7"),
 
-    # ── Criterion 8: Continuous Improvement (80 marks) ────────────────────
+    # ── Criterion 8: Continuous Improvement (70 marks) ────────────────────
     _n("8",     "Continuous Improvement",                             0,  "criterion_header", "computed"),
-    _n("8.1.1", "Actions from CO Attainment Evaluation",             20,  "narrative",        "manual",                     level=3, parent_id="8.1"),
-    _n("8.1.2", "Actions from PO/PSO Attainment Evaluation",        20,  "narrative",        "manual",                     level=3, parent_id="8.1"),
+    _n("8.1.1", "Actions from CO Attainment Evaluation",             15,  "narrative",        "manual",                     level=3, parent_id="8.1"),
+    _n("8.1.2", "Actions from PO/PSO Attainment Evaluation",        15,  "narrative",        "manual",                     level=3, parent_id="8.1"),
     _n("8.2",   "Academic Audit and Actions Taken",                  15,  "narrative",        "manual",                     level=2, parent_id="8"),
     _n("8.3",   "Improvement in Faculty Qualification / Contribution", 10, "table",           "academic-data-service",      level=2, parent_id="8"),
     _n("8.4",   "Improvement in Academic Performance",               15,  "table",            "computed",                   level=2, parent_id="8"),
+
 
     # ── Criterion 9: Student Support System and Governance (120 marks) ────
     _n("9",     "Student Support System and Governance",              0,  "criterion_header", "computed"),
@@ -190,3 +202,119 @@ assert _leaf_marks == 1000, (
     f"ug_tier_ii_gapc_v4 leaf marks sum to {_leaf_marks}, expected 1000. "
     "Check for missing or duplicate node definitions."
 )
+
+
+# ── Static Implementation Registry (Zero-drift, No dynamic introspection) ────
+
+IMPLEMENTED_FORMULAS: set[str] = {
+    "enrolment_ratio",
+    "success_rate_without_backlog",
+    "success_rate_with_backlog",
+    "academic_performance_index",
+    "api_year1",
+    "api_year2",
+    "api_year3",
+    "placement_index",
+    "club_events_summary",
+}
+
+LIVE_DATA_TABLE_SECTIONS: set[str] = {
+    "4.6.3",
+}
+
+
+def get_criteria_list() -> list[dict]:
+    """
+    Dynamically discover all root criteria and compute implementation status
+    directly from tree leaf nodes via static registry lookup.
+    Zero function calls, zero docstring introspection, zero runtime code inspection.
+    """
+    results = []
+    for root_id in ROOT_ORDER:
+        if not root_id.isdigit():
+            continue  # Numeric root criteria 1-9 only
+
+        root_node = NODES.get(root_id)
+        if not root_node:
+            continue
+
+        # Collect strictly true leaf nodes:
+        # 1. marks > 0
+        # 2. node_type != 'criterion_header'
+        # 3. no children in NODES (e.g. 4.6 and 4.2 headers are strictly excluded)
+        leaf_nodes = [
+            n for n in NODES.values()
+            if (n.id == root_id or n.id.startswith(f"{root_id}."))
+            and n.node_type != "criterion_header"
+            and n.marks > 0
+            and not any(other.parent_id == n.id for other in NODES.values())
+        ]
+        total_marks = sum(n.marks for n in leaf_nodes)
+
+        formula_or_data_nodes = []
+        implemented_nodes = []
+        unimplemented_nodes = []
+
+        for n in leaf_nodes:
+            is_node_implemented = False
+
+            if n.formula_fn:
+                formula_or_data_nodes.append(n)
+                # Static lookup in IMPLEMENTED_FORMULAS
+                if n.formula_fn in IMPLEMENTED_FORMULAS:
+                    is_node_implemented = True
+            elif n.data_source == "academic-data-service" and n.node_type in ("table", "formula_table"):
+                formula_or_data_nodes.append(n)
+                # Static lookup in LIVE_DATA_TABLE_SECTIONS
+                if n.id in LIVE_DATA_TABLE_SECTIONS:
+                    is_node_implemented = True
+            elif n.node_type in ("narrative", "static"):
+                is_node_implemented = True
+            elif n.node_type == "table" and n.data_source == "manual":
+                is_node_implemented = True
+            else:
+                is_node_implemented = False
+
+            if is_node_implemented:
+                implemented_nodes.append(n)
+            else:
+                unimplemented_nodes.append(n)
+
+        is_implemented = (
+            len(leaf_nodes) > 0
+            and len(formula_or_data_nodes) > 0
+            and len(unimplemented_nodes) == 0
+        )
+
+        status = "implemented" if is_implemented else "not_implemented"
+        tooltip = "Available for report generation" if is_implemented else "Not yet available — Coming Soon"
+
+        results.append({
+            "id": root_id,
+            "criterion_number": int(root_id),
+            "title": root_node.title,
+            "marks": total_marks,
+            "status": status,
+            "is_implemented": is_implemented,
+            "scope": f"criterion:{root_id}",
+            "description": f"Criterion {root_id} — {root_node.title} ({total_marks} marks)",
+            "tooltip": tooltip,
+            "leaf_nodes_count": len(leaf_nodes),
+            "implemented_nodes_count": len(implemented_nodes),
+        })
+
+    return results
+
+
+def get_criterion_implementation_status(criterion_id: str) -> dict:
+    """
+    Returns implementation status dictionary for a specific root criterion_id.
+    """
+    criteria = get_criteria_list()
+    for c in criteria:
+        if str(c["id"]) == str(criterion_id):
+            return c
+    raise ValueError(f"Criterion '{criterion_id}' not found in UG Tier-II GAPC V4.0 tree")
+
+
+

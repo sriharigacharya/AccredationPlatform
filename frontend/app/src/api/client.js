@@ -102,7 +102,22 @@ export const ragAPI = {
 export const reportsAPI = {
   // NBA SAR report generation
   generateNba:  (data)            => api.post('/reports/nba/generate', data),
+  generate:     (data)            => api.post('/reports/generate', data),
+  // Dynamic criteria discovery
+  getCriteria:  (sarFormat)       => api.get('/criteria', {
+    params: sarFormat ? { sar_format: sarFormat } : {},
+  }),
+  // Event detailed summary sheets
+  getEventSummarySheets: (eventIds) => api.get('/reports/clubs-activities/summary-sheets', {
+    params: { event_ids: Array.isArray(eventIds) ? eventIds.join(',') : eventIds },
+  }),
+  // Criterion 4 live preview
+  previewCriterion4: (params) => api.get('/reports/criterion-4/preview', { params }),
+  // Narratives management (e.g. 4.6.2)
+  getNarrative:  (nodeId, params) => api.get(`/reports/narratives/${nodeId}`, { params }),
+  saveNarrative: (nodeId, data)   => api.post(`/reports/narratives/${nodeId}`, data),
   // Ad-hoc free-text report
+
   adhoc:        (query, format)   => api.post('/reports/adhoc', { query, format }),
   // Download a completed report (returns blob)
   download:     (reportId, fmt)   => api.get(`/reports/${reportId}/download`, {
@@ -131,3 +146,113 @@ export const assignmentsAPI = {
   students:   (id)           => api.get(`/assignments/${id}/students`),
   myList:     ()             => api.get('/assignments/', { params: { student_id: 'me' } }),
 }
+
+// ── Clubs ─────────────────────────────────────────────────────────────────────
+export const clubsAPI = {
+  list:    (params)       => api.get('/clubs/', { params }),
+  get:     (id)           => api.get(`/clubs/${id}`),
+  create:  (data)         => api.post('/clubs/', data),
+  update:  (id, data)     => api.patch(`/clubs/${id}`, data),
+}
+
+// ── Student Roles ─────────────────────────────────────────────────────────────
+export const studentRolesAPI = {
+  list:    (params)       => api.get('/student-roles/', { params }),
+  create:  (data)         => api.post('/student-roles/', data),
+  delete:  (id)           => api.delete(`/student-roles/${id}`),
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+export const eventsAPI = {
+  listByClub: (clubId, params) => api.get(`/clubs/${clubId}/events`, { params }),
+  listAll:    (params)         => api.get('/events/', { params }),
+  list:       (params)         => api.get('/events/', { params }),
+  getSummarySheets: (params)   => api.get('/events/summary-sheets', { params }),
+  get:        (id)             => api.get(`/events/${id}`),
+  create:     (clubId, formData) => api.post(`/clubs/${clubId}/events`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  update:     (id, data)       => api.patch(`/events/${id}`, data),
+  approve:    (id, data)       => api.patch(`/events/${id}/approve`, data),
+  reject:     (id, data)       => api.patch(`/events/${id}/reject`, data),
+
+  photos:     (id)             => api.get(`/events/${id}/photos`),
+}
+
+// ── Placements ────────────────────────────────────────────────────────────────
+export const placementsAPI = {
+  myPlacement:   ()          => api.get('/profile/placement', { params: { student_id: 'me' } }),
+  getForStudent: (studentId) => api.get(`/placements/student/${studentId}`),
+  submit:        (formData)  => api.post('/profile/placement', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  list:          (params)    => api.get('/placements/', { params }),
+  get:           (id)        => api.get(`/placements/${id}`),
+  verify:        (id)        => api.patch(`/placements/${id}/verify`),
+  unverify:      (id)        => api.patch(`/placements/${id}/unverify`),
+  summary:       (params)    => api.get('/placements/summary', { params }),
+}
+
+// ── Student Achievements (External Competitions) ──────────────────────────────
+export const achievementsAPI = {
+  list:          (params)    => api.get('/student-achievements', { params }),
+  get:           (id)        => api.get(`/student-achievements/${id}`),
+  myList:        (params)    => api.get('/student-achievements', { params: { student_id: 'me', ...params } }),
+  create:        (formData)  => api.post('/student-achievements', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  update:        (id, formData) => api.patch(`/student-achievements/${id}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  verify:        (id)        => api.patch(`/student-achievements/${id}/verify`),
+  reject:        (id, data)  => api.patch(`/student-achievements/${id}/reject`, data),
+  delete:        (id)        => api.delete(`/student-achievements/${id}`),
+  report:        (params)    => api.get('/student-achievements/report', { params }),
+}
+
+// ── Historical Criterion 4 Data (Admission, Batch Progress, Academic Performance) ──
+export const historicalAPI = {
+  admission: {
+    list:         (params)   => api.get('/admission-records', { params }),
+    create:       (data)     => api.post('/admission-records', data),
+    bulkImport:   (formData) => api.post('/admission-records/bulk-import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    verify:       (id)       => api.patch(`/admission-records/${id}/verify`),
+    reject:       (id, data) => api.patch(`/admission-records/${id}/reject`, data),
+    update:       (id, data) => api.patch(`/admission-records/${id}`, data),
+    delete:       (id)       => api.delete(`/admission-records/${id}`),
+    downloadTemplateUrl: '/api/v1/admission-records/template.csv',
+  },
+
+  batchProgress: {
+    list:         (params)   => api.get('/batch-progress', { params }),
+    summary:      (params)   => api.get('/batch-progress/summary', { params }),
+    create:       (data)     => api.post('/batch-progress', data),
+    bulkImport:   (formData) => api.post('/batch-progress/bulk-import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    verify:       (id)       => api.patch(`/batch-progress/${id}/verify`),
+    reject:       (id, data) => api.patch(`/batch-progress/${id}/reject`, data),
+    update:       (id, data) => api.patch(`/batch-progress/${id}`, data),
+    delete:       (id)       => api.delete(`/batch-progress/${id}`),
+    downloadTemplateUrl: '/api/v1/batch-progress/template.csv',
+  },
+
+  academicPerformance: {
+    list:         (params)   => api.get('/academic-performance', { params }),
+    create:       (data)     => api.post('/academic-performance', data),
+    bulkImport:   (formData) => api.post('/academic-performance/bulk-import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+    verify:       (id)       => api.patch(`/academic-performance/${id}/verify`),
+    reject:       (id, data) => api.patch(`/academic-performance/${id}/reject`, data),
+    update:       (id, data) => api.patch(`/academic-performance/${id}`, data),
+    delete:       (id)       => api.delete(`/academic-performance/${id}`),
+    downloadTemplateUrl: '/api/v1/academic-performance/template.csv',
+  },
+}
+
+
+
+

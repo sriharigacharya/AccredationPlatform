@@ -83,24 +83,30 @@ class TestSuccessRate:
 
 
 class TestPlacementIndex:
-    def test_100pct_placement_gives_30(self):
+    def test_100pct_placement_gives_40(self):
         years = [
+            {"placed": 60, "higher_studies": 0, "entrepreneurs": 0, "total": 60},
             {"placed": 60, "higher_studies": 0, "entrepreneurs": 0, "total": 60},
             {"placed": 60, "higher_studies": 0, "entrepreneurs": 0, "total": 60},
             {"placed": 60, "higher_studies": 0, "entrepreneurs": 0, "total": 60},
         ]
         r = formulas.placement_index(years)
-        assert abs(r["marks"] - 30.0) < 0.01
+        assert abs(r["marks"] - 40.0) < 0.01
+        assert r["years_count"] == 4
+        assert not r["is_provisional"]
 
-    def test_80pct_placement(self):
+    def test_80pct_placement_gives_32(self):
+        # P = 80% = 0.80, marks = 40 × 0.80 = 32.0
         years = [{"placed": 48, "higher_studies": 0, "entrepreneurs": 0, "total": 60}]
         r = formulas.placement_index(years)
-        # P = 80%, marks = 0.3 × 80 = 24
-        assert abs(r["marks"] - 24.0) < 0.01
+        assert abs(r["marks"] - 32.0) < 0.01
+        assert r["is_provisional"]  # Only 1 year available
 
     def test_empty_returns_0(self):
         r = formulas.placement_index([])
         assert r["marks"] == 0.0
+        assert r["is_provisional"]
+
 
 
 class TestFYSFR:

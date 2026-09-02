@@ -47,6 +47,9 @@ class ReportJob(db.Model):
     # Formats requested: "pdf", "docx", or "pdf,docx"
     formats_requested = db.Column(db.String(20), default="pdf")
 
+    # Selected event IDs included for detailed summary sheets (Criterion 4)
+    include_event_ids = db.Column(db.JSON, default=list)
+
     # Output paths (relative to REPORTS_DIR)
     file_pdf_path    = db.Column(db.String(500))
     file_docx_path   = db.Column(db.String(500))
@@ -70,6 +73,7 @@ class ReportJob(db.Model):
             "requester_role":    self.requester_role,
             "target":            self.target,
             "formats_requested": self.formats_requested,
+            "include_event_ids": self.include_event_ids or [],
             "status":            self.status,
             "error_msg":         self.error_msg,
             "has_pdf":           bool(self.file_pdf_path),
@@ -77,3 +81,41 @@ class ReportJob(db.Model):
             "created_at":        self.created_at.isoformat(),
             "completed_at":      self.completed_at.isoformat() if self.completed_at else None,
         }
+
+
+class ReportNarrative(db.Model):
+    """
+    Stores admin-authored narratives for SAR report sections (e.g. 4.6.2 Publications).
+    Composite key by (sar_format, node_id, department_id, academic_year).
+    """
+    __tablename__ = "report_narratives"
+
+    id             = db.Column(db.Integer, primary_key=True)
+    sar_format     = db.Column(db.String(50), nullable=False, default="ug_tier_ii_gapc_v4")
+    node_id        = db.Column(db.String(50), nullable=False, index=True)   # e.g. "4.6.2"
+    department_id  = db.Column(db.String(50), nullable=False, index=True)   # dept code or id
+    academic_year  = db.Column(db.String(20), nullable=False, index=True)   # "2025-26"
+    narrative_text = db.Column(db.Text, nullable=False)
+    author_id      = db.Column(db.String(100))
+    author_role    = db.Column(db.String(50))
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("sar_format", "node_id", "department_id", "academic_year", name="uq_report_narrative"),
+    )
+
+    def to_dict(self):
+        return {
+            "id":             self.id,
+            "sar_format":     self.sar_format,
+            "node_id":        self.node_id,
+            "department_id":  self.department_id,
+            "academic_year":  self.academic_year,
+            "narrative_text": self.narrative_text,
+            "author_id":      self.author_id,
+            "author_role":    self.author_role,
+            "updated_at":     self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
