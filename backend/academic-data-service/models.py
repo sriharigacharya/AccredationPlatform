@@ -450,6 +450,119 @@ class Faculty(db.Model):
         }
 
 
+class FacultyProfileUpdate(db.Model):
+    __tablename__ = "faculty_profile_updates"
+
+    id               = db.Column(db.Integer, primary_key=True)
+    faculty_id       = db.Column(db.String(50), nullable=False, index=True)
+    status           = db.Column(db.String(20), default="pending", nullable=False, index=True)  # pending | approved | rejected
+    requested_by     = db.Column(db.String(50), nullable=False)  # user_id of teacher
+    reviewed_by      = db.Column(db.String(50), nullable=True)   # user_id of admin
+    reviewed_at      = db.Column(db.DateTime, nullable=True)
+    rejection_reason = db.Column(db.Text, nullable=True)
+    change_summary   = db.Column(db.Text, nullable=True)         # teacher note for admin
+
+    # Proposed updates (stored as JSON text for lists, strings for scalar fields)
+    publications      = db.Column(db.Text, nullable=True)
+    fdp_participation = db.Column(db.Text, nullable=True)
+    research_projects = db.Column(db.Text, nullable=True)
+    certifications    = db.Column(db.Text, nullable=True)
+    awards            = db.Column(db.Text, nullable=True)
+    phone             = db.Column(db.String(20), nullable=True)
+    qualification     = db.Column(db.String(200), nullable=True)
+    experience        = db.Column(db.String(100), nullable=True)
+    designation       = db.Column(db.String(100), nullable=True)
+
+    # Snapshot of original faculty record at submission time
+    original_snapshot = db.Column(db.Text, nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        import json
+        def safe_json(val):
+            if val is None:
+                return []
+            if isinstance(val, list):
+                return val
+            try:
+                return json.loads(val)
+            except Exception:
+                return [val] if val else []
+
+        orig = {}
+        if self.original_snapshot:
+            try:
+                orig = json.loads(self.original_snapshot)
+            except Exception:
+                orig = {}
+
+        # Look up faculty name
+        faculty = Faculty.query.filter_by(faculty_id=self.faculty_id).first()
+        faculty_name = faculty.name if faculty else self.faculty_id
+        faculty_email = faculty.email if faculty else ""
+
+        proposed_pubs   = safe_json(self.publications)
+        proposed_fdps   = safe_json(self.fdp_participation)
+        proposed_grants = safe_json(self.research_projects)
+        proposed_certs  = safe_json(self.certifications)
+        proposed_awards = safe_json(self.awards)
+
+        orig_pubs   = safe_json(orig.get("publications"))
+        orig_fdps   = safe_json(orig.get("fdp_participation"))
+        orig_grants = safe_json(orig.get("research_projects"))
+        orig_certs  = safe_json(orig.get("certifications"))
+        orig_awards = safe_json(orig.get("awards"))
+
+        def compute_diff(orig_list, prop_list):
+            orig_set = set(orig_list)
+            prop_set = set(prop_list)
+            added    = [x for x in prop_list if x not in orig_set]
+            removed  = [x for x in orig_list if x not in prop_set]
+            retained = [x for x in prop_list if x in orig_set]
+            return {
+                "added": added,
+                "removed": removed,
+                "retained": retained,
+                "added_count": len(added),
+                "removed_count": len(removed),
+            }
+
+        return {
+            "id":               self.id,
+            "faculty_id":       self.faculty_id,
+            "faculty_name":     faculty_name,
+            "faculty_email":    faculty_email,
+            "status":           self.status,
+            "requested_by":     self.requested_by,
+            "reviewed_by":      self.reviewed_by,
+            "reviewed_at":      self.reviewed_at.isoformat() if self.reviewed_at else None,
+            "rejection_reason": self.rejection_reason,
+            "change_summary":   self.change_summary,
+            "phone":            self.phone,
+            "qualification":    self.qualification,
+            "experience":       self.experience,
+            "designation":      self.designation,
+            "publications":     proposed_pubs,
+            "fdp_participation":proposed_fdps,
+            "research_projects":proposed_grants,
+            "certifications":   proposed_certs,
+            "awards":           proposed_awards,
+            "original_snapshot":orig,
+            "diff": {
+                "publications":     compute_diff(orig_pubs, proposed_pubs),
+                "fdp_participation":compute_diff(orig_fdps, proposed_fdps),
+                "research_projects":compute_diff(orig_grants, proposed_grants),
+                "certifications":   compute_diff(orig_certs, proposed_certs),
+                "awards":           compute_diff(orig_awards, proposed_awards),
+            },
+            "created_at":        self.created_at.isoformat() if self.created_at else None,
+            "updated_at":        self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+
 class Assignment(db.Model):
     __tablename__ = "assignments"
 
@@ -458,6 +571,8 @@ class Assignment(db.Model):
     title        = db.Column(db.String(300), nullable=False)
     description  = db.Column(db.Text)
     faculty_id   = db.Column(db.String(50), nullable=False, index=True)  # FAC001, etc.
+    course_code  = db.Column(db.String(50), nullable=True, index=True)   # CS3C01, etc.
+    course_name  = db.Column(db.String(200), nullable=True)              # Data Structures, etc.
     target_type  = db.Column(db.String(20), nullable=False)  # student | section | batch
     target_id    = db.Column(db.String(50), nullable=False)  # STU001 | A | 2025 (batch year)
     due_date     = db.Column(db.DateTime)
@@ -465,6 +580,8 @@ class Assignment(db.Model):
 
     targets = db.relationship("AssignmentTarget", backref="assignment",
                               lazy=True, cascade="all, delete-orphan")
+    submissions = db.relationship("AssignmentSubmission", backref="assignment",
+                                  lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self, include_targets=False):
         d = {
@@ -473,11 +590,14 @@ class Assignment(db.Model):
             "title":       self.title,
             "description": self.description,
             "faculty_id":  self.faculty_id,
+            "course_code": self.course_code,
+            "course_name": self.course_name,
             "target_type": self.target_type,
             "target_id":   self.target_id,
             "due_date":    self.due_date.isoformat() if self.due_date else None,
             "created_at":  self.created_at.isoformat(),
             "student_count": len(self.targets),
+            "submission_count": len(self.submissions),
         }
         if include_targets:
             d["students"] = [t.student_id for t in self.targets]
@@ -497,6 +617,42 @@ class AssignmentTarget(db.Model):
             "id":            self.id,
             "assignment_id": self.assignment_id,
             "student_id":    self.student_id,
+        }
+
+
+class AssignmentSubmission(db.Model):
+    __tablename__ = "assignment_submissions"
+
+    id                = db.Column(db.Integer, primary_key=True)
+    assignment_id     = db.Column(db.Integer, db.ForeignKey("assignments.id", ondelete="CASCADE"),
+                                  nullable=False, index=True)
+    student_id        = db.Column(db.String(50), nullable=False, index=True)
+    submission_text   = db.Column(db.Text)  # writeup, answer text, or repository URL
+    attachment_path   = db.Column(db.String(500))  # stored filename in assignment_uploads/
+    original_filename = db.Column(db.String(255))  # original filename
+    status            = db.Column(db.String(20), default="submitted")  # submitted | graded | late
+    grade             = db.Column(db.String(20))  # e.g. "9/10" or "A"
+    feedback          = db.Column(db.Text)        # teacher notes/remarks
+    submitted_at      = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at        = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("assignment_id", "student_id", name="uq_assignment_student_submission"),
+    )
+
+    def to_dict(self):
+        return {
+            "id":                self.id,
+            "assignment_id":     self.assignment_id,
+            "student_id":        self.student_id,
+            "submission_text":   self.submission_text,
+            "attachment_path":   self.attachment_path,
+            "original_filename": self.original_filename,
+            "status":            self.status,
+            "grade":             self.grade,
+            "feedback":          self.feedback,
+            "submitted_at":      self.submitted_at.isoformat() if self.submitted_at else None,
+            "updated_at":        self.updated_at.isoformat() if self.updated_at else None,
         }
 
 

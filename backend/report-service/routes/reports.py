@@ -96,6 +96,10 @@ def nba_generate():
         return err
 
     data              = request.get_json(force=True) or {}
+    req_type          = (data.get("report_type") or "").strip().lower()
+    if req_type in ("department_summary", "club_activity", "custom"):
+        return general_generate()
+
     sar_format        = data.get("sar_format", "ug_tier_ii_gapc_v4")
     dept_code         = (data.get("department_id") or request.args.get("department_id") or "").strip()
     academic_year     = data.get("academic_year") or request.args.get("academic_year") or "2025-26"
@@ -112,13 +116,18 @@ def nba_generate():
     else:
         fmt = "both"
     expand_narr       = data.get("expand_narratives", False)
-    include_event_ids = data.get("include_event_ids") or []
+    # Accept both field names: frontend sends selected_event_ids, canonical name is include_event_ids
+    raw_event_ids = data.get("include_event_ids")
+    if raw_event_ids is None:
+        raw_event_ids = data.get("selected_event_ids")
 
-    # Clean include_event_ids
-    if isinstance(include_event_ids, list):
-        include_event_ids = [int(x) for x in include_event_ids if str(x).isdigit()]
+    if raw_event_ids is not None and isinstance(raw_event_ids, list):
+        cleaned_ids = [int(x) for x in raw_event_ids if str(x).isdigit()]
+        # If user explicitly selected specific events (non-empty list), use them.
+        # If empty list or not provided, default to None so builder includes all approved events.
+        include_event_ids = cleaned_ids if len(cleaned_ids) > 0 else None
     else:
-        include_event_ids = []
+        include_event_ids = None
 
     if not dept_code:
         return jsonify({"error": "department_id is required"}), 400
@@ -148,7 +157,7 @@ def nba_generate():
         requester_id=_user_id(),
         requester_role=_role(),
         formats_requested=fmt,
-        include_event_ids=include_event_ids,
+        include_event_ids=include_event_ids or [],
         status="pending",
     )
     db.session.add(job)
@@ -210,6 +219,305 @@ def nba_generate():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# POST /reports/general/generate
+# ─────────────────────────────────────────────────────────────────────────────
+
+@reports_bp.post("/general/generate")
+def general_generate():
+    """
+    Generate an isolated General AI Report (department_summary, club_activity, custom).
+    Strictly independent of SAR Criterion 4 generation.
+    Body:
+      report_type:    "department_summary" | "club_activity" | "custom"
+      department_id:  department code (e.g. "CSE")
+      academic_year:  "2025-26"
+      selected_data:  list of data sources (student_records, club_events, faculty_data, placement_data)
+      section_titles: list of section titles (for custom)
+      instructions:   freeform instructions string (for custom)
+      format:         "pdf" | "docx" | "both"
+    """
+    data           = request.get_json(force=True) or {}
+    report_type    = (data.get("report_type") or "department_summary").strip().lower()
+    if report_type in ("student_report", "student"):
+        return student_generate()
+    if report_type in ("faculty_report", "faculty"):
+        return faculty_generate()
+
+    err = _require_role("admin", "teacher")
+    if err:
+        return err
+    dept_code      = (data.get("department_id") or request.args.get("department_id") or "CSE").strip()
+    academic_year  = data.get("academic_year") or request.args.get("academic_year") or "2025-26"
+    selected_data  = data.get("selected_data") or []
+    section_titles = data.get("section_titles") or []
+    instructions   = data.get("instructions") or ""
+    report_title   = (data.get("report_title") or data.get("title") or "").strip()
+
+    raw_fmt = (data.get("format") or data.get("formats") or request.args.get("format") or "pdf").lower()
+    if raw_fmt in ("both", "pdf,docx", "docx,pdf", "all"):
+        fmt = "both"
+    elif raw_fmt in ("pdf", "docx"):
+        fmt = raw_fmt
+    else:
+        fmt = "pdf"
+
+    if not dept_code:
+        return jsonify({"error": "department_id is required"}), 400
+
+    from report_service.general_report_builder import ReportType, build_general_report
+    try:
+        norm_type = ReportType(report_type)
+    except ValueError:
+        return jsonify({"error": f"Invalid report_type '{report_type}'. Allowed: {[r.value for r in ReportType]}"}), 400
+
+    job = ReportJob(
+        sar_format="general",
+        report_type=norm_type.value,
+        scope=norm_type.value,
+        department_id=dept_code,
+        academic_year=academic_year,
+        requester_id=_user_id(),
+        requester_role=_role(),
+        formats_requested=fmt,
+        status="pending",
+    )
+    db.session.add(job)
+    db.session.commit()
+
+    try:
+        report_data = build_general_report(
+            app_config=current_app.config,
+            report_type=norm_type,
+            department_id=dept_code,
+            academic_year=academic_year,
+            selected_data=selected_data,
+            section_titles=section_titles,
+            instructions=instructions,
+            report_id=job.report_id,
+            report_title=report_title,
+        )
+
+        # Render
+        reports_dir = current_app.config["REPORTS_DIR"]
+        pdf_path = docx_path = None
+
+        if fmt in ("pdf", "both"):
+            from render.pdf_renderer import render_pdf
+            pdf_bytes = render_pdf(report_data)
+            pdf_path  = os.path.join(reports_dir, f"{job.report_id}.pdf")
+            Path(pdf_path).write_bytes(pdf_bytes)
+
+        if fmt in ("docx", "both"):
+            from render.docx_renderer import render_docx
+            docx_bytes = render_docx(report_data)
+            docx_path  = os.path.join(reports_dir, f"{job.report_id}.docx")
+            Path(docx_path).write_bytes(docx_bytes)
+
+        job.file_pdf_path  = pdf_path
+        job.file_docx_path = docx_path
+        job.status         = "done"
+        job.completed_at   = datetime.now(timezone.utc)
+        db.session.commit()
+
+        return jsonify({
+            "report_id":         job.report_id,
+            "status":            "done",
+            "report_type":       norm_type.value,
+            "has_pdf":           bool(pdf_path),
+            "has_docx":          bool(docx_path),
+            "sections":          len(report_data.sections),
+            "selected_data":     selected_data,
+        }), 201
+
+    except Exception as e:
+        logger.error(f"[general_generate] Failed for job {job.report_id}: {e}", exc_info=True)
+        job.status    = "error"
+        job.error_msg = str(e)
+        db.session.commit()
+        return jsonify({"error": str(e), "report_id": job.report_id}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /reports/student/generate
+# ─────────────────────────────────────────────────────────────────────────────
+
+@reports_bp.post("/student/generate")
+def student_generate():
+    """
+    Generate an individual student performance & academic dossier.
+    Body:
+      student_id:    "STU011"
+      academic_year: "2025-26"
+      format:        "pdf" | "docx" | "both"
+    """
+    err = _require_role("admin", "teacher")
+    if err:
+        return err
+
+    data = request.get_json(force=True) or {}
+    student_id = (data.get("student_id") or data.get("target_id") or request.args.get("student_id") or "").strip()
+    academic_year = data.get("academic_year") or request.args.get("academic_year") or "2025-26"
+    raw_fmt = (data.get("format") or data.get("formats") or request.args.get("format") or "pdf").lower()
+    fmt = "both" if raw_fmt in ("both", "pdf,docx", "docx,pdf", "all") else (raw_fmt if raw_fmt in ("pdf", "docx") else "pdf")
+
+    role = _role()
+
+    if not student_id:
+        return jsonify({"error": "student_id is required"}), 400
+
+    job = ReportJob(
+        sar_format="general",
+        report_type="student_report",
+        scope=f"student:{student_id}",
+        department_id=data.get("department_id") or "CSE",
+        academic_year=academic_year,
+        requester_id=_user_id(),
+        requester_role=role,
+        target=student_id,
+        formats_requested=fmt,
+        status="pending",
+    )
+    db.session.add(job)
+    db.session.commit()
+
+    try:
+        from render.builder import build_student_report_data
+        report_data = build_student_report_data(
+            app_config=current_app.config,
+            student_id=student_id,
+            academic_year=academic_year,
+            report_id=job.report_id,
+        )
+
+        reports_dir = current_app.config["REPORTS_DIR"]
+        pdf_path = docx_path = None
+
+        if fmt in ("pdf", "both"):
+            from render.pdf_renderer import render_pdf
+            pdf_bytes = render_pdf(report_data)
+            pdf_path = os.path.join(reports_dir, f"{job.report_id}.pdf")
+            Path(pdf_path).write_bytes(pdf_bytes)
+
+        if fmt in ("docx", "both"):
+            from render.docx_renderer import render_docx
+            docx_bytes = render_docx(report_data)
+            docx_path = os.path.join(reports_dir, f"{job.report_id}.docx")
+            Path(docx_path).write_bytes(docx_bytes)
+
+        job.file_pdf_path = pdf_path
+        job.file_docx_path = docx_path
+        job.status = "done"
+        job.completed_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        return jsonify({
+            "report_id": job.report_id,
+            "status": "done",
+            "report_type": "student_report",
+            "student_id": student_id,
+            "has_pdf": bool(pdf_path),
+            "has_docx": bool(docx_path),
+            "sections": len(report_data.sections),
+        }), 201
+
+    except Exception as e:
+        logger.error(f"[student_generate] Failed for job {job.report_id}: {e}", exc_info=True)
+        job.status = "error"
+        job.error_msg = str(e)
+        db.session.commit()
+        return jsonify({"error": str(e), "report_id": job.report_id}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST /reports/faculty/generate
+# ─────────────────────────────────────────────────────────────────────────────
+
+@reports_bp.post("/faculty/generate")
+def faculty_generate():
+    """
+    Generate an individual faculty appraisal & credentials report.
+    Body:
+      faculty_id:    "FAC001"
+      academic_year: "2025-26"
+      format:        "pdf" | "docx" | "both"
+    """
+    err = _require_role("admin", "teacher")
+    if err:
+        return err
+
+    data = request.get_json(force=True) or {}
+    faculty_id = (data.get("faculty_id") or data.get("target_id") or request.args.get("faculty_id") or "").strip()
+    academic_year = data.get("academic_year") or request.args.get("academic_year") or "2025-26"
+    raw_fmt = (data.get("format") or data.get("formats") or request.args.get("format") or "pdf").lower()
+    fmt = "both" if raw_fmt in ("both", "pdf,docx", "docx,pdf", "all") else (raw_fmt if raw_fmt in ("pdf", "docx") else "pdf")
+
+    if not faculty_id:
+        return jsonify({"error": "faculty_id is required"}), 400
+
+    job = ReportJob(
+        sar_format="general",
+        report_type="faculty_report",
+        scope=f"faculty:{faculty_id}",
+        department_id=data.get("department_id") or "CSE",
+        academic_year=academic_year,
+        requester_id=_user_id(),
+        requester_role=_role(),
+        target=faculty_id,
+        formats_requested=fmt,
+        status="pending",
+    )
+    db.session.add(job)
+    db.session.commit()
+
+    try:
+        from render.builder import build_faculty_report_data
+        report_data = build_faculty_report_data(
+            app_config=current_app.config,
+            faculty_id=faculty_id,
+            academic_year=academic_year,
+            report_id=job.report_id,
+        )
+
+        reports_dir = current_app.config["REPORTS_DIR"]
+        pdf_path = docx_path = None
+
+        if fmt in ("pdf", "both"):
+            from render.pdf_renderer import render_pdf
+            pdf_bytes = render_pdf(report_data)
+            pdf_path = os.path.join(reports_dir, f"{job.report_id}.pdf")
+            Path(pdf_path).write_bytes(pdf_bytes)
+
+        if fmt in ("docx", "both"):
+            from render.docx_renderer import render_docx
+            docx_bytes = render_docx(report_data)
+            docx_path = os.path.join(reports_dir, f"{job.report_id}.docx")
+            Path(docx_path).write_bytes(docx_bytes)
+
+        job.file_pdf_path = pdf_path
+        job.file_docx_path = docx_path
+        job.status = "done"
+        job.completed_at = datetime.now(timezone.utc)
+        db.session.commit()
+
+        return jsonify({
+            "report_id": job.report_id,
+            "status": "done",
+            "report_type": "faculty_report",
+            "faculty_id": faculty_id,
+            "has_pdf": bool(pdf_path),
+            "has_docx": bool(docx_path),
+            "sections": len(report_data.sections),
+        }), 201
+
+    except Exception as e:
+        logger.error(f"[faculty_generate] Failed for job {job.report_id}: {e}", exc_info=True)
+        job.status = "error"
+        job.error_msg = str(e)
+        db.session.commit()
+        return jsonify({"error": str(e), "report_id": job.report_id}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # GET /reports/criterion-4/preview
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -236,6 +544,7 @@ def preview_criterion_4():
     for item in request.args.getlist("include_event_ids"):
         if isinstance(item, str) and item.isdigit() and int(item) not in include_event_ids:
             include_event_ids.append(int(item))
+    include_event_ids = include_event_ids if include_event_ids else None
 
     from render.builder import build_report_data
     report_data = build_report_data(
@@ -439,7 +748,7 @@ def adhoc_report():
       3. We pass ONLY the fetched data as bullets to the LLM for narrative
       4. LLM is instructed not to state facts not in the bullets
     """
-    err = _require_role("admin", "teacher", "student")
+    err = _require_role("admin", "teacher")
     if err:
         return err
 
@@ -450,12 +759,6 @@ def adhoc_report():
 
     if not query:
         return jsonify({"error": "query is required"}), 400
-
-    # Students are restricted to their own linked_id
-    if role == "student":
-        linked = _linked_id()
-        if linked and linked not in query:
-            query = f"{query} (student ID: {linked})"
 
     job = ReportJob(
         sar_format="adhoc",
@@ -562,30 +865,30 @@ def adhoc_report():
 @reports_bp.get("/<report_id>/download")
 def download_report(report_id: str):
     """Stream PDF or DOCX file for a completed report."""
-    err = _require_role("admin", "teacher", "student")
+    err = _require_role("admin", "teacher")
     if err:
         return err
 
     job = ReportJob.query.filter_by(report_id=report_id).first_or_404()
-
-    # Students can only download their own reports
     role = _role()
-    if role == "student" and job.requester_id != _user_id():
-        return jsonify({"error": "Access denied"}), 403
 
     if job.status != "done":
         return jsonify({"error": f"Report not ready. Status: {job.status}",
                         "error_msg": job.error_msg}), 422
 
     fmt = request.args.get("format", "pdf").lower()
+    if fmt not in ("pdf", "docx"):
+        fmt = "pdf"
+
+    prefix = "SAR" if job.report_type in ("nba", "sar") else f"Report_{job.report_type}"
     if fmt == "pdf":
         file_path  = job.file_pdf_path
         mimetype   = "application/pdf"
-        filename   = f"SAR_{job.department_id}_{job.academic_year}_{report_id[:8]}.pdf"
+        filename   = f"{prefix}_{job.department_id or 'dept'}_{job.academic_year or 'ay'}_{report_id[:8]}.pdf"
     else:
         file_path  = job.file_docx_path
         mimetype   = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        filename   = f"SAR_{job.department_id}_{job.academic_year}_{report_id[:8]}.docx"
+        filename   = f"{prefix}_{job.department_id or 'dept'}_{job.academic_year or 'ay'}_{report_id[:8]}.docx"
 
     if not file_path or not os.path.exists(file_path):
         return jsonify({"error": f"File not found for format '{fmt}'"}), 404
@@ -601,21 +904,15 @@ def download_report(report_id: str):
 @reports_bp.get("/history")
 def report_history():
     """
-    List past report jobs for the caller's scope.
-    admin/teacher: see all jobs for their department (or all if admin).
-    student:       see only their own jobs.
-    worker:        empty list (no report access).
+    List past report jobs for the caller's scope (admin / teacher only).
     """
-    role = _role()
-    if role == "worker":
-        return jsonify([])
+    err = _require_role("admin", "teacher")
+    if err:
+        return err
 
+    role = _role()
     q = ReportJob.query
-    if role == "student":
-        q = q.filter_by(requester_id=_user_id())
-    elif role == "teacher":
-        # Teachers see their own department's reports
-        # (department filtering would need dept_id from linked_id; simplified here)
+    if role == "teacher":
         q = q.order_by(ReportJob.created_at.desc())
     else:
         q = q.order_by(ReportJob.created_at.desc())

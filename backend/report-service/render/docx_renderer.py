@@ -49,7 +49,7 @@ def render_docx(report: ReportData) -> bytes:
 
     # ── Sections ──────────────────────────────────────────────
     for sec in report.sections:
-        _add_section(doc, sec)
+        _add_section(doc, sec, report)
 
     # ── Signature block ───────────────────────────────────────
     doc.add_page_break()
@@ -102,24 +102,44 @@ def _add_title_page(doc, report: ReportData):
     from docx.shared import Pt, RGBColor
     from docx.enum.text import WD_ALIGN_PARAGRAPH
 
+    is_sar = getattr(report, "report_type", "") in ("nba", "sar")
+
     doc.add_page_break()
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("NATIONAL BOARD OF ACCREDITATION")
-    run.bold = True
-    run.font.size = Pt(9)
-    run.font.color.rgb = RGBColor(0x71, 0x80, 0x96)
+    if is_sar:
+        run = p.add_run("NATIONAL BOARD OF ACCREDITATION")
+        run.bold = True
+        run.font.size = Pt(9)
+        run.font.color.rgb = RGBColor(0x71, 0x80, 0x96)
 
-    p2 = doc.add_paragraph()
-    p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r2 = p2.add_run("SELF-ASSESSMENT REPORT (SAR)")
-    r2.bold = True
-    r2.font.size = Pt(20)
-    r2.font.color.rgb = RGBColor(0x1a, 0x36, 0x5d)
+        p2 = doc.add_paragraph()
+        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r2 = p2.add_run("SELF-ASSESSMENT REPORT (SAR)")
+        r2.bold = True
+        r2.font.size = Pt(20)
+        r2.font.color.rgb = RGBColor(0x1a, 0x36, 0x5d)
 
-    sub = doc.add_paragraph()
-    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    sub.add_run("UG Engineering Programs — Tier-II Institution | GAPC V4.0 | January 2025").font.size = Pt(10)
+        sub = doc.add_paragraph()
+        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sub.add_run("UG Engineering Programs — Tier-II Institution | GAPC V4.0 | January 2025").font.size = Pt(10)
+    else:
+        run = p.add_run("ACADEMIQ AI PLATFORM")
+        run.bold = True
+        run.font.size = Pt(9)
+        run.font.color.rgb = RGBColor(0x71, 0x80, 0x96)
+
+        p2 = doc.add_paragraph()
+        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        rep_type_title = report.report_type.replace('_', ' ').title() + " Report"
+        r2 = p2.add_run(rep_type_title)
+        r2.bold = True
+        r2.font.size = Pt(20)
+        r2.font.color.rgb = RGBColor(0x1a, 0x36, 0x5d)
+
+        sub = doc.add_paragraph()
+        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sub.add_run("Institutional & Academic Performance Analytics").font.size = Pt(10)
 
     doc.add_paragraph()
 
@@ -145,12 +165,14 @@ def _add_title_page(doc, report: ReportData):
     doc.add_page_break()
 
 
-def _add_section(doc, sec: ReportSection):
+def _add_section(doc, sec: ReportSection, report: ReportData | None = None):
     import io
     import base64
     from docx.shared import Pt, RGBColor, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
+
+    is_sar = getattr(report, "report_type", "") in ("nba", "sar") if report else True
 
     # Criterion header
     if sec.content_type == "criterion_header":
@@ -174,7 +196,7 @@ def _add_section(doc, sec: ReportSection):
 
             c2 = tbl_banner.cell(0, 2)
             c2.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            r2 = c2.paragraphs[0].add_run("150")
+            r2 = c2.paragraphs[0].add_run(str(sec.marks))
             r2.bold = True
             r2.font.size = Pt(13)
         else:
@@ -186,7 +208,10 @@ def _add_section(doc, sec: ReportSection):
     # Sub-section heading
     heading_level = min(sec.level + 1, 4)
     h = doc.add_paragraph(style=f"Heading {heading_level}")
-    h.add_run(f"{sec.id}  {sec.title}  ({sec.marks} marks)")
+    if is_sar:
+        h.add_run(f"{sec.id}  {sec.title}  ({sec.marks} marks)")
+    else:
+        h.add_run(sec.title)
 
     # Placeholder warning
     if sec.has_placeholders:
@@ -274,6 +299,7 @@ def _add_section(doc, sec: ReportSection):
             cell_photos.paragraphs[0].text = ""
 
             photos = sheet.get("photos_formatted", [])
+            added_any_image = False
             if photos:
                 for p in photos:
                     data_url = p.get("photo_data_url") or p.get("photo_url") or ""
@@ -281,17 +307,17 @@ def _add_section(doc, sec: ReportSection):
                         try:
                             b64_str = data_url.split("base64,")[1]
                             img_bytes = base64.b64decode(b64_str)
-                            cell_photos.paragraphs[0].add_run().add_picture(io.BytesIO(img_bytes), width=Inches(2.5))
+                            p_img = cell_photos.paragraphs[0] if not added_any_image else cell_photos.add_paragraph()
+                            p_img.add_run().add_picture(io.BytesIO(img_bytes), width=Inches(2.5))
+                            added_any_image = True
                             if p.get("caption"):
                                 p_cap = cell_photos.add_paragraph()
                                 r_cap = p_cap.add_run(p["caption"])
                                 r_cap.font.size = Pt(7.5)
                                 r_cap.font.italic = True
-                        except Exception:
-                            cell_photos.paragraphs[0].text = "Event photograph attached"
-                    else:
-                        cell_photos.paragraphs[0].text = "Event photograph attached"
-            else:
+                        except Exception as e:
+                            logger.warning(f"[docx_renderer] Failed adding photo: {e}")
+            if not added_any_image:
                 cell_photos.paragraphs[0].text = "Event photograph attached"
 
             doc.add_paragraph()

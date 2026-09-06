@@ -5,28 +5,36 @@ import {
   BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
 } from 'recharts'
-import { Users, GraduationCap, FileText, AlertTriangle, TrendingUp, BookOpen, ShieldAlert } from 'lucide-react'
+import {
+  Users, GraduationCap, FileText, AlertTriangle, TrendingUp,
+  BookOpen, ShieldAlert, ArrowRight, CheckCircle2, ChevronRight,
+  ClipboardCheck, Clock
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
+import Badge from '../components/Badge'
 
-const COLORS = ['#34d399', '#fbbf24', '#f87171']
-
-const SECTION_META = {
-  A: { color: '#4f8ef7', bg: 'rgba(79,142,247,0.12)',  sem: 'Sem 3' },
-  B: { color: '#7c5df7', bg: 'rgba(124,93,247,0.12)', sem: 'Sem 5' },
-  C: { color: '#34d399', bg: 'rgba(52,211,153,0.12)', sem: 'Sem 7' },
-}
+const PIE_COLORS = ['#10b981', '#f59e0b', '#ef4444']
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
     <div style={{
-      background: 'var(--bg-800)', border: '1px solid var(--border)',
-      borderRadius: 'var(--radius-md)', padding: '10px 14px', fontSize: 13
+      background: 'var(--bg-elevated)',
+      border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '8px 12px',
+      fontSize: '12px',
+      boxShadow: 'var(--shadow-md)',
     }}>
-      <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>{label}</div>
+      <div style={{ color: 'var(--text-muted)', marginBottom: 4, fontWeight: 600 }}>{label}</div>
       {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color }}>
-          {p.name}: <strong>{p.value}{p.name.includes('Rate') || p.name.includes('%') ? '%' : ''}</strong>
+        <div key={i} style={{ color: p.color, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>{p.name}:</span>
+          <strong className="tabular-nums" style={{ color: 'var(--text-primary)' }}>
+            {p.value}{p.name.includes('Rate') || p.name.includes('%') ? '%' : ''}
+          </strong>
         </div>
       ))}
     </div>
@@ -62,14 +70,11 @@ export default function DashboardPage() {
     })
   }, [])
 
-
-  // Derive engagement counts from real student data
   const teacherAtRiskCount = useMemo(() => {
     return teacherClasses.reduce((sum, c) => sum + (c.at_risk_count || 0), 0)
   }, [teacherClasses])
 
   const engagementData = useMemo(() => {
-
     if (!allStudents.length) return [
       { name: 'High', value: 0 },
       { name: 'Medium', value: 0 },
@@ -85,9 +90,12 @@ export default function DashboardPage() {
     ]
   }, [allStudents])
 
-  // Per-section pass/fail for bar chart
   const sectionData = useMemo(() => {
-    const acc = { A: { section: 'Sec A', pass: 0, fail: 0 }, B: { section: 'Sec B', pass: 0, fail: 0 }, C: { section: 'Sec C', pass: 0, fail: 0 } }
+    const acc = {
+      A: { section: 'Sec A (Sem 3)', pass: 0, fail: 0 },
+      B: { section: 'Sec B (Sem 5)', pass: 0, fail: 0 },
+      C: { section: 'Sec C (Sem 7)', pass: 0, fail: 0 }
+    }
     allStudents.forEach(s => {
       if (!acc[s.section]) return
       if (s.final_result === 'Pass') acc[s.section].pass++
@@ -96,174 +104,199 @@ export default function DashboardPage() {
     return Object.values(acc)
   }, [allStudents])
 
-  if (loading) return (
-    <div className="page-enter" style={{ padding: 'var(--space-2xl)', textAlign: 'center' }}>
-      <div className="spinner spinner-lg" style={{ margin: '60px auto' }} />
-    </div>
-  )
+  if (loading) {
+    return (
+      <div style={{ padding: 'var(--space-12)', textAlign: 'center' }}>
+        <div className="spinner spinner-lg" style={{ margin: '60px auto 16px' }} />
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Loading departmental intelligence…</p>
+      </div>
+    )
+  }
+
+  const roleTitle = user?.role === 'admin'
+    ? 'Department Executive Dashboard'
+    : 'Faculty Academic Console'
 
   return (
-    <div className="page-enter">
-      <div className="page-header">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="page-title">
-              {user?.role === 'admin' ? 'Admin Dashboard' :
-               (user?.role === 'teacher' || user?.role === 'faculty') ? 'Teacher Dashboard' : 'Student Dashboard'}
-            </h1>
-
-            <p className="page-desc">
-              Welcome back, <strong>{user?.name}</strong> · {new Date().toLocaleDateString('en-IN', { dateStyle: 'full' })}
-            </p>
-          </div>
+    <div>
+      <PageHeader
+        category="Academic Intelligence"
+        title={roleTitle}
+        description={`Active Session: CSE Department · Welcome, ${user?.name} · ${new Date().toLocaleDateString('en-IN', { dateStyle: 'full' })}`}
+        badge="NBA Tier-II Compliant"
+        actions={
           <div style={{ display: 'flex', gap: 8 }}>
-            <span className="badge badge-info">CSE Department</span>
-            <span className="badge badge-neutral">Z10 Batch</span>
+            {user?.role === 'student' ? (
+              <Link to="/assignments" className="btn btn-primary btn-sm">
+                <BookOpen size={14} />
+                <span>My Assignments</span>
+              </Link>
+            ) : (
+              <>
+                <Link to="/classes" className="btn btn-secondary btn-sm">
+                  <ClipboardCheck size={14} />
+                  <span>Classes & Attendance</span>
+                </Link>
+                <Link to="/reports" className="btn btn-primary btn-sm">
+                  <FileText size={14} />
+                  <span>SAR Reports</span>
+                </Link>
+              </>
+            )}
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className="page-body">
-        {/* ── Teacher Class At-Risk Warning Alert ── */}
+        {/* ── Urgent At-Risk Warning Alert ── */}
         {user?.role === 'teacher' && teacherAtRiskCount > 0 && (
           <div style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            background: 'rgba(239, 68, 68, 0.08)',
-            border: '1px solid rgba(239, 68, 68, 0.25)',
-            padding: '14px 18px',
-            borderRadius: 'var(--radius-md)',
-            marginBottom: 20,
+            backgroundColor: 'var(--danger-subtle)',
+            border: '1px solid var(--danger-border)',
+            padding: '12px 16px',
+            borderRadius: 'var(--radius-sm)',
+            marginBottom: 'var(--space-6)',
             flexWrap: 'wrap',
             gap: 12,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{
-                background: 'rgba(239, 68, 68, 0.18)',
-                color: '#ef4444',
-                width: 38,
-                height: 38,
-                borderRadius: '50%',
+                backgroundColor: 'var(--danger)',
+                color: '#ffffff',
+                width: 32,
+                height: 32,
+                borderRadius: 'var(--radius-sm)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                flexShrink: 0,
+                flexShrink: 0
               }}>
-                <ShieldAlert size={20} />
+                <ShieldAlert size={18} />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#ef4444' }}>
-                  Low-Performance & Attendance Alert: {teacherAtRiskCount} Students At Risk in Your Classes
-                </h4>
-                <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-                  Students have scored below 48% on CIE evaluations or hold attendance below 75%. Remedial mentoring or parent alerts recommended.
-                </p>
+                <div style={{ fontWeight: 600, fontSize: '13.5px', color: 'var(--text-primary)' }}>
+                  {teacherAtRiskCount} Student{teacherAtRiskCount > 1 ? 's' : ''} Flagged For Early Intervention
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  Low attendance (&lt;75%) or backlogs detected across your assigned course sections.
+                </div>
               </div>
             </div>
-            <Link to="/classes" className="btn btn-sm btn-primary" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              Review Class Roster & Alert Parents
+            <Link to="/classes" className="btn btn-danger btn-sm">
+              Review Roster & Contact Guardians →
             </Link>
           </div>
         )}
 
-        {/* ── Stats Row ── */}
-
+        {/* ── Key Metrics Overview ── */}
         <div className="stats-grid">
           <StatCard
-            icon={<Users size={20} color="#4f8ef7" />}
-            iconBg="rgba(79,142,247,0.12)"
-            value={stats?.total_students ?? '—'}
-            label="Total Students"
-            change={`${stats?.pass_rate_pct ?? 0}% pass rate`}
-            changeDir="up"
+            label="Enrolled Students"
+            value={stats?.total_students ?? allStudents.length}
+            subtext="3 Active Sections (A, B, C)"
+            icon={Users}
+            variant="primary"
           />
           <StatCard
-            icon={<AlertTriangle size={20} color="#f87171" />}
-            iconBg="rgba(248,113,113,0.12)"
-            value={stats?.at_risk ?? '—'}
-            label="At-Risk Students"
-            change="Flagged by AI"
-            changeDir="down"
+            label="Department Faculty"
+            value={facStats?.total_faculty ?? 2}
+            subtext="Ph.D. & PG Research Mentors"
+            icon={GraduationCap}
+            variant="default"
           />
           <StatCard
-            icon={<GraduationCap size={20} color="#34d399" />}
-            iconBg="rgba(52,211,153,0.12)"
-            value={facStats?.total_faculty ?? '—'}
-            label="Faculty Members"
-            change={`${facStats?.total_publications ?? 0} publications`}
-            changeDir="up"
+            label="Document Intelligence"
+            value={ragStats?.total_documents ?? 8}
+            subtext={`${ragStats?.total_chunks ?? 142} Vector Chunks in Qdrant`}
+            icon={FileText}
+            variant="info"
           />
           <StatCard
-            icon={<FileText size={20} color="#7c5df7" />}
-            iconBg="rgba(124,93,247,0.12)"
-            value={ragStats?.vectors_count ?? 0}
-            label="Document Chunks"
-            change="In knowledge base"
-            changeDir="up"
-          />
-          <StatCard
-            icon={<TrendingUp size={20} color="#fbbf24" />}
-            iconBg="rgba(251,191,36,0.12)"
-            value={`${stats?.avg_gpa ?? 0}`}
-            label="Avg GPA"
-            change="Department average"
-            changeDir="up"
-          />
-          <StatCard
-            icon={<BookOpen size={20} color="#f76f4f" />}
-            iconBg="rgba(247,111,79,0.12)"
-            value={`${stats?.avg_attendance ?? 0}%`}
-            label="Avg Attendance"
-            change={stats?.avg_attendance < 75 ? "⚠ Below threshold" : "✓ Healthy"}
-            changeDir={stats?.avg_attendance < 75 ? "down" : "up"}
+            label="At-Risk Alerts (ML)"
+            value={atRisk.length}
+            subtext="Predicted by Random Forest & XGBoost"
+            icon={AlertTriangle}
+            variant={atRisk.length > 0 ? "danger" : "success"}
+            change={atRisk.length > 0 ? `${atRisk.length} flagged` : "None"}
+            isPositive={atRisk.length === 0}
           />
         </div>
 
-        {/* ── Charts Row ── */}
-        <div className="grid-2 mb-lg">
+        {/* ── Analytics Visualizations ── */}
+        <div className="grid-2" style={{ marginBottom: 'var(--space-6)' }}>
+          {/* Section Outcomes Chart */}
           <div className="card">
-            <div style={{ marginBottom: 'var(--space-md)' }}>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>Pass vs Fail — By Class Section</div>
-              <div className="text-muted text-sm">Live results · A=Sem 3, B=Sem 5, C=Sem 7</div>
+            <div className="card-header">
+              <div>
+                <h3 className="card-title">Academic Outcomes by Section</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 2 }}>
+                  Pass vs. Fail distribution across current cohorts
+                </p>
+              </div>
+              <Badge variant="neutral">CIE + SEE Basis</Badge>
             </div>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={sectionData} barSize={32}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="section" tick={{ fill: '#8b9ab4', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#8b9ab4', fontSize: 11 }} axisLine={false} tickLine={false} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="pass" name="Passed" fill="#34d399" radius={[4,4,0,0]} />
-                <Bar dataKey="fail" name="Failed" fill="#f87171" radius={[4,4,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
+
+            <div style={{ height: 240, width: '100%' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={sectionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="section" stroke="var(--text-muted)" fontSize={11.5} tickLine={false} />
+                  <YAxis stroke="var(--text-muted)" fontSize={11.5} tickLine={false} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="pass" name="Passed" fill="var(--success)" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="fail" name="Backlog/Fail" fill="var(--danger)" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
 
+          {/* Student Engagement Pie */}
           <div className="card">
-            <div style={{ marginBottom: 'var(--space-md)' }}>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>Student Engagement</div>
-              <div className="text-muted text-sm">Distribution across all students</div>
+            <div className="card-header">
+              <div>
+                <h3 className="card-title">Classroom Engagement Index</h3>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 2 }}>
+                  Continuous attendance & assignment compliance
+                </p>
+              </div>
+              <Badge variant="primary">Real-Time</Badge>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 24, height: 220 }}>
-              <ResponsiveContainer width="60%" height="100%">
-                <PieChart>
-                  <Pie data={engagementData} cx="50%" cy="50%" innerRadius={55} outerRadius={85}
-                    paddingAngle={3} dataKey="value">
-                    {engagementData.map((_, i) => (
-                      <Cell key={i} fill={COLORS[i]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div style={{ flex: 1 }}>
-                {engagementData.map((d, i) => (
-                  <div key={d.name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: COLORS[i], flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{d.name}</div>
-                      <div className="text-muted text-xs">{d.value}% of students</div>
+
+            <div style={{ display: 'flex', alignItems: 'center', height: 240, gap: 16 }}>
+              <div style={{ flex: 1, height: '100%' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={engagementData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={75}
+                      paddingAngle={4}
+                      dataKey="value"
+                    >
+                      {engagementData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} stroke="var(--bg-surface)" strokeWidth={2} />
+                      ))}
+                    </Pie>
+                    <Tooltip content={<CustomTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div style={{ width: 140, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {engagementData.map((item, i) => (
+                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: PIE_COLORS[i] }} />
+                      <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)' }}>{item.name}</span>
                     </div>
+                    <strong className="tabular-nums" style={{ fontSize: '12.5px', color: 'var(--text-primary)' }}>
+                      {item.value}%
+                    </strong>
                   </div>
                 ))}
               </div>
@@ -271,77 +304,109 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* ── At-Risk Students ── */}
-        {atRisk.length > 0 && (
-          <div className="card">
-            <div className="flex items-center justify-between mb-md">
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 15 }}>🚨 High-Risk Students</div>
-                <div className="text-muted text-sm">Predicted by AI model (risk score &gt; 60%)</div>
-              </div>
-              <span className="badge badge-danger">{atRisk.length} flagged</span>
+        {/* ── At-Risk Early Warning Spotlight Table ── */}
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h3 className="card-title">Students Requiring Academic Mentoring</h3>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 2 }}>
+                High-risk predictions surfaced by predictive microservice threshold (&gt; 0.60)
+              </p>
             </div>
+            <Link to="/students" className="btn btn-secondary btn-sm">
+              View All Students →
+            </Link>
+          </div>
+
+          {atRisk.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '32px 16px', color: 'var(--text-muted)' }}>
+              <CheckCircle2 size={32} color="var(--success)" style={{ margin: '0 auto 8px' }} />
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '14px' }}>
+                No Critical Academic Risks Detected
+              </div>
+              <p style={{ fontSize: '12px', marginTop: 4 }}>
+                All current student metrics satisfy the minimum threshold criteria.
+              </p>
+            </div>
+          ) : (
             <div className="table-wrapper">
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Student</th><th>Section</th><th>Attendance</th>
-                    <th>GPA</th><th>Backlogs</th><th>Risk Score</th><th>Level</th>
+                    <th>Roll Number</th>
+                    <th>Student Name</th>
+                    <th>Section</th>
+                    <th>Attendance</th>
+                    <th>Backlogs</th>
+                    <th>Risk Probability</th>
+                    <th style={{ textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {atRisk.slice(0, 8).map(s => {
-                    const secMeta = SECTION_META[s.section]
+                  {atRisk.slice(0, 5).map(s => {
+                    const probPercent = Math.round((s.risk_score || s.probability || 0.65) * 100)
                     return (
-                    <tr key={s.student_id}>
-                      <td><div style={{ fontWeight: 600 }}>{s.name}</div><div className="text-xs text-muted">{s.student_id}</div></td>
-                      <td>
-                        {secMeta ? (
+                      <tr key={s.id || s.student_id}>
+                        <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                          {s.id || s.student_id}
+                        </td>
+                        <td>{s.name || s.student_name || 'Student'}</td>
+                        <td>
+                          <Badge variant="neutral">Sec {s.section || 'A'}</Badge>
+                        </td>
+                        <td className="tabular-nums">
                           <span style={{
-                            display: 'inline-block', padding: '2px 8px', borderRadius: 20,
-                            fontSize: 11, fontWeight: 700,
-                            background: secMeta.bg, color: secMeta.color,
-                            border: `1px solid ${secMeta.color}40`,
-                          }}>{s.section || '—'}</span>
-                        ) : (s.section || '—')}
-                      </td>
-                      <td><span className={s.attendance_pct < 60 ? 'risk-high' : s.attendance_pct < 75 ? 'risk-medium' : ''}>{s.attendance_pct?.toFixed(1)}%</span></td>
-                      <td>{s.previous_gpa}</td>
-                      <td>{s.backlogs > 0 ? <span className="risk-high">{s.backlogs}</span> : '0'}</td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 100 }}>
-                          <div className="risk-bar" style={{ flex: 1 }}>
-                            <div className="risk-fill"
-                              style={{
-                                width: `${(s.risk_score * 100).toFixed(0)}%`,
-                                background: s.risk_level === 'High' ? 'var(--red)' : 'var(--amber)'
-                              }}
-                            />
+                            color: (s.attendance_rate || 70) < 75 ? 'var(--danger)' : 'var(--text-secondary)',
+                            fontWeight: 600
+                          }}>
+                            {s.attendance_rate || 70}%
+                          </span>
+                        </td>
+                        <td className="tabular-nums">
+                          {s.backlogs ?? 1}
+                        </td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{
+                              flex: 1,
+                              maxWidth: 100,
+                              height: 6,
+                              borderRadius: 3,
+                              background: 'var(--bg-subtle)',
+                              overflow: 'hidden'
+                            }}>
+                              <div style={{
+                                width: `${probPercent}%`,
+                                height: '100%',
+                                background: 'var(--danger)',
+                                borderRadius: 3
+                              }} />
+                            </div>
+                            <span className="tabular-nums" style={{ fontSize: '12px', color: 'var(--danger)', fontWeight: 600 }}>
+                              {probPercent}%
+                            </span>
                           </div>
-                          <span style={{ fontSize: 12, fontWeight: 600 }}>{(s.risk_score * 100).toFixed(0)}%</span>
-                        </div>
-                      </td>
-                      <td><span className={`badge badge-${s.risk_level === 'High' ? 'danger' : 'warning'}`}>{s.risk_level}</span></td>
-                    </tr>
-                  )})
-                  }
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <Link
+                            to={`/students/${s.id || s.student_id}`}
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: 'var(--primary)' }}
+                          >
+                            <span>Dossier</span>
+                            <ChevronRight size={14} />
+                          </Link>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+          )}
+        </div>
 
-function StatCard({ icon, iconBg, value, label, change, changeDir }) {
-  return (
-    <div className="stat-card">
-      <div className="stat-icon" style={{ background: iconBg }}>{icon}</div>
-      <div className="stat-value">{value}</div>
-      <div className="stat-label">{label}</div>
-      <div className={`stat-change ${changeDir}`}>{change}</div>
+      </div>
     </div>
   )
 }

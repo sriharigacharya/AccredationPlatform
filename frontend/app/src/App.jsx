@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider, useAuth, ROLE_HOME } from './context/AuthContext'
 import Sidebar from './components/Sidebar'
+import { Menu } from 'lucide-react'
 
 // Pages
 import LoginPage          from './pages/LoginPage'
@@ -21,22 +22,29 @@ import EventsPage         from './pages/EventsPage'
 import HistoricalDataPage from './pages/HistoricalDataPage'
 import TeacherClassesPage from './pages/TeacherClassesPage'
 
-
-
 // ── Route guard ────────────────────────────────────────────────────────────────
-// roles prop = array of roles allowed; null/undefined = any authenticated user
 function ProtectedRoute({ children, roles }) {
   const { user, loading } = useAuth()
 
-  if (loading) return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-      <div className="spinner spinner-lg" />
-    </div>
-  )
+  if (loading) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        height: '100vh',
+        backgroundColor: 'var(--bg-canvas)',
+        gap: 16
+      }}>
+        <div className="spinner spinner-lg" />
+        <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Verifying credentials…</span>
+      </div>
+    )
+  }
 
   if (!user) return <Navigate to="/login" replace />
 
-  // Role guard — redirect to the role's own home on mismatch
   if (roles && !roles.includes(user.role)) {
     return <Navigate to={ROLE_HOME[user.role] || '/login'} replace />
   }
@@ -44,12 +52,37 @@ function ProtectedRoute({ children, roles }) {
   return children
 }
 
-// ── Shell with sidebar ─────────────────────────────────────────────────────────
+// ── Shell with responsive sidebar ──────────────────────────────────────────────
 function AppLayout({ children }) {
+  const [mobileOpen, setMobileOpen] = useState(false)
+
   return (
     <div className="app-shell">
-      <Sidebar />
-      <div className="main-content">{children}</div>
+      <Sidebar isOpen={mobileOpen} onClose={() => setMobileOpen(false)} />
+
+      <div className="main-content">
+        {/* Mobile Header Bar */}
+        <div className="mobile-topbar">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-icon"
+              onClick={() => setMobileOpen(true)}
+              aria-label="Open navigation menu"
+            >
+              <Menu size={18} />
+            </button>
+            <span style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text-primary)' }}>
+              AcademiQ
+            </span>
+          </div>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+            CSE Portal
+          </span>
+        </div>
+
+        {children}
+      </div>
     </div>
   )
 }
@@ -114,10 +147,9 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* Assignments — admin + teacher (Faculty) */}
-
+      {/* Assignments — admin + teacher + student */}
       <Route path="/assignments" element={
-        <ProtectedRoute roles={['admin', 'teacher']}>
+        <ProtectedRoute roles={['admin', 'teacher', 'student']}>
           <AppLayout><AssignmentsPage /></AppLayout>
         </ProtectedRoute>
       } />
@@ -136,9 +168,9 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* RAG Chat — admin + teacher + student (not worker) */}
+      {/* RAG Chat — admin + teacher (no students, no worker) */}
       <Route path="/chat" element={
-        <ProtectedRoute roles={['admin', 'teacher', 'student']}>
+        <ProtectedRoute roles={['admin', 'teacher']}>
           <AppLayout><RAGChatPage /></AppLayout>
         </ProtectedRoute>
       } />
@@ -157,9 +189,9 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* Reports — admin + teacher + student (not worker) */}
+      {/* Reports — admin + teacher (no students, no worker) */}
       <Route path="/reports" element={
-        <ProtectedRoute roles={['admin', 'teacher', 'student']}>
+        <ProtectedRoute roles={['admin', 'teacher']}>
           <AppLayout><ReportsPage /></AppLayout>
         </ProtectedRoute>
       } />
@@ -170,7 +202,6 @@ function AppRoutes() {
           <AppLayout><HistoricalDataPage /></AppLayout>
         </ProtectedRoute>
       } />
-
 
       {/* Root → role-aware redirect */}
       <Route path="/" element={<RootRedirect />} />
@@ -191,11 +222,24 @@ export default function App() {
           position="top-right"
           toastOptions={{
             style: {
-              background: 'var(--bg-700)',
+              background: 'var(--bg-elevated)',
               color: 'var(--text-primary)',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-md)',
-              fontSize: '13.5px',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '13px',
+              boxShadow: 'var(--shadow-md)',
+            },
+            success: {
+              iconTheme: {
+                primary: 'var(--success)',
+                secondary: '#ffffff',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: 'var(--danger)',
+                secondary: '#ffffff',
+              },
             },
           }}
         />

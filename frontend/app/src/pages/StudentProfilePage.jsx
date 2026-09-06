@@ -1,14 +1,23 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { studentsAPI, parentsAPI, contactAPI, predictAPI, placementsAPI } from '../api/client'
-import { RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
-         BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
-         PieChart, Pie } from 'recharts'
-import { ArrowLeft, Phone, MessageSquare, AlertTriangle, Briefcase,
-         ShieldCheck, CheckCircle2, XCircle, ExternalLink, Clock, Lock, Unlock } from 'lucide-react'
+import { studentsAPI, parentsAPI, contactAPI, predictAPI, placementsAPI, reportsAPI } from '../api/client'
+import {
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell,
+  PieChart, Pie
+} from 'recharts'
+import {
+  ArrowLeft, Phone, MessageSquare, AlertTriangle, Briefcase,
+  ShieldCheck, CheckCircle2, XCircle, ExternalLink, Clock,
+  Lock, Unlock, Award, BookOpen, User, Check, Download, FileText,
+  Edit3, PhoneCall, PhoneOff
+} from 'lucide-react'
 import toast from 'react-hot-toast'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
+import Badge from '../components/Badge'
+import Modal from '../components/Modal'
 
-// ── Grade helpers ─────────────────────────────────────────────────────────
 const GRADE_TABLE = [
   { min: 90, grade: 'S', gp: 10, color: '#10b981' },
   { min: 80, grade: 'A', gp: 9,  color: '#34d399' },
@@ -27,48 +36,93 @@ function getGradeInfo(total) {
 }
 
 function getGradeColor(grade) {
+  if (typeof grade === 'string' && grade.startsWith('CIE')) {
+    const match = grade.match(/\((\d+(\.\d+)?)/)
+    if (match) {
+      return getGradeInfo(parseFloat(match[1])).color
+    }
+  }
   const entry = GRADE_TABLE.find(g => g.grade === grade)
-  return entry?.color || '#6b7280'
+  return entry?.color || '#94a3b8'
 }
 
 export default function StudentProfilePage() {
-  const { id }           = useParams()
-  const navigate         = useNavigate()
-  const [student, setStudent]   = useState(null)
-  const [analytics, setAnalytics] = useState(null)
+  const { id }                     = useParams()
+  const navigate                   = useNavigate()
+  const [student, setStudent]       = useState(null)
+  const [analytics, setAnalytics]   = useState(null)
   const [prediction, setPrediction] = useState(null)
-  const [parent, setParent]     = useState(null)
-  const [placement, setPlacement] = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [calling, setCalling]   = useState(false)
-  const [smsMsg, setSmsMsg]     = useState('')
-  const [showSms, setShowSms]   = useState(false)
+  const [parent, setParent]         = useState(null)
+  const [placement, setPlacement]   = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [calling, setCalling]       = useState(false)
+  const [smsMsg, setSmsMsg]         = useState('')
+  const [showSms, setShowSms]       = useState(false)
+  const [showEditParent, setShowEditParent] = useState(false)
+  const [parentForm, setParentForm] = useState({
+    parent_name: '',
+    relationship: 'Father',
+    primary_mobile: '',
+    alternate_mobile: '',
+    consent_to_contact: true,
+  })
+  const [savingParent, setSavingParent] = useState(false)
+  const [activeCall, setActiveCall]     = useState(null)
+  const [callDuration, setCallDuration] = useState(0)
 
   useEffect(() => {
-    Promise.all([
-      studentsAPI.get(id),
-      studentsAPI.analytics(id),
-      parentsAPI.get(id).catch(() => null),
-      placementsAPI.getForStudent(id).catch(() => ({ data: null })),
-    ]).then(([s, a, p, pl]) => {
-      setStudent(s.data)
-      setAnalytics(a.data)
-      setParent(p?.data || null)
-      if (pl?.data && pl.data.id) {
-        setPlacement(pl.data)
-      }
-      // Run prediction
-      predictAPI.student(s.data).then(r => setPrediction(r.data)).catch(() => {})
-      setLoading(false)
-    }).catch(() => { toast.error('Student not found'); navigate('/students') })
-  }, [id])
+    let timer
+    if (activeCall) {
+      timer = setInterval(() => {
+        setCallDuration(d => d + 1)
+      }, 1000)
+    }
+    return () => clearInterval(timer)
+  }, [activeCall])
+
+  useEffect(() => {
+    // 1. Fetch core student profile
+    studentsAPI.get(id)
+      .then((sRes) => {
+        const sData = sRes.data
+        setStudent(sData)
+        const canonicalId = sData.student_id || id
+
+        // 2. Fetch auxiliary records in parallel; protect against auxiliary 404s/network errors
+        Promise.allSettled([
+          studentsAPI.analytics(canonicalId),
+          parentsAPI.get(canonicalId),
+          placementsAPI.getForStudent(canonicalId),
+          predictAPI.student(sData),
+        ]).then(([aRes, pRes, plRes, predRes]) => {
+          if (aRes.status === 'fulfilled' && aRes.value?.data) {
+            setAnalytics(aRes.value.data)
+          }
+          if (pRes.status === 'fulfilled' && pRes.value?.data) {
+            setParent(pRes.value.data)
+          }
+          if (plRes.status === 'fulfilled' && plRes.value?.data?.id) {
+            setPlacement(plRes.value.data)
+          }
+          if (predRes.status === 'fulfilled' && predRes.value?.data) {
+            setPrediction(predRes.value.data)
+          }
+          setLoading(false)
+        })
+      })
+      .catch((err) => {
+        console.error('Failed to load student profile:', err)
+        toast.error('Student record not found')
+        navigate('/students')
+      })
+  }, [id, navigate])
 
   const handleVerifyPlacement = async () => {
     if (!placement?.id) return
     try {
       const { data } = await placementsAPI.verify(placement.id)
-      setPlacement(data)
-      toast.success('Placement record verified for NBA Criterion 4.')
+      setPlacement({ ...data, is_verified: true, verified_by_admin: true })
+      toast.success('Placement verified for NBA Criterion 4.5')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Verification failed')
     }
@@ -78,41 +132,138 @@ export default function StudentProfilePage() {
     if (!placement?.id) return
     try {
       const { data } = await placementsAPI.unverify(placement.id)
-      setPlacement(data)
-      toast.success('Placement verification reopened for student edits.')
+      setPlacement({ ...data, is_verified: false, verified_by_admin: false })
+      toast.success('Placement unlocked for student revisions')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to reopen')
     }
   }
 
+  const handleViewOfferLetter = async (filename) => {
+    if (!filename) {
+      toast.error('No offer letter document attached')
+      return
+    }
+    const t = toast.loading('Retrieving offer letter proof document…')
+    try {
+      const res = await placementsAPI.downloadOfferLetter(filename)
+      const blob = new Blob([res.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      window.open(url, '_blank')
+      toast.dismiss(t)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Could not open proof document', { id: t })
+    }
+  }
+
+  const handleOpenEditParent = () => {
+    setParentForm({
+      parent_name: parent?.parent_name || '',
+      relationship: parent?.relationship || 'Father',
+      primary_mobile: parent?.primary_mobile || '',
+      alternate_mobile: parent?.alternate_mobile || '',
+      consent_to_contact: parent?.consent_to_contact ?? true,
+    })
+    setShowEditParent(true)
+  }
+
+  const handleSaveParent = async (e) => {
+    if (e) e.preventDefault()
+    if (!parentForm.parent_name.trim() || !parentForm.primary_mobile.trim()) {
+      toast.error('Parent name and primary mobile number are required')
+      return
+    }
+    setSavingParent(true)
+    try {
+      const stuId = student?.student_id || id
+      const { data } = await parentsAPI.upsert({
+        student_id: stuId,
+        ...parentForm,
+      })
+      setParent(data)
+      toast.success('Parent contact details updated successfully!')
+      setShowEditParent(false)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update parent contact')
+    } finally {
+      setSavingParent(false)
+    }
+  }
 
   const handleCall = async () => {
-    if (!parent) { toast.error('No parent contact on record'); return }
-    if (!parent.consent_to_contact) { toast.error('Parent has not given contact consent'); return }
+    if (!parent) { toast.error('No parent record found'); return }
+    if (!parent.consent_to_contact) { toast.error('Parent contact consent has not been provided'); return }
     setCalling(true)
     try {
-      const { data } = await contactAPI.call(id)
+      const stuId = student?.student_id || id
+      const { data } = await contactAPI.call(stuId)
+      setActiveCall({
+        studentName: student?.name,
+        parentName: parent.parent_name,
+        relationship: parent.relationship,
+        phone: parent.primary_mobile,
+        status: data.status === 'mock' ? 'connected' : 'ringing',
+        message: data.message || '',
+      })
+      setCallDuration(0)
       toast.success(data.status === 'mock'
-        ? `📞 Mock call: ${data.message}`
-        : 'Call initiated successfully!'
+        ? `Demo proxy call initiated to ${parent.parent_name}`
+        : 'Encrypted call initiated successfully!'
       )
     } catch (err) {
       toast.error(err.response?.data?.error || 'Call failed')
-    } finally { setCalling(false) }
+    } finally {
+      setCalling(false)
+    }
   }
 
   const handleSms = async () => {
-    if (!smsMsg.trim()) { toast.error('Enter a message'); return }
+    if (!smsMsg.trim()) { toast.error('Enter SMS message content'); return }
     try {
-      const { data } = await contactAPI.sms(id, smsMsg)
-      toast.success(data.status === 'mock' ? `📱 Mock SMS: ${data.message}` : 'SMS sent!')
-      setSmsMsg(''); setShowSms(false)
+      const stuId = student?.student_id || id
+      const { data } = await contactAPI.sms(stuId, smsMsg)
+      toast.success(data.status === 'mock' ? `Mock SMS: ${data.message}` : 'SMS dispatched!')
+      setSmsMsg('')
+      setShowSms(false)
     } catch (err) {
       toast.error(err.response?.data?.error || 'SMS failed')
     }
   }
 
-  // ── Derived data ───────────────────────────────────────────────────
+  const [downloadingReport, setDownloadingReport] = useState(false)
+
+  const handleDownloadReport = async () => {
+    if (!student) return
+    setDownloadingReport(true)
+    const t = toast.loading('Assembling official student dossier (PDF)…')
+    try {
+      const res = await reportsAPI.generateStudent({
+        student_id: student.student_id || student.id,
+        format: 'pdf',
+      })
+      const reportId = res.data?.report_id
+      if (reportId) {
+        const dlRes = await reportsAPI.downloadPdf(reportId)
+        const blob = new Blob([dlRes.data], { type: 'application/pdf' })
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `Student_Dossier_${student.student_id || student.id}.pdf`
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        window.URL.revokeObjectURL(url)
+        toast.success('Official student report downloaded successfully', { id: t })
+      } else {
+        toast.error('Could not retrieve generated report ID', { id: t })
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to generate report', { id: t })
+    } finally {
+      setDownloadingReport(false)
+    }
+  }
+
   const courses = useMemo(() => student?.courses || [], [student])
   const sgpa = student?.sgpa || 0
   const totalCredits = useMemo(() => courses.reduce((s, c) => s + (c.credits || 4), 0), [courses])
@@ -149,528 +300,561 @@ export default function StudentProfilePage() {
     ]
   }, [student, courses, sgpa, totalCredits])
 
-  if (loading) return <div style={{ padding: 60, textAlign: 'center' }}><div className="spinner spinner-lg" style={{ margin: '0 auto' }} /></div>
+  if (loading) {
+    return (
+      <div style={{ padding: '48px', textAlign: 'center' }}>
+        <div className="spinner spinner-lg" style={{ margin: '60px auto 16px' }} />
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Assembling student academic dossier…</p>
+      </div>
+    )
+  }
+
   if (!student) return null
 
-  const riskScore = prediction?.risk_score ?? 0
   const riskLevel = prediction?.risk_level ?? analytics?.overall_risk ?? 'none'
-  const riskColor = riskLevel === 'High' ? 'var(--red)' : riskLevel === 'Medium' ? 'var(--amber)' : 'var(--green)'
 
   return (
-    <div className="page-enter">
-      <div className="page-header">
-        <button className="btn btn-secondary btn-sm" onClick={() => navigate('/students')} style={{ marginBottom: 12 }}>
-          <ArrowLeft size={14} /> Back to Students
+    <div>
+      <div style={{ padding: 'var(--space-4) var(--space-8) 0' }}>
+        <button
+          type="button"
+          onClick={() => navigate('/students')}
+          className="btn btn-secondary btn-sm"
+          style={{ marginBottom: 10 }}
+        >
+          <ArrowLeft size={14} />
+          <span>Back to Students Roster</span>
         </button>
-        <div className="flex items-center justify-between">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-md)' }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: '50%', background: 'var(--grad-primary)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 22, fontWeight: 700, color: 'white',
-            }}>
-              {student.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-            </div>
-            <div>
-              <h1 className="page-title">{student.name}</h1>
-              <p className="page-desc">{student.student_id} · Section {student.section} · Semester {student.semester} · {student.email}</p>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span className="badge badge-neutral" style={{ fontSize: 13, padding: '4px 10px' }}>
-              SGPA: <strong>{sgpa ? sgpa.toFixed(2) : 'Pending'}</strong>
-            </span>
-            {riskLevel !== 'none' && (
-              <span className={`badge badge-${riskLevel === 'High' ? 'danger' : riskLevel === 'Medium' ? 'warning' : 'success'}`}>
-                {riskLevel === 'High' && <AlertTriangle size={11} />} {riskLevel} Risk
-              </span>
-            )}
-          </div>
-        </div>
       </div>
 
+      <PageHeader
+        category="Student Dossier"
+        title={student.name}
+        description={`Roll Number: ${student.student_id} · Semester ${student.semester} Section ${student.section} · ${student.email}`}
+        badge={`SGPA: ${sgpa ? sgpa.toFixed(2) : 'Pending'}`}
+        actions={
+          <div style={{ display: 'flex', gap: 8 }}>
+            {riskLevel === 'High' ? (
+              <Badge variant="danger" icon={AlertTriangle}>High Risk</Badge>
+            ) : riskLevel === 'Medium' ? (
+              <Badge variant="warning">Medium Risk</Badge>
+            ) : (
+              <Badge variant="success">Satisfactory</Badge>
+            )}
+            <button
+              type="button"
+              onClick={handleDownloadReport}
+              disabled={downloadingReport}
+              className="btn btn-secondary btn-sm"
+              title="Download Official PDF Dossier"
+            >
+              <Download size={14} />
+              <span>{downloadingReport ? 'Generating…' : 'Official Report (PDF)'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowSms(true)}
+              className="btn btn-secondary btn-sm"
+              disabled={!parent?.consent_to_contact}
+            >
+              <MessageSquare size={14} />
+              <span>Message Guardian</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleCall}
+              disabled={calling || !parent?.consent_to_contact}
+              className="btn btn-primary btn-sm"
+            >
+              <Phone size={14} />
+              <span>{calling ? 'Calling…' : 'Proxy Call'}</span>
+            </button>
+          </div>
+        }
+      />
+
       <div className="page-body">
-        {/* ── Summary Cards ───────────────────────────────────────────── */}
-        <div className="grid-4 mb-lg" style={{ gap: 12 }}>
-          <div className="card" style={{ textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-            <div style={{
-              position: 'absolute', top: 0, left: 0, right: 0, height: 4,
-              background: sgpa ? (sgpa >= 8 ? 'var(--green)' : sgpa >= 6 ? 'var(--amber)' : 'var(--red)') : 'var(--text-muted)',
-            }} />
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', marginBottom: 4, marginTop: 8 }}>
-              Current Semester SGPA
-            </div>
-            <div style={{ fontSize: 36, fontWeight: 800, lineHeight: 1, color: sgpa ? (sgpa >= 8 ? 'var(--green)' : sgpa >= 6 ? 'var(--text-primary)' : 'var(--red)') : 'var(--text-muted)' }}>
-              {sgpa ? sgpa.toFixed(2) : 'Pending'}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-              {student.previous_gpa ? `Past CGPA: ${student.previous_gpa.toFixed(2)}` : 'Awaiting CIE test marks'}
-            </div>
-          </div>
-
-          <div className="card" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', marginBottom: 4 }}>Attendance</div>
-            <div style={{ fontSize: 36, fontWeight: 700, color: student.attendance_pct < 75 ? 'var(--red)' : 'var(--text-primary)' }}>
-              {student.attendance_pct?.toFixed(1)}%
-            </div>
-            {student.attendance_pct < 75 && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>⚠ Below 75%</div>}
-          </div>
-          <div className="card" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', marginBottom: 4 }}>Credits</div>
-            <div style={{ fontSize: 36, fontWeight: 700 }}>{totalCredits}</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{courses.length} courses</div>
-          </div>
-          <div className="card" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--text-muted)', marginBottom: 4 }}>Result</div>
-            <div style={{
-              fontSize: 28, fontWeight: 700,
-              color: student.final_result === 'Pass' ? 'var(--green)' : student.final_result === 'Fail' ? 'var(--red)' : 'var(--text-secondary)',
-            }}>
-              {student.final_result || 'Pending'}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-              {student.backlogs > 0 ? `${student.backlogs} backlog(s)` : 'No backlogs'}
-            </div>
-          </div>
+        {/* ── Metric Highlights ── */}
+        <div className="stats-grid" style={{ marginBottom: 'var(--space-6)' }}>
+          <StatCard
+            label="Current SGPA"
+            value={sgpa ? sgpa.toFixed(2) : 'Pending'}
+            subtext={student.previous_gpa ? `Past CGPA: ${student.previous_gpa.toFixed(2)}` : 'Awaiting CIE test marks'}
+            variant="primary"
+            icon={Award}
+          />
+          <StatCard
+            label="Attendance Rate"
+            value={`${student.attendance_pct?.toFixed(1)}%`}
+            subtext={student.attendance_pct < 75 ? "Deficit below 75% threshold" : "Compliant with regulations"}
+            variant={student.attendance_pct < 75 ? "danger" : "success"}
+            isPositive={student.attendance_pct >= 75}
+          />
+          <StatCard
+            label="Enrolled Credits"
+            value={totalCredits}
+            subtext={`${courses.length} Active Courses`}
+            variant="default"
+            icon={BookOpen}
+          />
+          <StatCard
+            label="Active Backlogs"
+            value={student.backlogs ?? 0}
+            subtext={student.backlogs > 0 ? "Subject backlogs standing" : "Clear academic standing"}
+            variant={student.backlogs > 0 ? "danger" : "success"}
+            isPositive={student.backlogs === 0}
+          />
         </div>
 
-        {/* ── Course-wise Grade Table ────────────────────────────────── */}
-        <div className="card mb-lg">
-          <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 'var(--space-md)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            📊 Course-wise Evaluation Breakdown
-            <span className="badge badge-neutral" style={{ fontSize: 10 }}>Semester {student.semester}</span>
-          </div>
-
-          <div style={{
-            display: 'flex', gap: 16, flexWrap: 'wrap', padding: '8px 12px', marginBottom: 12,
-            background: 'var(--bg-800)', borderRadius: 'var(--radius-sm)', fontSize: 11, color: 'var(--text-secondary)',
-          }}>
-            <span>CIE 1 <strong>/25</strong></span>
-            <span>CIE 2 <strong>/25</strong></span>
-            <span>Quiz 1 <strong>/10</strong></span>
-            <span>Quiz 2 <strong>/10</strong></span>
-            <span>Exp. Learning <strong>/30</strong></span>
-            <span style={{ borderLeft: '1px solid var(--border)', paddingLeft: 12 }}>CIE Total <strong>/100 → /50</strong></span>
-            <span>SEE <strong>/100 → /50</strong></span>
-            <span style={{ borderLeft: '1px solid var(--border)', paddingLeft: 12 }}>Grand Total <strong>/100</strong></span>
-          </div>
-
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                  <th style={thStyle}>Course</th>
-                  <th style={thStyleCenter}>CIE 1<br/><span style={subHead}>/25</span></th>
-                  <th style={thStyleCenter}>CIE 2<br/><span style={subHead}>/25</span></th>
-                  <th style={thStyleCenter}>Quiz 1<br/><span style={subHead}>/10</span></th>
-                  <th style={thStyleCenter}>Quiz 2<br/><span style={subHead}>/10</span></th>
-                  <th style={thStyleCenter}>EL<br/><span style={subHead}>/30</span></th>
-                  <th style={{...thStyleCenter, borderLeft: '2px solid var(--border)'}}>CIE<br/><span style={subHead}>/50</span></th>
-                  <th style={thStyleCenter}>SEE<br/><span style={subHead}>/50</span></th>
-                  <th style={{...thStyleCenter, borderLeft: '2px solid var(--border)'}}>Total<br/><span style={subHead}>/100</span></th>
-                  <th style={thStyleCenter}>Grade</th>
-                  <th style={thStyleCenter}>GP</th>
-                  <th style={thStyleCenter}>Att%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {courses.map((c, i) => {
-                  const gradeInfo = getGradeInfo(c.total || 0)
-                  const attLow = (c.attendance_pct || 0) < 75
-                  return (
-                    <tr key={i} style={{
-                      borderBottom: '1px solid var(--border)',
-                      background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
-                    }}>
-                      <td style={{ padding: '10px 12px' }}>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{c.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.code} · {c.credits} credits</div>
-                      </td>
-                      <td style={tdCenter}>{c.cie1 !== null && c.cie1 !== undefined ? c.cie1 : '—'}</td>
-                      <td style={tdCenter}>{c.cie2 !== null && c.cie2 !== undefined ? c.cie2 : '—'}</td>
-                      <td style={tdCenter}>{c.quiz1 !== null && c.quiz1 !== undefined ? c.quiz1 : '—'}</td>
-                      <td style={tdCenter}>{c.quiz2 !== null && c.quiz2 !== undefined ? c.quiz2 : '—'}</td>
-                      <td style={tdCenter}>{c.el !== null && c.el !== undefined ? c.el : '—'}</td>
-                      <td style={{...tdCenter, borderLeft: '2px solid var(--border)', fontWeight: 600}}>
-                        {c.cie_reduced !== null && c.cie_reduced !== undefined ? c.cie_reduced : '—'}
-                      </td>
-                      <td style={{...tdCenter, fontWeight: 600}}>
-                        {c.see_reduced !== null && c.see_reduced !== undefined ? c.see_reduced : '—'}
-                      </td>
-                      <td style={{
-                        ...tdCenter, borderLeft: '2px solid var(--border)',
-                        fontWeight: 700, fontSize: 15,
-                        color: c.total !== null && c.total !== undefined ? (c.total >= 50 ? 'var(--text-primary)' : 'var(--red)') : 'var(--text-muted)',
-                      }}>
-                        {c.total !== null && c.total !== undefined ? c.total : '—'}
-                      </td>
-                      <td style={tdCenter}>
-                        {c.grade === 'Pending' ? (
-                          <span className="badge badge-neutral" style={{ fontSize: 11 }}>Pending</span>
-                        ) : (
-                          <span style={{
-                            display: 'inline-block', padding: '2px 8px', borderRadius: 4,
-                            fontSize: 12, fontWeight: 700,
-                            background: gradeInfo.color + '22', color: gradeInfo.color,
-                          }}>
-                            {c.grade}
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ ...tdCenter, fontWeight: 600 }}>
-                        {c.grade_points !== null && c.grade_points !== undefined ? c.grade_points : '—'}
-                      </td>
-                      <td style={{ ...tdCenter, color: attLow ? 'var(--red)' : 'var(--text-secondary)' }}>
-                        {c.attendance_pct ? `${c.attendance_pct.toFixed(1)}%` : '100%'}
-                        {attLow && <span style={{ fontSize: 10 }}> ⚠</span>}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              {courses.length > 0 && (() => {
-                const activeCieCourses = courses.filter(c => c.cie_raw !== null && c.cie_raw !== undefined)
-                const activeSeeCourses = courses.filter(c => c.see_reduced !== null && c.see_reduced !== undefined)
-                const isSemesterComplete = activeSeeCourses.length === courses.length && courses.length > 0
-
-                const cieRawAvg = activeCieCourses.length > 0
-                  ? (activeCieCourses.reduce((s, c) => s + c.cie_raw, 0) / activeCieCourses.length).toFixed(1)
-                  : '—'
-                const cieRedAvg = activeCieCourses.length > 0
-                  ? (activeCieCourses.reduce((s, c) => s + (c.cie_reduced || 0), 0) / activeCieCourses.length).toFixed(1)
-                  : '—'
-                const seeRedAvg = activeSeeCourses.length > 0
-                  ? (activeSeeCourses.reduce((s, c) => s + (c.see_reduced || 0), 0) / activeSeeCourses.length).toFixed(1)
-                  : '—'
-                const totalAvg = isSemesterComplete
-                  ? (courses.reduce((s, c) => s + (c.total || 0), 0) / courses.length).toFixed(1)
-                  : 'In Progress'
-
-                return (
-                  <tfoot>
-                    <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg-800)' }}>
-                      <td style={{ padding: '10px 12px', fontWeight: 700 }}>Semester Summary</td>
-                      <td colSpan={5} style={{ ...tdCenter, color: 'var(--text-muted)', fontSize: 11 }}>
-                        {activeCieCourses.length > 0
-                          ? `Conducted CIE Avg: ${cieRawAvg}/100 (${activeCieCourses.length}/${courses.length} courses)`
-                          : 'CIE in progress'}
-                      </td>
-                      <td style={{ ...tdCenter, borderLeft: '2px solid var(--border)', fontWeight: 700 }}>
-                        {cieRedAvg}
-                      </td>
-                      <td style={{ ...tdCenter, fontWeight: 700, color: 'var(--text-muted)' }}>
-                        {seeRedAvg}
-                      </td>
-                      <td style={{
-                        ...tdCenter, borderLeft: '2px solid var(--border)',
-                        fontWeight: 700, fontSize: isSemesterComplete ? 15 : 12,
-                        color: isSemesterComplete ? 'var(--text-primary)' : 'var(--amber)',
-                      }}>
-                        {totalAvg}
-                      </td>
-                      <td colSpan={2} style={{ ...tdCenter, fontWeight: 700, fontSize: 13 }}>
-                        {sgpa ? `SGPA: ${sgpa.toFixed(2)}` : <span style={{ color: 'var(--amber)', fontSize: 12 }}>Pending (SEE)</span>}
-                      </td>
-                      <td style={{ ...tdCenter, fontWeight: 600 }}>{student.attendance_pct?.toFixed(1)}%</td>
-                    </tr>
-                  </tfoot>
-                )
-              })()}
-            </table>
-          </div>
-          {courses.length === 0 && (
-            <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 40 }}>
-              No course evaluation data available for this semester.
-            </div>
-          )}
-        </div>
-
-
-        {/* ── Charts Row ─────────────────────────────────────────────── */}
-        <div className="grid-3 mb-lg">
-          {/* CIE vs SEE */}
+        {/* ── Competency Analytics ── */}
+        <div className="grid-3" style={{ marginBottom: 'var(--space-6)' }}>
+          {/* Radar Competencies */}
           <div className="card">
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 'var(--space-md)' }}>CIE vs SEE</div>
-            {cieVsSee.length > 0 ? (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={cieVsSee} margin={{ top: 5, right: 5, bottom: 5, left: -10 }}>
+            <div className="card-header">
+              <h3 className="card-title">Curricular Competency Radar</h3>
+            </div>
+            <div style={{ height: 210 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={radarData}>
+                  <PolarGrid stroke="rgba(255,255,255,0.1)" />
+                  <PolarAngleAxis dataKey="subject" stroke="var(--text-muted)" fontSize={10} />
+                  <Radar name="Student Profile" dataKey="value" stroke="var(--primary)" fill="var(--primary)" fillOpacity={0.3} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* CIE vs SEE Performance */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="card-title">CIE vs. SEE Marks</h3>
+            </div>
+            <div style={{ height: 210 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={cieVsSee} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                  <XAxis dataKey="name" tick={{ fill: '#8b9ab4', fontSize: 10 }} />
-                  <YAxis domain={[0, 50]} tick={{ fill: '#8b9ab4', fontSize: 10 }} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-700)', border: '1px solid var(--border)', borderRadius: 8 }} />
-                  <Bar dataKey="CIE" fill="#818cf8" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="SEE" fill="#34d399" radius={[4, 4, 0, 0]} />
+                  <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={10} />
+                  <YAxis stroke="var(--text-muted)" fontSize={10} />
+                  <Tooltip />
+                  <Bar dataKey="CIE" fill="var(--primary)" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="SEE" fill="var(--success)" radius={[2, 2, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            ) : <div className="skeleton" style={{ height: 200 }} />}
-          </div>
-
-          {/* AI Prediction */}
-          <div className="card">
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 'var(--space-md)' }}>🤖 AI Risk Prediction</div>
-            {prediction ? (
-              <div>
-                <div style={{ textAlign: 'center', marginBottom: 'var(--space-md)' }}>
-                  <div style={{ fontSize: 48, fontWeight: 700, color: riskColor, lineHeight: 1 }}>
-                    {(riskScore * 100).toFixed(0)}%
-                  </div>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>Fail Risk Score</div>
-                  <div className={`badge badge-${riskLevel === 'High' ? 'danger' : riskLevel === 'Medium' ? 'warning' : 'success'}`} style={{ marginTop: 8 }}>
-                    {prediction.prediction} · {riskLevel} Risk
-                  </div>
-                </div>
-                <div className="risk-bar">
-                  <div className="risk-fill" style={{ width: `${riskScore * 100}%`, background: riskColor }} />
-                </div>
-                {prediction.feature_importance && (
-                  <div style={{ marginTop: 'var(--space-md)' }}>
-                    <div className="text-xs text-muted mb-sm" style={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Key Factors</div>
-                    {Object.entries(prediction.feature_importance)
-                      .sort(([,a],[,b]) => b - a).slice(0, 4)
-                      .map(([k, v]) => (
-                        <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-                          <span style={{ color: 'var(--text-secondary)' }}>{k.replace(/_/g, ' ')}</span>
-                          <span style={{ fontWeight: 600 }}>{(v * 100).toFixed(1)}%</span>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            ) : <div className="skeleton" style={{ height: 180 }} />}
-          </div>
-
-          {/* Parent Contact */}
-          <div className="card">
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 'var(--space-md)' }}>👪 Parent Contact</div>
-            {parent ? (
-              <div>
-                <div style={{ marginBottom: 'var(--space-md)' }}>
-                  <div style={{ fontWeight: 600, fontSize: 15 }}>{parent.parent_name}</div>
-                  <div className="text-muted text-sm">{parent.relationship}</div>
-                  <div style={{ marginTop: 8, fontSize: 13 }}>
-                    📱 {parent.primary_mobile}
-                    {parent.alternate_mobile && <div>📱 {parent.alternate_mobile} (alt)</div>}
-                  </div>
-                  <div className="mt-sm">
-                    <span className={`badge ${parent.consent_to_contact ? 'badge-success' : 'badge-danger'}`}>
-                      {parent.consent_to_contact ? '✓ Consent given' : '✗ No consent'}
-                    </span>
-                    <span className="badge badge-neutral" style={{ marginLeft: 6 }}>
-                      Prefers {parent.preferred_contact_method}
-                    </span>
-                  </div>
-                </div>
-
-                {!parent.consent_to_contact && (
-                  <div className="alert alert-warning" style={{ fontSize: 12, marginBottom: 12 }}>
-                    ⚠️ Parent has not given contact consent. Calls and SMS are blocked.
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-success btn-sm" onClick={handleCall} disabled={calling || !parent.consent_to_contact}>
-                    <Phone size={14} /> {calling ? 'Calling…' : 'Call'}
-                  </button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => setShowSms(!showSms)} disabled={!parent.consent_to_contact}>
-                    <MessageSquare size={14} /> SMS
-                  </button>
-                </div>
-
-                {showSms && (
-                  <div style={{ marginTop: 12 }}>
-                    <textarea className="form-textarea" value={smsMsg} onChange={e => setSmsMsg(e.target.value)}
-                      placeholder="Type message to parent…" style={{ minHeight: 80, marginBottom: 8 }} />
-                    <button className="btn btn-primary btn-sm" onClick={handleSms} disabled={!smsMsg.trim()}>Send SMS</button>
-                  </div>
-                )}
-
-                <div className="alert alert-info mt-sm" style={{ fontSize: 11 }}>
-                  📝 Numbers are masked. Calls use Twilio proxy when enabled.
-                </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 20 }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>📵</div>
-                <div>No parent record found</div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── PLACEMENT & OFFER LETTER CARD (CRITERION 4) ────────────── */}
-        <div className="card mb-lg" style={{ border: placement?.verified_by_admin ? '1px solid rgba(52,211,153,0.3)' : '1px solid rgba(79,142,247,0.25)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-md)', flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>💼 Placement & Career Outcomes</h2>
-                {placement?.verified_by_admin ? (
-                  <span className="status-badge approved" style={{ fontSize: 11 }}>
-                    <ShieldCheck size={13} /> Verified by Admin
-                  </span>
-                ) : placement?.status && placement.status !== 'not_placed' ? (
-                  <span className="status-badge pending" style={{ fontSize: 11 }}>
-                    <Clock size={13} /> Pending Verification
-                  </span>
-                ) : (
-                  <span style={{ fontSize: 11, background: 'rgba(255,255,255,0.06)', padding: '3px 8px', borderRadius: 4, color: 'var(--text-muted)' }}>
-                    No Submission
-                  </span>
-                )}
-              </div>
-              <p className="text-muted text-xs" style={{ marginTop: 2 }}>
-                Student self-submitted career record and verified offer letter for NBA Criterion 4.5.
-              </p>
             </div>
-
-            {placement?.id && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                {!placement.verified_by_admin ? (
-                  <button
-                    className="btn btn-primary btn-sm"
-                    onClick={handleVerifyPlacement}
-                  >
-                    <CheckCircle2 size={14} /> Verify Placement
-                  </button>
-                ) : (
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    onClick={handleUnverifyPlacement}
-                    title="Reopen to allow student to edit record"
-                  >
-                    <Unlock size={14} /> Reopen for Edits
-                  </button>
-                )}
-              </div>
-            )}
           </div>
-
-          {placement?.id ? (
-            <div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, background: 'rgba(255,255,255,0.02)', padding: 14, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                <div>
-                  <div className="text-muted text-xs">CAREER STATUS</div>
-                  <div style={{ fontWeight: 700, fontSize: 14, textTransform: 'capitalize', color: 'var(--text-primary)', marginTop: 2 }}>
-                    {placement.status?.replace('_', ' ')}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-muted text-xs">COMPANY / INSTITUTION</div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginTop: 2 }}>
-                    {placement.company_or_institution || '—'}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-muted text-xs">ROLE / PROGRAM</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    {placement.role_or_program || '—'}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-muted text-xs">CTC / STIPEND</div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--accent)', marginTop: 2 }}>
-                    {placement.ctc_or_stipend || '—'}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-muted text-xs">ACADEMIC & COHORT YEAR</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>
-                    {placement.academic_year} (Batch {placement.final_year_cohort_year})
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-muted text-xs">OFFER LETTER DOCUMENT</div>
-                  {placement.offer_letter_path ? (
-                    <a
-                      href={`/api/v1/offer-letters/${placement.offer_letter_path}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent)', fontSize: 12, fontWeight: 600, marginTop: 4, textDecoration: 'none' }}
-                    >
-                      <ExternalLink size={13} /> View Offer Letter
-                    </a>
-                  ) : (
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Not uploaded</span>
-                  )}
-                </div>
-              </div>
-
-              {placement.verified_by_admin && (
-                <div style={{ marginTop: 10, fontSize: 11, color: '#34d399', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <ShieldCheck size={13} /> Verified by {placement.verified_by || 'Admin'} on {placement.verified_at ? new Date(placement.verified_at).toLocaleDateString() : 'N/A'}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: 13 }}>
-              No placement or offer letter details submitted yet by student.
-            </div>
-          )}
-        </div>
-
-        {/* ── Grade Distribution + Risk Flags ─────────────────────────── */}
-        <div className="grid-2 mb-lg">
 
           {/* Grade Distribution */}
           <div className="card">
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 'var(--space-md)' }}>Grade Distribution</div>
-            {gradeDistribution.length > 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <ResponsiveContainer width="50%" height={180}>
-                  <PieChart>
-                    <Pie data={gradeDistribution} cx="50%" cy="50%" innerRadius={45} outerRadius={70} dataKey="value" paddingAngle={3} stroke="none">
-                      {gradeDistribution.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-                    </Pie>
-                    <Tooltip contentStyle={{ background: 'var(--bg-700)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ flex: 1 }}>
-                  {gradeDistribution.map((g, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 13 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: 2, background: g.color, flexShrink: 0 }} />
-                      <span style={{ fontWeight: 600 }}>{g.name}</span>
-                      <span style={{ color: 'var(--text-muted)', marginLeft: 'auto' }}>{g.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : <div className="skeleton" style={{ height: 180 }} />}
+            <div className="card-header">
+              <h3 className="card-title">Grade Distribution</h3>
+            </div>
+            <div style={{ height: 210, display: 'flex', alignItems: 'center' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={gradeDistribution} dataKey="value" cx="50%" cy="50%" innerRadius={40} outerRadius={65}>
+                    {gradeDistribution.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Registered Courses Table ── */}
+        <div className="card" style={{ marginBottom: 'var(--space-6)' }}>
+          <div className="card-header">
+            <h3 className="card-title">Registered Semester Course Evaluation</h3>
+            <Badge variant="neutral">{courses.length} Courses</Badge>
           </div>
 
-          {/* Risk flags */}
+          <div className="table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Course Title</th>
+                  <th>Credits</th>
+                  <th>CIE (/50)</th>
+                  <th>SEE (/50)</th>
+                  <th>Total (/100)</th>
+                  <th>Grade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {courses.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                      No registered course records found for this semester.
+                    </td>
+                  </tr>
+                ) : (
+                  courses.map(c => {
+                    const hasSee = c.see_reduced !== null && c.see_reduced !== undefined
+                    const total = hasSee ? Math.round(((c.cie_reduced || 0) + (c.see_reduced || 0)) * 10) / 10 : null
+                    const evalScore = hasSee ? total : (c.cie_raw ?? ((c.cie_reduced || 0) * 2))
+                    const g = getGradeInfo(evalScore)
+                    return (
+                      <tr key={c.code || c.name}>
+                        <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{c.code}</td>
+                        <td style={{ fontWeight: 500 }}>{c.name}</td>
+                        <td className="tabular-nums">{c.credits || 4}</td>
+                        <td className="tabular-nums">{c.cie_reduced ?? '—'}</td>
+                        <td className="tabular-nums">{c.see_reduced ?? '—'}</td>
+                        <td className="tabular-nums" style={{ fontWeight: 600 }}>{hasSee ? total : '—'}</td>
+                        <td>
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '2px 8px',
+                            minWidth: 28,
+                            height: 24,
+                            borderRadius: 'var(--radius-xs)',
+                            backgroundColor: `${g.color}20`,
+                            color: g.color,
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {c.grade || g.grade}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* ── Bottom Grid: Placement & Parent Contact Cards ── */}
+        <div className="grid-2">
+          {/* Placement Status Card */}
           <div className="card">
-            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 'var(--space-md)' }}>⚠️ Risk Flags</div>
-            {analytics?.risk_flags?.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {analytics.risk_flags.map((flag, i) => (
-                  <div key={i} className={`alert alert-${flag.severity === 'high' ? 'error' : flag.severity === 'medium' ? 'warning' : 'info'}`}>
-                    {flag.message}
+            <div className="card-header">
+              <h3 className="card-title">Placement & Higher Studies (Crit. 4.5)</h3>
+              {Boolean(placement?.is_verified ?? placement?.verified_by_admin) ? (
+                <Badge variant="success" icon={ShieldCheck}>Verified</Badge>
+              ) : (
+                <Badge variant="warning" icon={Clock}>Pending Audit</Badge>
+              )}
+            </div>
+
+            {placement ? (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>
+                    <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{placement.status?.replace('_', ' ')}</div>
                   </div>
-                ))}
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Package / Stipend</div>
+                    <div style={{ fontWeight: 600 }}>{placement.ctc_or_stipend || '—'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Company / Institution</div>
+                    <div style={{ fontWeight: 600 }}>{placement.company_or_institution || '—'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Role / Program</div>
+                    <div style={{ fontWeight: 600 }}>{placement.role_or_program || '—'}</div>
+                  </div>
+                </div>
+
+                {/* Offer Letter Document Preview Button */}
+                {placement.has_offer_letter || placement.offer_letter_path ? (
+                  <div style={{ marginBottom: 14 }}>
+                    <button
+                      type="button"
+                      onClick={() => handleViewOfferLetter(placement.offer_letter_path)}
+                      className="btn btn-secondary btn-sm"
+                      style={{ gap: 6, color: 'var(--primary)' }}
+                      title="View student offer letter / admission proof"
+                    >
+                      <FileText size={13} />
+                      <span>View Offer Letter / Proof Document</span>
+                    </button>
+                  </div>
+                ) : null}
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {Boolean(placement?.is_verified ?? placement?.verified_by_admin) ? (
+                    <button type="button" onClick={handleUnverifyPlacement} className="btn btn-secondary btn-sm">
+                      <Unlock size={14} /> Reopen for Student Edits
+                    </button>
+                  ) : (
+                    <button type="button" onClick={handleVerifyPlacement} className="btn btn-primary btn-sm">
+                      <ShieldCheck size={14} /> Verify Placement for Criterion 4
+                    </button>
+                  )}
+                </div>
               </div>
             ) : (
-              <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 30 }}>
-                <div style={{ fontSize: 28, marginBottom: 8 }}>✅</div>
-                No risk flags detected
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                No placement record reported by this student yet.
+              </div>
+            )}
+          </div>
+
+          {/* Parent & Guardian Privacy Card */}
+          <div className="card">
+            <div className="card-header">
+              <div>
+                <h3 className="card-title">Parent / Guardian Contact (DPDP Act)</h3>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={handleOpenEditParent}
+                  className="btn btn-secondary btn-xs"
+                  style={{ gap: 4 }}
+                >
+                  <Edit3 size={12} /> Edit Details
+                </button>
+                {parent?.consent_to_contact ? (
+                  <Badge variant="success">Consent Verified</Badge>
+                ) : (
+                  <Badge variant="danger">No Consent</Badge>
+                )}
+              </div>
+            </div>
+
+            {parent ? (
+              <div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Parent Name</div>
+                    <div style={{ fontWeight: 600 }}>{parent.parent_name}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Relationship</div>
+                    <div style={{ fontWeight: 600 }}>{parent.relationship}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Protected Contact</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{parent.primary_mobile || '*****3210'}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Channel</div>
+                    <div style={{ fontWeight: 600 }}>Encrypted Voice / SMS</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={handleCall}
+                    disabled={calling || !parent.consent_to_contact}
+                    className="btn btn-primary btn-sm"
+                  >
+                    <Phone size={13} /> {calling ? 'Connecting…' : 'Initiate Proxy Call'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSms(true)}
+                    disabled={!parent.consent_to_contact}
+                    className="btn btn-secondary btn-sm"
+                  >
+                    <MessageSquare size={13} /> Send Alert SMS
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                <div style={{ marginBottom: 10 }}>No parent profile linked to this student record.</div>
+                <button
+                  type="button"
+                  onClick={handleOpenEditParent}
+                  className="btn btn-primary btn-xs"
+                  style={{ gap: 4 }}
+                >
+                  <Edit3 size={12} /> Add Parent Contact
+                </button>
               </div>
             )}
           </div>
         </div>
+
+        {/* ── Guardian SMS Modal ── */}
+        <Modal
+          isOpen={showSms}
+          onClose={() => setShowSms(false)}
+          title={`Send Academic Alert to Guardian of ${student?.name || ''}`}
+          maxWidth={500}
+          footer={
+            <>
+              <button type="button" onClick={() => setShowSms(false)} className="btn btn-secondary btn-sm">
+                Cancel
+              </button>
+              <button type="button" onClick={handleSms} className="btn btn-primary btn-sm">
+                Send SMS Alert
+              </button>
+            </>
+          }
+        >
+          <div className="form-group">
+            <label className="form-label">Alert Message</label>
+            <textarea
+              className="form-textarea"
+              rows={4}
+              value={smsMsg}
+              onChange={e => setSmsMsg(e.target.value)}
+              placeholder="State official message regarding academic standing or attendance..."
+            />
+          </div>
+        </Modal>
+
+        {/* ── Edit Parent Details Modal ── */}
+        <Modal
+          isOpen={showEditParent}
+          onClose={() => setShowEditParent(false)}
+          title={`Parent / Guardian Contact — ${student?.name || ''}`}
+          maxWidth={500}
+          footer={
+            <>
+              <button type="button" onClick={() => setShowEditParent(false)} className="btn btn-secondary btn-sm" disabled={savingParent}>
+                Cancel
+              </button>
+              <button type="button" onClick={handleSaveParent} className="btn btn-primary btn-sm" disabled={savingParent}>
+                {savingParent ? 'Saving…' : 'Save Parent Contact'}
+              </button>
+            </>
+          }
+        >
+          <form onSubmit={handleSaveParent}>
+            <div className="form-group" style={{ marginBottom: 12 }}>
+              <label className="form-label">Parent / Guardian Full Name *</label>
+              <input
+                type="text"
+                className="form-input"
+                value={parentForm.parent_name}
+                onChange={e => setParentForm(f => ({ ...f, parent_name: e.target.value }))}
+                placeholder="e.g., Rajesh Sharma"
+                required
+              />
+            </div>
+
+            <div className="grid-2" style={{ gap: 12, marginBottom: 12 }}>
+              <div className="form-group">
+                <label className="form-label">Relationship</label>
+                <select
+                  className="form-select"
+                  value={parentForm.relationship}
+                  onChange={e => setParentForm(f => ({ ...f, relationship: e.target.value }))}
+                >
+                  <option value="Father">Father</option>
+                  <option value="Mother">Mother</option>
+                  <option value="Guardian">Guardian</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Primary Mobile Number *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={parentForm.primary_mobile}
+                  onChange={e => setParentForm(f => ({ ...f, primary_mobile: e.target.value }))}
+                  placeholder="e.g., +91 9876543210"
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label className="form-label">Alternate Mobile (Optional)</label>
+              <input
+                type="text"
+                className="form-input"
+                value={parentForm.alternate_mobile || ''}
+                onChange={e => setParentForm(f => ({ ...f, alternate_mobile: e.target.value }))}
+                placeholder="e.g., 9123456780"
+              />
+            </div>
+
+            <div className="form-group" style={{ margin: 0 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px' }}>
+                <input
+                  type="checkbox"
+                  checked={parentForm.consent_to_contact}
+                  onChange={e => setParentForm(f => ({ ...f, consent_to_contact: e.target.checked }))}
+                />
+                <span style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
+                  DPDP Act 2023 Explicit Consent Granted for Official Institutional Communications
+                </span>
+              </label>
+            </div>
+          </form>
+        </Modal>
+
+        {/* ── Active Call Demo Modal ── */}
+        {activeCall && (
+          <Modal
+            isOpen={true}
+            onClose={() => setActiveCall(null)}
+            title="Encrypted Voice Call — DPDP Act Compliant Proxy"
+            maxWidth={460}
+          >
+            <div style={{ textAlign: 'center', padding: '16px 8px' }}>
+              <div style={{
+                width: 68, height: 68, borderRadius: '50%',
+                backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                border: '2px solid var(--primary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 16px',
+              }}>
+                <PhoneCall size={32} color="var(--primary)" />
+              </div>
+
+              <h3 style={{ fontSize: '17px', fontWeight: 700, marginBottom: 4, color: 'var(--text-primary)' }}>
+                {activeCall.parentName} ({activeCall.relationship})
+              </h3>
+              <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: 14 }}>
+                Ward: {activeCall.studentName} · Target: <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{activeCall.phone}</span>
+              </div>
+
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: '16px',
+                backgroundColor: '#ecfdf5', color: '#065f46',
+                fontSize: '13px', fontWeight: 600, marginBottom: 16
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#10b981' }} />
+                Call Connected · {Math.floor(callDuration / 60).toString().padStart(2, '0')}:{(callDuration % 60).toString().padStart(2, '0')}
+              </div>
+
+              <div style={{
+                backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-sm)', padding: '12px', textAlign: 'left',
+                fontSize: '12px', color: 'var(--text-secondary)', marginBottom: 20
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>
+                  🛡️ DPDP Privacy-Preserving Proxy Active
+                </div>
+                <div>
+                  Virtual telecom bridge active. Faculty personal phone number and parent phone numbers remain masked under DPDP Act 2023 regulations.
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                style={{ padding: '8px 24px', borderRadius: '20px' }}
+                onClick={() => {
+                  setActiveCall(null)
+                  toast.success('Call ended')
+                }}
+              >
+                <PhoneOff size={14} /> End Call
+              </button>
+            </div>
+          </Modal>
+        )}
       </div>
     </div>
   )
 }
-
-// ── Table styles ─────────────────────────────────────────────────────────
-const thStyle = {
-  textAlign: 'left', padding: '8px 12px', fontSize: 11,
-  textTransform: 'uppercase', letterSpacing: '0.5px',
-  color: 'var(--text-muted)', fontWeight: 600,
-}
-const thStyleCenter = { ...thStyle, textAlign: 'center' }
-const subHead = { fontSize: 10, fontWeight: 400, color: 'var(--text-muted)', opacity: 0.7 }
-const tdCenter = { textAlign: 'center', padding: '10px 8px' }

@@ -5,9 +5,9 @@ Enforces role-based access at the network boundary (not just the UI).
 Roles: student | teacher | admin | worker
 
 Security contract:
-  - worker : documents only — all other services return 403
-  - student : own academic record (read-only), own prediction, RAG chat only
-  - teacher : students/faculty/contact/parents/rag/predict — no admin tools
+  - worker  : documents only — all other services return 403
+  - student : own academic record (read-only), own prediction, assignments & submissions — no RAG/reports
+  - teacher : students/faculty/contact/parents/rag/predict/reports/assignments — no admin tools
   - admin   : everything
 
 The ROUTE_TABLE is the single source of truth for permissions.
@@ -95,8 +95,8 @@ ROUTE_TABLE = [
     ("/documents",      "DOCUMENT_SERVICE_URL",       True, _ALL_AUTH),
 
     # ── RAG / NLP ─────────────────────────────────────────────
-    # Worker cannot access RAG (no student data context needed)
-    ("/rag",            "NLP_RAG_SERVICE_URL",        True, _NO_WORKER),
+    # Staff only (admin, teacher) — students and workers have no access to AI document queries
+    ("/rag",            "NLP_RAG_SERVICE_URL",        True, _STAFF),
     ("/embed",          "NLP_RAG_SERVICE_URL",        True, _ADMIN),
     ("/collections",    "NLP_RAG_SERVICE_URL",        True, _ADMIN_TEACHER),
 
@@ -106,13 +106,13 @@ ROUTE_TABLE = [
     ("/predict",        "PREDICTION_SERVICE_URL",     True, _NO_WORKER),
 
     # ── Reports ───────────────────────────────────────────────
-    # Criteria discovery: accessible to all authenticated roles (Admin, Teacher, Student, Worker)
-    ("/criteria",         "REPORT_SERVICE_URL",          True, _ALL_AUTH),
-    ("/reports/criteria", "REPORT_SERVICE_URL",          True, _ALL_AUTH),
-    # NBA generation: admin and teacher only (workers/students cannot generate NBA SARs)
+    # Criteria discovery: accessible to staff
+    ("/criteria",         "REPORT_SERVICE_URL",          True, _STAFF),
+    ("/reports/criteria", "REPORT_SERVICE_URL",          True, _STAFF),
+    # NBA generation: admin and teacher only
     ("/reports/nba",      "REPORT_SERVICE_URL",          True, _ADMIN_TEACHER),
-    # Adhoc + download + history: admin, teacher, student (no worker)
-    ("/reports",          "REPORT_SERVICE_URL",          True, _NO_WORKER),
+    # Reports generation & history: staff only (admin, teacher)
+    ("/reports",          "REPORT_SERVICE_URL",          True, _STAFF),
 ]
 
 
@@ -221,7 +221,7 @@ def proxy(subpath):
             headers        = forward_headers,
             data           = request.get_data(),
             timeout        = 60,
-            allow_redirects= False,
+            allow_redirects= True,
             stream         = True,
         )
 

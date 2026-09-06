@@ -48,13 +48,20 @@ export const studentsAPI = {
 
 // ── Faculty ───────────────────────────────────────────────────────────────────
 export const facultyAPI = {
-  list:    (params)   => api.get('/faculty/', { params }),
-  get:     (id)       => api.get(`/faculty/${id}`),
-  create:  (data)     => api.post('/faculty/', data),
-  update:  (id, data) => api.put(`/faculty/${id}`, data),
-  delete:  (id)       => api.delete(`/faculty/${id}`),
-  report:  (id)       => api.get(`/faculty/${id}/report`),
-  stats:   ()         => api.get('/faculty/stats/overview'),
+  list:                 (params)         => api.get('/faculty/', { params }),
+  get:                  (id)             => api.get(`/faculty/${id}`),
+  create:               (data)           => api.post('/faculty/', data),
+  update:               (id, data)       => api.put(`/faculty/${id}`, data),
+  delete:               (id)             => api.delete(`/faculty/${id}`),
+  report:               (id)             => api.get(`/faculty/${id}/report`),
+  stats:                ()               => api.get('/faculty/stats/overview'),
+  submitUpdateRequest:  (id, data)       => api.post(`/faculty/${id}/update-request`, data),
+  listUpdateRequests:   (params)         => api.get('/faculty/update-requests', { params }),
+  getUpdateRequest:     (id)             => api.get(`/faculty/update-requests/${id}`),
+  approveUpdateRequest: (id)             => api.post(`/faculty/update-requests/${id}/approve`),
+  rejectUpdateRequest:  (id, data)       => api.post(`/faculty/update-requests/${id}/reject`, data),
+  cancelUpdateRequest:  (id)             => api.delete(`/faculty/update-requests/${id}`),
+  allocateCourses:      (id, courses)    => api.put(`/faculty/${id}/courses`, { courses_taught: courses }),
 }
 
 // ── Departments ───────────────────────────────────────────────────────────────
@@ -101,8 +108,11 @@ export const ragAPI = {
 // ── Reports ───────────────────────────────────────────────────────────────────
 export const reportsAPI = {
   // NBA SAR report generation
-  generateNba:  (data)            => api.post('/reports/nba/generate', data),
-  generate:     (data)            => api.post('/reports/generate', data),
+  generateNba:     (data)            => api.post('/reports/nba/generate', data),
+  generateGeneral: (data)            => api.post('/reports/general/generate', data),
+  generateStudent: (data)            => api.post('/reports/student/generate', data),
+  generateFaculty: (data)            => api.post('/reports/faculty/generate', data),
+  generate:        (data)            => api.post('/reports/generate', data),
   // Dynamic criteria discovery
   getCriteria:  (sarFormat)       => api.get('/criteria', {
     params: sarFormat ? { sar_format: sarFormat } : {},
@@ -117,15 +127,24 @@ export const reportsAPI = {
   getNarrative:  (nodeId, params) => api.get(`/reports/narratives/${nodeId}`, { params }),
   saveNarrative: (nodeId, data)   => api.post(`/reports/narratives/${nodeId}`, data),
   // Ad-hoc free-text report
-
   adhoc:        (query, format)   => api.post('/reports/adhoc', { query, format }),
   // Download a completed report (returns blob)
   download:     (reportId, fmt)   => api.get(`/reports/${reportId}/download`, {
     params: { format: fmt },
     responseType: 'blob',
   }),
-  // History
+  // Convenience download methods (used by ReportsPage handleDownload)
+  downloadPdf:  (reportId)        => api.get(`/reports/${reportId}/download`, {
+    params: { format: 'pdf' },
+    responseType: 'blob',
+  }),
+  downloadDocx: (reportId)        => api.get(`/reports/${reportId}/download`, {
+    params: { format: 'docx' },
+    responseType: 'blob',
+  }),
+  // History (list is an alias used by ReportsPage)
   history:      ()                => api.get('/reports/history'),
+  list:         ()                => api.get('/reports/history'),
 }
 
 // ── Predictions ───────────────────────────────────────────────────────────────
@@ -139,12 +158,17 @@ export const predictAPI = {
 
 // ── Assignments ───────────────────────────────────────────────────────────────
 export const assignmentsAPI = {
-  list:       (params)       => api.get('/assignments/', { params }),
-  get:        (id)           => api.get(`/assignments/${id}`),
-  create:     (data)         => api.post('/assignments/', data),
-  delete:     (id)           => api.delete(`/assignments/${id}`),
-  students:   (id)           => api.get(`/assignments/${id}/students`),
-  myList:     ()             => api.get('/assignments/', { params: { student_id: 'me' } }),
+  list:               (params)                         => api.get('/assignments/', { params }),
+  get:                (id)                             => api.get(`/assignments/${id}`),
+  create:             (data)                           => api.post('/assignments/', data),
+  delete:             (id)                             => api.delete(`/assignments/${id}`),
+  students:           (id)                             => api.get(`/assignments/${id}/students`),
+  myList:             ()                               => api.get('/assignments/', { params: { student_id: 'me' } }),
+  submit:             (id, data, isMultipart = false) => isMultipart
+    ? api.post(`/assignments/${id}/submit`, data, { headers: { 'Content-Type': 'multipart/form-data' } })
+    : api.post(`/assignments/${id}/submit`, data),
+  mySubmission:       (id)                             => api.get(`/assignments/${id}/submission`),
+  downloadSubmission: (filename)                       => api.get(`/assignments/submissions/download/${filename}`, { responseType: 'blob' }),
 }
 
 // ── Clubs ─────────────────────────────────────────────────────────────────────
@@ -201,11 +225,15 @@ export const placementsAPI = {
   submit:        (formData)  => api.post('/profile/placement', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
+  update:        (formData)  => api.post('/profile/placement', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
   list:          (params)    => api.get('/placements/', { params }),
   get:           (id)        => api.get(`/placements/${id}`),
   verify:        (id)        => api.patch(`/placements/${id}/verify`),
   unverify:      (id)        => api.patch(`/placements/${id}/unverify`),
   summary:       (params)    => api.get('/placements/summary', { params }),
+  downloadOfferLetter: (filename) => api.get(`/offer-letters/${filename}`, { responseType: 'blob' }),
 }
 
 // ── Student Achievements (External Competitions) ──────────────────────────────

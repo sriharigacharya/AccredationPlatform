@@ -108,9 +108,10 @@ def narrate(
     bullets: list[str],
     style: str = "sar_tier_ii",
     max_words: int = 300,
+    system_prompt: str | None = None,
 ) -> str:
     """
-    Expand structured bullet points into SAR-style narrative prose.
+    Expand structured bullet points into narrative prose.
     Returns the generated text string, or a plain-text summary on error.
     """
     payload = {
@@ -120,6 +121,8 @@ def narrate(
         "style":         style,
         "max_words":     max_words,
     }
+    if system_prompt:
+        payload["system_prompt"] = system_prompt
     try:
         resp = requests.post(
             f"{nlp_url.rstrip('/')}/rag/narrate",

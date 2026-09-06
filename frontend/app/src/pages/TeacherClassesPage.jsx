@@ -3,12 +3,18 @@ import { classesAPI, contactAPI } from '../api/client'
 import {
   BookOpen, Users, CheckCircle2, XCircle, AlertTriangle,
   Calendar, Save, Search, RefreshCw, Send, CheckSquare,
-  Square, ShieldAlert, Award, ChevronRight, Phone, Clock
+  Square, ShieldAlert, Award, ChevronRight, Phone, Clock,
+  Edit3, ShieldCheck, Check, X, ArrowRight, ClipboardCheck
 } from 'lucide-react'
-
 import toast from 'react-hot-toast'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
+import Badge from '../components/Badge'
+import Tabs from '../components/Tabs'
+import Modal from '../components/Modal'
+import EmptyState from '../components/EmptyState'
 
-const EXAM_OPTIONS = [
+export const EXAM_OPTIONS = [
   { key: 'cie1',  label: 'Continuous Internal Evaluation 1 (CIE 1)', max: 25 },
   { key: 'cie2',  label: 'Continuous Internal Evaluation 2 (CIE 2)', max: 25 },
   { key: 'quiz1', label: 'Quiz 1',                                  max: 10 },
@@ -18,37 +24,39 @@ const EXAM_OPTIONS = [
 ]
 
 export const SESSION_TIME_SLOTS = [
-  // 1-Hour Lecture Slots
-  { value: '09:00 AM - 10:00 AM', label: '09:00 AM – 10:00 AM (Period 1)', duration: '1 hr', type: '1-Hour Lecture' },
-  { value: '10:00 AM - 11:00 AM', label: '10:00 AM – 11:00 AM (Period 2)', duration: '1 hr', type: '1-Hour Lecture' },
-  { value: '11:30 AM - 12:30 PM', label: '11:30 AM – 12:30 PM (Period 3)', duration: '1 hr', type: '1-Hour Lecture' },
-  { value: '12:30 PM - 01:30 PM', label: '12:30 PM – 01:30 PM (Period 4)', duration: '1 hr', type: '1-Hour Lecture' },
-  { value: '02:30 PM - 03:30 PM', label: '02:30 PM – 03:30 PM (Period 5)', duration: '1 hr', type: '1-Hour Lecture' },
-  { value: '03:30 PM - 04:30 PM', label: '03:30 PM – 04:30 PM (Period 6)', duration: '1 hr', type: '1-Hour Lecture' },
-
-  // 2-Hour Lab / Block Slots
-  { value: '09:00 AM - 11:00 AM', label: '09:00 AM – 11:00 AM (Morning Lab Block — 2 hrs)', duration: '2 hrs', type: '2-Hour Lab / Block' },
-  { value: '11:30 AM - 01:30 PM', label: '11:30 AM – 01:30 PM (Midday Lab Block — 2 hrs)', duration: '2 hrs', type: '2-Hour Lab / Block' },
-  { value: '02:30 PM - 04:30 PM', label: '02:30 PM – 04:30 PM (Afternoon Lab Block — 2 hrs)', duration: '2 hrs', type: '2-Hour Lab / Block' },
+  { value: '09:00 AM - 10:00 AM', label: '09:00 AM – 10:00 AM (Period 1)', duration: '1 hr' },
+  { value: '10:00 AM - 11:00 AM', label: '10:00 AM – 11:00 AM (Period 2)', duration: '1 hr' },
+  { value: '11:30 AM - 12:30 PM', label: '11:30 AM – 12:30 PM (Period 3)', duration: '1 hr' },
+  { value: '12:30 PM - 01:30 PM', label: '12:30 PM – 01:30 PM (Period 4)', duration: '1 hr' },
+  { value: '02:30 PM - 03:30 PM', label: '02:30 PM – 03:30 PM (Period 5)', duration: '1 hr' },
+  { value: '03:30 PM - 04:30 PM', label: '03:30 PM – 04:30 PM (Period 6)', duration: '1 hr' },
+  { value: '09:00 AM - 11:00 AM', label: '09:00 AM – 11:00 AM (Morning Lab — 2 hrs)', duration: '2 hrs' },
+  { value: '11:30 AM - 01:30 PM', label: '11:30 AM – 01:30 PM (Midday Lab — 2 hrs)', duration: '2 hrs' },
+  { value: '02:30 PM - 04:30 PM', label: '02:30 PM – 04:30 PM (Afternoon Lab — 2 hrs)', duration: '2 hrs' },
 ]
 
 export default function TeacherClassesPage() {
-  const [classes, setClasses]           = useState([])
-  const [activeClass, setActiveClass]   = useState(null)
-  const [students, setStudents]         = useState([])
+  const [classes, setClasses]               = useState([])
+  const [activeClass, setActiveClass]       = useState(null)
+  const [students, setStudents]             = useState([])
   const [loadingClasses, setLoadingClasses] = useState(true)
   const [loadingStudents, setLoadingStudents] = useState(false)
 
-  const [activeTab, setActiveTab]       = useState('attendance') // 'attendance' | 'marks' | 'at-risk'
-  const [search, setSearch]             = useState('')
+  const [activeTab, setActiveTab]           = useState('attendance') // 'attendance' | 'marks' | 'at-risk'
+  const [search, setSearch]                 = useState('')
 
   // ── Attendance State ────────────────────────────────────────────────────────
-  const [attDate, setAttDate]           = useState(new Date().toISOString().slice(0, 10))
-  const [sessionTime, setSessionTime]   = useState('09:00 AM - 10:00 AM')
-  const [attStatuses, setAttStatuses]   = useState({}) // { STU001: 'present' | 'absent' }
+  const [attDate, setAttDate]               = useState(new Date().toISOString().slice(0, 10))
+  const [sessionTime, setSessionTime]       = useState('09:00 AM - 10:00 AM')
+  const [attStatuses, setAttStatuses]       = useState({}) // { STU001: 'present' | 'absent' }
   const [savingAttendance, setSavingAttendance] = useState(false)
   const [recentSessions, setRecentSessions] = useState([])
-  const [showRecentSessions, setShowRecentSessions] = useState(false)
+  const [showRecentSessions, setShowRecentSessions] = useState(true)
+  const [activeExistingSession, setActiveExistingSession] = useState(null)
+  const [loadingSessionDetails, setLoadingSessionDetails] = useState(false)
+  const [showAuditReviewModal, setShowAuditReviewModal] = useState(false)
+  const [auditJustification, setAuditJustification] = useState('')
+  const [updatingSession, setUpdatingSession] = useState(false)
 
   // ── Edit Past Session Modal State ──────────────────────────────────────────
   const [editingSessionId, setEditingSessionId] = useState(null)
@@ -58,22 +66,19 @@ export default function TeacherClassesPage() {
   const [loadingSession, setLoadingSession]     = useState(false)
   const [savingSession, setSavingSession]       = useState(false)
   const [sessionSearch, setSessionSearch]       = useState('')
-  const [sessionFilter, setSessionFilter]       = useState('all') // 'all', 'present', 'absent'
-
+  const [sessionFilter, setSessionFilter]       = useState('all')
 
   // ── Marks State ─────────────────────────────────────────────────────────────
-  const [selectedExam, setSelectedExam] = useState('cie1')
-  const [marksInputs, setMarksInputs]   = useState({}) // { STU001: 22.5 }
-  const [savingMarks, setSavingMarks]   = useState(false)
-  const [marksStats, setMarksStats]     = useState(null)
+  const [selectedExam, setSelectedExam]     = useState('cie1')
+  const [marksInputs, setMarksInputs]       = useState({})
+  const [savingMarks, setSavingMarks]       = useState(false)
+  const [marksStats, setMarksStats]         = useState(null)
 
   // ── Contact Modal State ─────────────────────────────────────────────────────
-  const [contactModal, setContactModal] = useState(null) // student object
-  const [smsText, setSmsText]           = useState('')
-  const [sendingSms, setSendingSms]     = useState(false)
+  const [contactModal, setContactModal]     = useState(null)
+  const [smsText, setSmsText]               = useState('')
+  const [sendingSms, setSendingSms]         = useState(false)
 
-
-  // Fetch classes on load
   const loadClasses = async () => {
     setLoadingClasses(true)
     try {
@@ -94,7 +99,6 @@ export default function TeacherClassesPage() {
     loadClasses()
   }, [])
 
-  // Fetch student roster whenever active class changes
   const loadRoster = async (ca) => {
     if (!ca) return
     setLoadingStudents(true)
@@ -103,7 +107,6 @@ export default function TeacherClassesPage() {
       const list = res.data?.students || []
       setStudents(list)
 
-      // Initialize default attendance (all present by default)
       const initAtt = {}
       const initMarks = {}
       list.forEach(s => {
@@ -134,7 +137,99 @@ export default function TeacherClassesPage() {
     }
   }, [activeClass])
 
-  // Sync marks inputs when exam changes
+  // ── Auto-detect if attendance was already recorded for selected date and slot ──
+  useEffect(() => {
+    if (!activeClass || !attDate || !sessionTime) {
+      setActiveExistingSession(null)
+      return
+    }
+
+    const match = recentSessions.find(
+      s => s.session_date === attDate && s.time_slot === sessionTime
+    )
+
+    if (match) {
+      if (activeExistingSession?.id === match.id) return // already loaded this exact session
+      setLoadingSessionDetails(true)
+      classesAPI.getSessionDetails(match.id)
+        .then(res => {
+          const sessData = res.data
+          setActiveExistingSession(sessData)
+          const map = {}
+          ;(sessData.roster || []).forEach(r => {
+            map[r.student_id] = r.status
+          })
+          setAttStatuses(map)
+        })
+        .catch(err => {
+          console.error('Failed to load session details for date/time slot', err)
+        })
+        .finally(() => {
+          setLoadingSessionDetails(false)
+        })
+    } else {
+      if (activeExistingSession) {
+        setActiveExistingSession(null)
+        // Reset to all present for a brand new session
+        const initAtt = {}
+        students.forEach(s => { initAtt[s.student_id] = 'present' })
+        setAttStatuses(initAtt)
+      }
+    }
+  }, [attDate, sessionTime, recentSessions, activeClass])
+
+  const currentWorkstationPresent = useMemo(() => {
+    return Object.values(attStatuses).filter(s => s === 'present').length
+  }, [attStatuses])
+
+  const currentWorkstationAbsent = useMemo(() => {
+    return Object.values(attStatuses).filter(s => s === 'absent').length
+  }, [attStatuses])
+
+  const handleOpenAuditReviewModal = () => {
+    if (!activeExistingSession) return
+    setAuditJustification('')
+    setShowAuditReviewModal(true)
+  }
+
+  const handleConfirmSessionUpdate = async () => {
+    if (!auditJustification.trim()) {
+      toast.error('Audit comment is required explaining the attendance modification')
+      return
+    }
+    setUpdatingSession(true)
+    try {
+      const records = Object.entries(attStatuses).map(([student_id, status]) => ({
+        student_id,
+        status,
+      }))
+      const res = await classesAPI.updateAttendanceSession(activeExistingSession.id, {
+        records,
+        change_comment: auditJustification.trim(),
+      })
+      toast.success(res.data?.message || 'Attendance session updated and audit logged!')
+      setShowAuditReviewModal(false)
+      setAuditJustification('')
+      // Refresh roster, sessions list, and active session
+      if (activeClass) {
+        await loadSessions(activeClass)
+        await loadRoster(activeClass)
+        loadClasses()
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update attendance session')
+    } finally {
+      setUpdatingSession(false)
+    }
+  }
+
+  const handleLoadSessionIntoWorkstation = (sess) => {
+    setAttDate(sess.session_date)
+    setSessionTime(sess.time_slot || '09:00 AM - 10:00 AM')
+    toast.success(`Loaded session from ${sess.session_date} into roll-call`)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   useEffect(() => {
     const updated = {}
     students.forEach(s => {
@@ -144,7 +239,6 @@ export default function TeacherClassesPage() {
     setMarksStats(null)
   }, [selectedExam, students])
 
-  // Filter students by search
   const filteredStudents = useMemo(() => {
     if (!search.trim()) return students
     const q = search.toLowerCase()
@@ -153,12 +247,10 @@ export default function TeacherClassesPage() {
     )
   }, [students, search])
 
-  // At-risk students in this class
   const atRiskStudents = useMemo(() => {
     return students.filter(s => s.is_at_risk)
   }, [students])
 
-  // Attendance helpers
   const handleMarkAll = (status) => {
     const next = {}
     students.forEach(s => { next[s.student_id] = status })
@@ -188,10 +280,10 @@ export default function TeacherClassesPage() {
         records,
       }
       const res = await classesAPI.submitAttendance(payload)
-      toast.success(`Attendance recorded for ${sessionTime}: ${res.data.present_count} Present, ${res.data.absent_count} Absent`)
+      toast.success(`Attendance saved: ${res.data.present_count} Present, ${res.data.absent_count} Absent`)
       await loadRoster(activeClass)
       await loadSessions(activeClass)
-      loadClasses() // refresh at-risk count
+      loadClasses()
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to save attendance')
     } finally {
@@ -199,8 +291,6 @@ export default function TeacherClassesPage() {
     }
   }
 
-
-  // Marks helpers
   const maxMark = EXAM_OPTIONS.find(e => e.key === selectedExam)?.max || 25
 
   const handleSaveMarks = async () => {
@@ -225,25 +315,24 @@ export default function TeacherClassesPage() {
       toast.success(res.data.message)
       setMarksStats(res.data.statistics)
       await loadRoster(activeClass)
-      loadClasses() // refresh at-risk count
+      loadClasses()
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to save exam marks')
+      toast.error(err.response?.data?.error || 'Failed to save marks')
     } finally {
       setSavingMarks(false)
     }
   }
 
-  // Contact parent SMS
   const handleSendSms = async () => {
     if (!contactModal || !smsText.trim()) return
     setSendingSms(true)
     try {
       await contactAPI.sms(contactModal.student_id, smsText)
-      toast.success(`SMS alert sent to parent of ${contactModal.name}`)
+      toast.success(`Alert sent to parent of ${contactModal.name}`)
       setContactModal(null)
       setSmsText('')
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to send SMS alert')
+      toast.error(err.response?.data?.error || 'Failed to send parent alert')
     } finally {
       setSendingSms(false)
     }
@@ -252,11 +341,10 @@ export default function TeacherClassesPage() {
   const openContact = (s) => {
     setContactModal(s)
     setSmsText(
-      `Dear Parent, this is an academic alert from your ward's course teacher for ${s.name} (${s.student_id}) regarding academic performance/attendance in ${activeClass?.course_name}. Please check the portal or contact the department.`
+      `Dear Parent, this is an official academic alert regarding ${s.name} (${s.student_id}) in ${activeClass?.course_name}. Current attendance: ${s.attendance_rate}%. Please review your ward's portal or contact the department.`
     )
   }
 
-  // Past session edit handlers
   const handleOpenEditSession = async (sessionId) => {
     setEditingSessionId(sessionId)
     setLoadingSession(true)
@@ -314,7 +402,7 @@ export default function TeacherClassesPage() {
 
   const handleSaveSessionChanges = async () => {
     if (!changeComment.trim()) {
-      toast.error('Please enter a comment explaining why you changed the attendance')
+      toast.error('Audit comment is required explaining the attendance modification')
       return
     }
     setSavingSession(true)
@@ -340,76 +428,99 @@ export default function TeacherClassesPage() {
     }
   }
 
-
   return (
-    <div className="page-enter">
-      <div className="page-header">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="page-title">Classes & Evaluation Management</h1>
-            <p className="page-subtitle">
-              Attendance tracking, exam-wise CIE/SEE mark entry, and student risk alerts
-            </p>
+    <div>
+      <PageHeader
+        category="Academic Operations"
+        title="Classroom Management & Continuous Evaluation"
+        description="Daily attendance roll-call, internal assessment marks entry (CIE/SEE), and proactive at-risk student intervention."
+        actions={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => setShowRecentSessions(!showRecentSessions)}
+              className="btn btn-secondary btn-sm"
+            >
+              <Clock size={14} />
+              <span>{showRecentSessions ? 'Hide Session History' : 'Session History'}</span>
+            </button>
+            <button
+              onClick={() => { loadClasses(); if (activeClass) loadRoster(activeClass); }}
+              className="btn btn-secondary btn-sm"
+            >
+              <RefreshCw size={14} />
+              <span>Refresh</span>
+            </button>
           </div>
-          <button onClick={() => { loadClasses(); if (activeClass) loadRoster(activeClass); }} className="btn btn-secondary btn-sm" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <RefreshCw size={14} /> Refresh Roster
-          </button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="page-body">
-        {/* ── Class Selector Cards ── */}
-        <div style={{ marginBottom: 20 }}>
-          <label style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--text-muted)', marginBottom: 8, display: 'block' }}>
-            My Assigned Classes
-          </label>
+        {/* ── Assigned Course Sections Selector ── */}
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <div style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: 'var(--text-muted)',
+            marginBottom: 8
+          }}>
+            Assigned Course Sections
+          </div>
+
           {loadingClasses ? (
-            <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>Loading classes…</div>
-          ) : classes.length === 0 ? (
-            <div className="card" style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
-              No classes assigned to this account.
+            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div className="spinner" />
             </div>
+          ) : classes.length === 0 ? (
+            <EmptyState
+              icon={BookOpen}
+              title="No Classes Assigned"
+              description="Your faculty profile currently has no assigned course sections for this semester."
+            />
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
               {classes.map(ca => {
                 const isSelected = activeClass?.course_code === ca.course_code && activeClass?.section === ca.section
                 return (
                   <div
                     key={`${ca.course_code}-${ca.section}`}
                     onClick={() => setActiveClass(ca)}
-                    className="card"
                     style={{
-                      padding: 14,
+                      padding: '14px 16px',
                       cursor: 'pointer',
-                      border: `2px solid ${isSelected ? 'var(--primary, #3b82f6)' : 'var(--border)'}`,
-                      background: isSelected ? 'rgba(59, 130, 246, 0.05)' : 'var(--surface)',
-                      transition: 'all 0.15s ease',
-                      position: 'relative',
+                      border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border-default)'}`,
+                      backgroundColor: isSelected ? 'var(--primary-subtle)' : 'var(--bg-surface)',
+                      borderRadius: 'var(--radius-md)',
+                      transition: 'all var(--transition-fast)',
                     }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                      <span className="badge badge-primary" style={{ fontWeight: 700 }}>
+                      <span style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        fontSize: '13.5px',
+                        color: isSelected ? 'var(--primary)' : 'var(--text-primary)'
+                      }}>
                         {ca.course_code}
                       </span>
                       <div style={{ display: 'flex', gap: 6 }}>
-                        <span className="badge badge-info" style={{ fontWeight: 600 }}>
-                          Sec {ca.section} (Sem {ca.semester})
-                        </span>
+                        <Badge variant="neutral">Sec {ca.section} (Sem {ca.semester})</Badge>
                         {ca.at_risk_count > 0 && (
-                          <span className="badge badge-danger" style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                            <AlertTriangle size={10} /> {ca.at_risk_count} At Risk
-                          </span>
+                          <Badge variant="danger" icon={AlertTriangle}>
+                            {ca.at_risk_count} At Risk
+                          </Badge>
                         )}
                       </div>
                     </div>
 
-                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', marginBottom: 6 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
                       {ca.course_name}
                     </div>
 
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Faculty: <strong>{ca.faculty_name}</strong></span>
-                      <span><strong>{ca.student_count}</strong> Students</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
+                      <span>{ca.student_count || students.length} Enrolled</span>
+                      <span>Department of CSE</span>
                     </div>
                   </div>
                 )
@@ -418,496 +529,454 @@ export default function TeacherClassesPage() {
           )}
         </div>
 
-        {/* ── Active Class Management Interface ── */}
+        {/* ── Active Class Workstation ── */}
         {activeClass && (
-          <div className="card" style={{ padding: 20 }}>
-            {/* Top Bar with Navigation Tabs */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 12, marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <BookOpen size={20} style={{ color: 'var(--primary)' }} />
-                <div>
-                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>
-                    {activeClass.course_code} — {activeClass.course_name}
-                  </h3>
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    Section {activeClass.section} • Semester {activeClass.semester} • {students.length} Enrolled
-                  </span>
-                </div>
-              </div>
+          <div>
+            {/* Navigation Tabs */}
+            <Tabs
+              activeTab={activeTab}
+              onChange={setActiveTab}
+              tabs={[
+                { id: 'attendance', label: 'Attendance Roll-Call', icon: ClipboardCheck },
+                { id: 'marks', label: 'Continuous Marks Entry (CIE/SEE)', icon: Award },
+                { id: 'at-risk', label: 'At-Risk Mentoring & Parent Contact', icon: ShieldAlert, count: atRiskStudents.length },
+              ]}
+            />
 
-              {/* Tabs */}
-              <div style={{ display: 'flex', gap: 6, background: 'var(--bg-700, #f1f5f9)', padding: 4, borderRadius: 8 }}>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${activeTab === 'attendance' ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setActiveTab('attendance')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Calendar size={14} /> Attendance
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${activeTab === 'marks' ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setActiveTab('marks')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Award size={14} /> Exam Marks Entry
-                </button>
-                <button
-                  type="button"
-                  className={`btn btn-sm ${activeTab === 'at-risk' ? 'btn-primary' : 'btn-ghost'}`}
-                  onClick={() => setActiveTab('at-risk')}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <ShieldAlert size={14} />
-                  At-Risk Alerts
-                  {atRiskStudents.length > 0 && (
-                    <span style={{ background: '#ef4444', color: 'white', borderRadius: 10, padding: '1px 6px', fontSize: 10, fontWeight: 700 }}>
-                      {atRiskStudents.length}
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* ── Search Bar ── */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-              <div style={{ position: 'relative', width: 280 }}>
-                <Search size={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  placeholder="Filter by name or roll no…"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="form-input"
-                  style={{ paddingLeft: 30, fontSize: 13, height: 34 }}
-                />
-              </div>
-
-              {/* Quick Summary based on Tab */}
-              {activeTab === 'attendance' && (
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  Present: <strong style={{ color: '#10b981' }}>{Object.values(attStatuses).filter(s => s === 'present').length}</strong> |
-                  Absent: <strong style={{ color: '#ef4444' }}>{Object.values(attStatuses).filter(s => s === 'absent').length}</strong>
-                </div>
-              )}
-            </div>
-
-            {/* ── TAB 1: ATTENDANCE ── */}
+            {/* ── Tab 1: Attendance Roll Call ── */}
             {activeTab === 'attendance' && (
               <div>
-                {/* Date, Session Time Slot & Bulk Action Controls */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'var(--bg-800, #f8fafc)', padding: '12px 16px', borderRadius: 8, marginBottom: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-                      {/* Date */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <label style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <Calendar size={14} /> Date:
-                        </label>
+                {/* Roll-call Control Toolbar */}
+                <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+                  <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 14,
+                  }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                      <div>
+                        <label className="form-label">Session Date</label>
                         <input
                           type="date"
+                          className="form-input"
+                          style={{ height: 36, padding: '4px 10px' }}
                           value={attDate}
                           onChange={e => setAttDate(e.target.value)}
-                          className="form-input"
-                          style={{ width: 145, height: 34, fontSize: 13 }}
                         />
                       </div>
 
-                      {/* Session Time Slot Dropdown */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <label style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <Clock size={14} /> Session Time:
-                        </label>
+                      <div>
+                        <label className="form-label">Period / Time Slot</label>
                         <select
+                          className="form-select"
+                          style={{ height: 36, padding: '4px 10px' }}
                           value={sessionTime}
                           onChange={e => setSessionTime(e.target.value)}
-                          className="form-select"
-                          style={{ width: 330, height: 34, fontSize: 13, fontWeight: 600 }}
                         >
-                          <optgroup label="1-Hour Lecture Slots (6 Periods)">
-                            {SESSION_TIME_SLOTS.filter(s => s.duration === '1 hr').map(s => (
-                              <option key={s.value} value={s.value}>{s.label}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="2-Hour Lab / Block Slots (3 Blocks)">
-                            {SESSION_TIME_SLOTS.filter(s => s.duration === '2 hrs').map(s => (
-                              <option key={s.value} value={s.value}>{s.label}</option>
-                            ))}
-                          </optgroup>
+                          {SESSION_TIME_SLOTS.map(s => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
                         </select>
                       </div>
 
-                      <span className={`badge ${SESSION_TIME_SLOTS.find(s => s.value === sessionTime)?.duration === '2 hrs' ? 'badge-primary' : 'badge-info'}`} style={{ fontWeight: 600 }}>
-                        {SESSION_TIME_SLOTS.find(s => s.value === sessionTime)?.duration === '2 hrs' ? '2-Hour Lab Block' : '1-Hour Lecture'}
-                      </span>
-                    </div>
+                      <div style={{ paddingTop: 18 }}>
+                        <button
+                          type="button"
+                          onClick={() => setShowRecentSessions(prev => !prev)}
+                          className={`btn btn-sm ${showRecentSessions ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ height: 36, display: 'flex', alignItems: 'center', gap: 6 }}
+                          title="Toggle Past Attendance Sessions and Audit History"
+                        >
+                          <Clock size={14} />
+                          <span>Session History ({recentSessions.length})</span>
+                        </button>
+                      </div>
 
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" onClick={() => handleMarkAll('present')} className="btn btn-xs btn-outline">
-                        <CheckSquare size={12} /> Mark All Present
-                      </button>
-                      <button type="button" onClick={() => handleMarkAll('absent')} className="btn btn-xs btn-ghost">
-                        <Square size={12} /> Mark All Absent
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleSaveAttendance}
-                        disabled={savingAttendance}
-                        className="btn btn-sm btn-primary"
-                        style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                      >
-                        <Save size={14} /> {savingAttendance ? 'Saving…' : 'Save Attendance Session'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* College Schedule Guide Strip */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 8, fontSize: 11, color: 'var(--text-secondary)', flexWrap: 'wrap', gap: 8 }}>
-                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span>🕒 Classes: <strong>9:00 AM – 4:30 PM</strong></span>
-                      <span>•</span>
-                      <span>☕ Break: <strong>11:00 AM – 11:30 AM</strong></span>
-                      <span>•</span>
-                      <span>🍽️ Lunch: <strong>1:30 PM – 2:30 PM</strong></span>
-                      <span>•</span>
-                      <span>Sessions: <strong>1 Hr & 2 Hr Blocks</strong></span>
-                    </div>
-
-                    {recentSessions.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowRecentSessions(p => !p)}
-                        className="btn btn-ghost btn-xs"
-                        style={{ color: 'var(--primary)', fontWeight: 600 }}
-                      >
-                        {showRecentSessions ? '▲ Hide History' : `▼ Past Sessions (${recentSessions.length})`}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Collapsible Recent Sessions Table */}
-                  {showRecentSessions && recentSessions.length > 0 && (
-                    <div style={{
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      padding: 14,
-                      marginTop: 8,
-                      animation: 'fadeSlideDown 0.2s ease',
-                    }}>
-                      <div className="flex items-center justify-between mb-sm" style={{ flexWrap: 'wrap', gap: 6 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>
-                          📋 Past Attendance Sessions ({recentSessions.length})
+                      <div>
+                        <label className="form-label">Filter Roster</label>
+                        <div className="search-bar" style={{ height: 36 }}>
+                          <Search size={14} />
+                          <input
+                            placeholder="Search name or ID…"
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                          />
                         </div>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          Click "View & Edit" on any session to review student presence or change attendance with audit reasons.
-                        </span>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))', gap: 10 }}>
-                        {recentSessions.map(rs => {
-                          const tot = rs.total_students || (rs.present_count + rs.absent_count) || 1
-                          const attRate = Math.round((rs.present_count / tot) * 100)
-
-                          return (
-                            <div
-                              key={rs.id}
-                              style={{
-                                background: 'var(--bg-800)',
-                                border: rs.is_edited ? '1px solid rgba(245, 158, 11, 0.4)' : '1px solid var(--border)',
-                                borderRadius: 8,
-                                padding: '10px 12px',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: 6,
-                              }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div style={{ fontWeight: 700, fontSize: 12 }}>
-                                  📅 {rs.session_date}
-                                </div>
-                                {rs.is_edited ? (
-                                  <span
-                                    className="badge badge-warning"
-                                    style={{ fontSize: 10, padding: '2px 6px' }}
-                                    title={rs.change_comment ? `Modified: ${rs.change_comment}` : 'Modified'}
-                                  >
-                                    ✏️ Modified
-                                  </span>
-                                ) : (
-                                  <span className="badge badge-neutral" style={{ fontSize: 10, padding: '2px 6px' }}>
-                                    Recorded
-                                  </span>
-                                )}
-                              </div>
-
-                              <div style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>
-                                🕒 {rs.time_slot || 'Regular Session'}
-                              </div>
-
-                              <div className="flex items-center justify-between" style={{ fontSize: 11, marginTop: 2 }}>
-                                <div style={{ color: 'var(--text-secondary)' }}>
-                                  Present: <strong style={{ color: '#10b981' }}>{rs.present_count}</strong> | Absent: <strong style={{ color: '#ef4444' }}>{rs.absent_count}</strong> ({attRate}%)
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenEditSession(rs.id)}
-                                  className="btn btn-outline btn-xs"
-                                  style={{
-                                    fontSize: 11,
-                                    padding: '3px 8px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 4,
-                                    borderColor: 'var(--primary)',
-                                    color: 'var(--primary)',
-                                    fontWeight: 600,
-                                  }}
-                                >
-                                  ✏️ View & Edit
-                                </button>
-                              </div>
-
-                              {rs.is_edited && rs.change_comment && (
-                                <div style={{
-                                  fontSize: 10,
-                                  color: 'var(--text-muted)',
-                                  background: 'rgba(245, 158, 11, 0.08)',
-                                  padding: '4px 8px',
-                                  borderRadius: 4,
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                }} title={rs.change_comment}>
-                                  💬 <em>{rs.change_comment}</em>
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })}
                       </div>
                     </div>
-                  )}
 
-                </div>
-
-
-                {/* Table */}
-                <div className="table-wrapper">
-                  <table className="table">
-                    <thead>
-                      <tr>
-                        <th style={{ width: 60 }}>Sl</th>
-                        <th style={{ width: 120 }}>Student ID</th>
-                        <th>Student Name</th>
-                        <th style={{ width: 150 }}>Course Attendance</th>
-                        <th style={{ width: 140 }}>Risk Status</th>
-                        <th style={{ width: 160, textAlign: 'center' }}>Mark Attendance</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredStudents.map((s, idx) => {
-                        const status = attStatuses[s.student_id] || 'present'
-                        const isPresent = status === 'present'
-                        return (
-                          <tr key={s.student_id} style={{ background: isPresent ? 'transparent' : 'rgba(239, 68, 68, 0.04)' }}>
-                            <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{idx + 1}</td>
-                            <td><code>{s.student_id}</code></td>
-                            <td>
-                              <div style={{ fontWeight: 600 }}>{s.name}</div>
-                              <small style={{ color: 'var(--text-muted)' }}>{s.email}</small>
-                            </td>
-                            <td>
-                              <span style={{
-                                fontWeight: 700,
-                                color: s.attendance_pct >= 75 ? '#10b981' : s.attendance_pct >= 60 ? '#f59e0b' : '#ef4444'
-                              }}>
-                                {s.attendance_pct}%
-                              </span>
-                            </td>
-                            <td>
-                              {s.is_at_risk ? (
-                                <span className="badge badge-danger" title={s.risk_reasons.join(' | ')}>
-                                  <AlertTriangle size={11} style={{ marginRight: 3 }} />
-                                  {s.risk_severity.toUpperCase()}
-                                </span>
-                              ) : (
-                                <span className="badge badge-success">Good</span>
-                              )}
-                            </td>
-                            <td style={{ textAlign: 'center' }}>
-                              <div style={{ display: 'inline-flex', gap: 4, background: 'var(--bg-700, #e2e8f0)', padding: 3, borderRadius: 6 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setAttStatuses(p => ({ ...p, [s.student_id]: 'present' }))}
-                                  style={{
-                                    border: 'none',
-                                    borderRadius: 4,
-                                    padding: '4px 10px',
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    background: isPresent ? '#10b981' : 'transparent',
-                                    color: isPresent ? 'white' : 'var(--text-secondary)',
-                                    transition: 'all 0.15s ease',
-                                  }}
-                                >
-                                  Present
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setAttStatuses(p => ({ ...p, [s.student_id]: 'absent' }))}
-                                  style={{
-                                    border: 'none',
-                                    borderRadius: 4,
-                                    padding: '4px 10px',
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    background: !isPresent ? '#ef4444' : 'transparent',
-                                    color: !isPresent ? 'white' : 'var(--text-secondary)',
-                                    transition: 'all 0.15s ease',
-                                  }}
-                                >
-                                  Absent
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* ── TAB 2: EXAM MARKS ENTRY ── */}
-            {activeTab === 'marks' && (
-              <div>
-                {/* Exam Selection & Callout */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-800, #f8fafc)', padding: 14, borderRadius: 8, marginBottom: 14, flexWrap: 'wrap', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <label style={{ fontSize: 13, fontWeight: 700 }}>Select Examination:</label>
-                    <select
-                      value={selectedExam}
-                      onChange={e => setSelectedExam(e.target.value)}
-                      className="form-select"
-                      style={{ width: 280, fontWeight: 600 }}
-                    >
-                      {EXAM_OPTIONS.map(opt => (
-                        <option key={opt.key} value={opt.key}>
-                          {opt.label} (Max {opt.max})
-                        </option>
-                      ))}
-                    </select>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', paddingTop: 18 }}>
+                      <button
+                        type="button"
+                        onClick={() => handleMarkAll('present')}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        <Check size={14} color="var(--success)" />
+                        <span>All Present</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMarkAll('absent')}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        <X size={14} color="var(--danger)" />
+                        <span>All Absent</span>
+                      </button>
+                      {activeExistingSession ? (
+                        <button
+                          type="button"
+                          onClick={handleOpenAuditReviewModal}
+                          disabled={loadingSessionDetails || updatingSession}
+                          className="btn btn-warning btn-sm"
+                          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                        >
+                          <Edit3 size={14} />
+                          <span>Update Session (Audit Review Required)</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleSaveAttendance}
+                          disabled={savingAttendance}
+                          className="btn btn-primary btn-sm"
+                        >
+                          {savingAttendance ? (
+                            <>
+                              <div className="spinner" style={{ width: 12, height: 12 }} />
+                              <span>Recording…</span>
+                            </>
+                          ) : (
+                            <>
+                              <Save size={14} />
+                              <span>Save Session Attendance</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={handleSaveMarks}
-                    disabled={savingMarks}
-                    className="btn btn-primary"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                  >
-                    <Save size={14} />
-                    {savingMarks ? 'Saving…' : `Save ${selectedExam.toUpperCase()} Marks`}
-                  </button>
                 </div>
 
-                {/* Optional Stats Banner after saving */}
-                {marksStats && (
+                {/* Active Session Archive Banner */}
+                {activeExistingSession && (
                   <div style={{
                     display: 'flex',
-                    justifyContent: 'space-around',
-                    background: 'rgba(59, 130, 246, 0.08)',
-                    border: '1px solid rgba(59, 130, 246, 0.2)',
-                    padding: '10px 16px',
-                    borderRadius: 8,
-                    marginBottom: 14,
-                    fontSize: 13,
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    marginBottom: 'var(--space-4)',
+                    gap: 12,
+                    flexWrap: 'wrap'
                   }}>
-                    <div>Class Average: <strong>{marksStats.average} / {maxMark}</strong></div>
-                    <div>Highest: <strong>{marksStats.highest}</strong></div>
-                    <div>Lowest: <strong>{marksStats.lowest}</strong></div>
-                    <div>Passing Rate: <strong style={{ color: '#10b981' }}>{marksStats.pass_percentage}%</strong></div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--primary)',
+                        flexShrink: 0
+                      }}>
+                        <Clock size={18} />
+                      </div>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text-primary)' }}>
+                            Recorded Attendance Session #{activeExistingSession.id}
+                          </span>
+                          {activeExistingSession.is_edited ? (
+                            <Badge variant="warning">Modified (Audited)</Badge>
+                          ) : (
+                            <Badge variant="neutral">Original Archive</Badge>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Taken on <strong>{activeExistingSession.session_date}</strong> for <strong>{activeExistingSession.time_slot}</strong> · Originally recorded: {activeExistingSession.present_count} Present, {activeExistingSession.absent_count} Absent
+                          {activeExistingSession.is_edited && activeExistingSession.change_comment && (
+                            <span style={{ marginLeft: 6, fontStyle: 'italic', color: 'var(--text-muted)' }}>
+                              (Audit reason: "{activeExistingSession.change_comment}")
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                        Current Roster: <strong style={{ color: 'var(--success)' }}>{currentWorkstationPresent} Present</strong>, <strong style={{ color: 'var(--danger)' }}>{currentWorkstationAbsent} Absent</strong>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleOpenAuditReviewModal}
+                        disabled={loadingSessionDetails || updatingSession}
+                        className="btn btn-warning btn-sm"
+                      >
+                        <Edit3 size={13} />
+                        <span>Review & Save Edits</span>
+                      </button>
+                    </div>
                   </div>
                 )}
 
-                {/* Marks Roster Table */}
+                {/* Student Attendance Roster */}
                 <div className="table-wrapper">
-                  <table className="table">
+                  <table className="data-table">
                     <thead>
                       <tr>
-                        <th style={{ width: 60 }}>Sl</th>
-                        <th style={{ width: 120 }}>Student ID</th>
+                        <th style={{ width: 40 }}>#</th>
+                        <th>Roll Number</th>
                         <th>Student Name</th>
-                        <th style={{ width: 140 }}>
-                          {selectedExam.toUpperCase()} Score (/ {maxMark})
-                        </th>
-                        <th style={{ width: 100 }}>CIE Raw (/100)</th>
-                        <th style={{ width: 100 }}>Reduced (/50)</th>
-                        <th style={{ width: 100 }}>Grade</th>
-                        <th style={{ width: 150 }}>Risk Alert</th>
+                        <th>Historical Attendance</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'center', width: 140 }}>Session Roll Call</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingStudents ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '32px' }}>
+                            <div className="spinner" />
+                          </td>
+                        </tr>
+                      ) : filteredStudents.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
+                            No students match your search query.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredStudents.map((s, idx) => {
+                          const isPres = attStatuses[s.student_id] === 'present'
+                          return (
+                            <tr key={s.student_id}>
+                              <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
+                              <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                                {s.student_id}
+                              </td>
+                              <td style={{ fontWeight: 500 }}>{s.name}</td>
+                              <td className="tabular-nums">
+                                <span style={{
+                                  fontWeight: 600,
+                                  color: (s.attendance_pct ?? s.attendance_rate ?? 85) < 75 ? 'var(--danger)' : 'var(--text-secondary)'
+                                }}>
+                                  {s.attendance_pct ?? s.attendance_rate ?? 85}%
+                                </span>
+                              </td>
+                              <td>
+                                {s.is_at_risk ? (
+                                  <Badge variant="danger" icon={AlertTriangle}>At-Risk (&lt;75%)</Badge>
+                                ) : (
+                                  <Badge variant="success">Normal</Badge>
+                                )}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStudentAttendance(s.student_id)}
+                                  className={`btn btn-sm ${isPres ? 'btn-success' : 'btn-danger'}`}
+                                  style={{ width: 105 }}
+                                >
+                                  {isPres ? '✓ Present' : '✗ Absent'}
+                                </button>
+                              </td>
+                            </tr>
+                          )
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Session History Drawer */}
+                {showRecentSessions && (
+                  <div className="card" style={{ marginTop: 'var(--space-6)' }}>
+                    <div className="card-header">
+                      <div>
+                        <h3 className="card-title">Past Attendance Sessions (Audit Log)</h3>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 2 }}>
+                          Official session logs with faculty timestamps and change justifications.
+                        </p>
+                      </div>
+                    </div>
+
+                    {recentSessions.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '13px' }}>
+                        No past attendance sessions recorded yet for this course.
+                      </div>
+                    ) : (
+                      <div className="table-wrapper">
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Date</th>
+                              <th>Slot / Period</th>
+                              <th>Present Count</th>
+                              <th>Absent Count</th>
+                              <th>Attendance %</th>
+                              <th>Audit Status</th>
+                              <th style={{ textAlign: 'right' }}>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {recentSessions.map(sess => (
+                              <tr key={sess.id}>
+                                <td style={{ fontWeight: 600 }}>{sess.session_date}</td>
+                                <td>{sess.time_slot || 'Regular Period'}</td>
+                                <td className="tabular-nums" style={{ color: 'var(--success)', fontWeight: 600 }}>
+                                  {sess.present_count}
+                                </td>
+                                <td className="tabular-nums" style={{ color: 'var(--danger)', fontWeight: 600 }}>
+                                  {sess.absent_count}
+                                </td>
+                                <td className="tabular-nums" style={{ fontWeight: 600 }}>
+                                  {sess.attendance_rate}%
+                                </td>
+                                <td>
+                                  {sess.is_edited ? (
+                                    <Badge variant="warning">Modified</Badge>
+                                  ) : (
+                                    <Badge variant="neutral">Original</Badge>
+                                  )}
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleLoadSessionIntoWorkstation(sess)}
+                                      className="btn btn-primary btn-sm"
+                                      style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                                      title="Load this session into the roll-call workstation"
+                                    >
+                                      <ArrowRight size={13} />
+                                      <span>Load into Roll-Call</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditSession(sess.id)}
+                                      className="btn btn-secondary btn-sm"
+                                      style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                                      title="Edit in modal"
+                                    >
+                                      <Edit3 size={13} />
+                                      <span>Quick Edit</span>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ── Tab 2: Marks Entry (CIE/SEE) ── */}
+            {activeTab === 'marks' && (
+              <div>
+                <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div>
+                        <label className="form-label">Evaluation Component</label>
+                        <select
+                          className="form-select"
+                          value={selectedExam}
+                          onChange={e => setSelectedExam(e.target.value)}
+                        >
+                          {EXAM_OPTIONS.map(opt => (
+                            <option key={opt.key} value={opt.key}>
+                              {opt.label} (Max: {opt.max})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ paddingTop: 18 }}>
+                        <Badge variant="primary">Maximum Score: {maxMark} Marks</Badge>
+                      </div>
+                    </div>
+
+                    <div style={{ paddingTop: 18 }}>
+                      <button
+                        type="button"
+                        onClick={handleSaveMarks}
+                        disabled={savingMarks}
+                        className="btn btn-primary btn-sm"
+                      >
+                        {savingMarks ? 'Saving Marks…' : 'Save Marks Matrix'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {marksStats && (
+                  <div className="stats-grid" style={{ marginBottom: 'var(--space-4)' }}>
+                    <StatCard label="Class Average" value={marksStats.average} subtext={`Out of ${maxMark}`} variant="primary" />
+                    <StatCard label="Highest Score" value={marksStats.highest} subtext={`Top Mark`} variant="success" />
+                    <StatCard label="Lowest Score" value={marksStats.lowest} subtext={`Minimum Mark`} variant="warning" />
+                    <StatCard label="Component Pass Rate" value={`${marksStats.pass_rate}%`} subtext="Meeting threshold" variant="info" />
+                  </div>
+                )}
+
+                <div className="table-wrapper">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: 40 }}>#</th>
+                        <th>Roll Number</th>
+                        <th>Student Name</th>
+                        <th>Marks Score (Max: {maxMark})</th>
+                        <th>Normalized %</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredStudents.map((s, idx) => {
                         const val = marksInputs[s.student_id] ?? ''
-                        const isLowCie = val !== '' && parseFloat(val) < (maxMark * 0.48)
+                        const numVal = parseFloat(val)
+                        const normPercent = !isNaN(numVal) ? Math.round((numVal / maxMark) * 100) : null
                         return (
-                          <tr key={s.student_id} style={{ background: isLowCie ? 'rgba(239, 68, 68, 0.04)' : 'transparent' }}>
-                            <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{idx + 1}</td>
-                            <td><code>{s.student_id}</code></td>
+                          <tr key={s.student_id}>
+                            <td style={{ color: 'var(--text-muted)' }}>{idx + 1}</td>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{s.student_id}</td>
+                            <td style={{ fontWeight: 500 }}>{s.name}</td>
                             <td>
-                              <div style={{ fontWeight: 600 }}>{s.name}</div>
-                              <small style={{ color: 'var(--text-muted)' }}>Att: {s.attendance_pct}%</small>
+                              <input
+                                type="number"
+                                min={0}
+                                max={maxMark}
+                                step="0.5"
+                                value={val}
+                                onChange={e => {
+                                  const v = e.target.value
+                                  setMarksInputs(prev => ({ ...prev, [s.student_id]: v }))
+                                }}
+                                className="form-input"
+                                style={{ width: 120, height: 32 }}
+                                placeholder={`0 – ${maxMark}`}
+                              />
                             </td>
-                            <td>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <input
-                                  type="number"
-                                  step="0.5"
-                                  min="0"
-                                  max={maxMark}
-                                  value={val}
-                                  onChange={e => {
-                                    const num = e.target.value
-                                    setMarksInputs(prev => ({ ...prev, [s.student_id]: num }))
-                                  }}
-                                  placeholder={`0–${maxMark}`}
-                                  className="form-input"
-                                  style={{
-                                    width: 80,
-                                    height: 32,
-                                    fontWeight: 700,
-                                    borderColor: isLowCie ? '#ef4444' : undefined,
-                                    background: isLowCie ? 'rgba(239, 68, 68, 0.08)' : undefined,
-                                  }}
-                                />
-                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ {maxMark}</span>
-                              </div>
-                            </td>
-                            <td style={{ fontWeight: 600 }}>{s.cie_raw}</td>
-                            <td style={{ fontWeight: 600, color: 'var(--primary)' }}>{s.cie_reduced}</td>
-                            <td>
-                              <span className={`badge ${s.grade === 'F' ? 'badge-danger' : 'badge-success'}`}>
-                                {s.grade}
-                              </span>
-                            </td>
-                            <td>
-                              {isLowCie ? (
-                                <span className="badge badge-danger" title="Scored below passing threshold on this evaluation">
-                                  <AlertTriangle size={11} style={{ marginRight: 3 }} /> Low Mark
+                            <td className="tabular-nums">
+                              {normPercent !== null ? (
+                                <span style={{
+                                  fontWeight: 600,
+                                  color: normPercent < 40 ? 'var(--danger)' : normPercent >= 75 ? 'var(--success)' : 'var(--text-secondary)'
+                                }}>
+                                  {normPercent}%
                                 </span>
-                              ) : s.is_at_risk ? (
-                                <span className="badge badge-warning" title={s.risk_reasons.join(' | ')}>
-                                  {s.risk_severity}
-                                </span>
-                              ) : (
-                                <span className="badge badge-success">Normal</span>
-                              )}
+                              ) : '—'}
                             </td>
                           </tr>
                         )
@@ -918,90 +987,61 @@ export default function TeacherClassesPage() {
               </div>
             )}
 
-            {/* ── TAB 3: LOW-PERFORMING & HIGH-RISK ALERTS ── */}
+            {/* ── Tab 3: At-Risk & Parent Contact ── */}
             {activeTab === 'at-risk' && (
               <div>
-                <div style={{
-                  background: 'rgba(239, 68, 68, 0.08)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  marginBottom: 16,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                }}>
-                  <ShieldAlert size={20} style={{ color: '#ef4444', flexShrink: 0 }} />
-                  <div>
-                    <h4 style={{ margin: 0, fontSize: 14, color: '#ef4444', fontWeight: 700 }}>
-                      Class Low-Performance & Attendance Early Warning System
-                    </h4>
-                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      Students scoring below 48% on CIE evaluations or holding attendance below the 75% NBA threshold require remedial faculty mentoring or parent notification.
-                    </span>
-                  </div>
+                <div className="card" style={{ marginBottom: 'var(--space-4)' }}>
+                  <h3 className="card-title">At-Risk Students Requiring Direct Intervention</h3>
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: 4 }}>
+                    Students with attendance deficits (&lt;75%) or failing continuous internal assessments in {activeClass.course_name}. Contact parents through DPDP Act 2023 compliant encrypted proxy channels.
+                  </p>
                 </div>
 
                 {atRiskStudents.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-                    <CheckCircle2 size={32} style={{ color: '#10b981', margin: '0 auto 10px' }} />
-                    <div style={{ fontWeight: 600 }}>Zero At-Risk Students Detected</div>
-                    <div style={{ fontSize: 12 }}>All enrolled students in this section are currently above attendance and evaluation risk thresholds.</div>
-                  </div>
+                  <EmptyState
+                    icon={CheckCircle2}
+                    title="No At-Risk Students in this Section"
+                    description="All students currently meet attendance and evaluation criteria."
+                  />
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
-                    {atRiskStudents.map(s => (
-                      <div
-                        key={s.student_id}
-                        className="card"
-                        style={{
-                          padding: 16,
-                          borderLeft: `4px solid ${s.risk_severity === 'high' ? '#ef4444' : '#f59e0b'}`,
-                          background: 'var(--surface)',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 15 }}>{s.name}</div>
-                            <code style={{ fontSize: 12 }}>{s.student_id}</code> • <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sec {s.section}</span>
-                          </div>
-                          <span className={`badge ${s.risk_severity === 'high' ? 'badge-danger' : 'badge-warning'}`}>
-                            {s.risk_severity.toUpperCase()} RISK
-                          </span>
-                        </div>
-
-                        {/* Metric Row */}
-                        <div style={{ display: 'flex', gap: 12, background: 'var(--bg-800, #f8fafc)', padding: '8px 12px', borderRadius: 6, marginBottom: 10, fontSize: 12 }}>
-                          <div>Attendance: <strong style={{ color: s.attendance_pct < 75 ? '#ef4444' : '#10b981' }}>{s.attendance_pct}%</strong></div>
-                          <div>CIE 1: <strong>{s.cie1 !== null ? `${s.cie1}/25` : '—'}</strong></div>
-                          <div>Grade: <strong style={{ color: s.grade === 'F' ? '#ef4444' : 'inherit' }}>{s.grade}</strong></div>
-                        </div>
-
-                        {/* Reasons */}
-                        <div style={{ marginBottom: 12 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
-                            Risk Triggers:
-                          </div>
-                          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#ef4444' }}>
-                            {s.risk_reasons.map((r, i) => (
-                              <li key={i}>{r}</li>
-                            ))}
-                          </ul>
-                        </div>
-
-                        {/* Actions */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                          <button
-                            type="button"
-                            onClick={() => openContact(s)}
-                            className="btn btn-xs btn-outline"
-                            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-                          >
-                            <Send size={11} /> Alert Parent (SMS)
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                  <div className="table-wrapper">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Roll Number</th>
+                          <th>Student Name</th>
+                          <th>Attendance Rate</th>
+                          <th>Evaluation Risk</th>
+                          <th style={{ textAlign: 'right' }}>Guardian Communication</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {atRiskStudents.map(s => (
+                          <tr key={s.student_id}>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{s.student_id}</td>
+                            <td style={{ fontWeight: 500 }}>{s.name}</td>
+                            <td className="tabular-nums">
+                              <span style={{ color: 'var(--danger)', fontWeight: 700 }}>
+                                {s.attendance_pct ?? s.attendance_rate ?? 0}%
+                              </span>
+                            </td>
+                            <td>
+                              <Badge variant="danger" icon={AlertTriangle}>Low Attendance</Badge>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                type="button"
+                                onClick={() => openContact(s)}
+                                className="btn btn-danger btn-sm"
+                              >
+                                <Phone size={13} />
+                                <span>Contact Guardian</span>
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>
@@ -1009,312 +1049,292 @@ export default function TeacherClassesPage() {
           </div>
         )}
 
-        {/* ── Parent Contact SMS Modal ── */}
-        {contactModal && (
-          <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0, 0, 0, 0.5)', zIndex: 1000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
-          }}>
-            <div className="card" style={{ maxWidth: 480, width: '100%', padding: 20 }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: 16, fontWeight: 700 }}>
-                Send Remedial Alert to Parent
-              </h3>
-              <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
-                Student: <strong>{contactModal.name}</strong> ({contactModal.student_id})
-              </p>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                  SMS Notification Message:
-                </label>
-                <textarea
-                  rows={4}
-                  value={smsText}
-                  onChange={e => setSmsText(e.target.value)}
-                  className="form-textarea"
-                  style={{ width: '100%', fontSize: 13 }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setContactModal(null)}
-                  className="btn btn-secondary btn-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSendSms}
-                  disabled={sendingSms}
-                  className="btn btn-primary btn-sm"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Send size={13} /> {sendingSms ? 'Sending…' : 'Send SMS'}
-                </button>
-              </div>
+        {/* ── Edit Past Session Modal ── */}
+        <Modal
+          isOpen={editingSessionId !== null}
+          onClose={() => setEditingSessionId(null)}
+          title="Modify Past Attendance Session (Audit Logged)"
+          maxWidth={640}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setEditingSessionId(null)}
+                disabled={savingSession}
+                className="btn btn-secondary btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSessionChanges}
+                disabled={savingSession || !changeComment.trim()}
+                className="btn btn-primary btn-sm"
+              >
+                {savingSession ? 'Saving…' : 'Save Changes & Update Audit'}
+              </button>
+            </>
+          }
+        >
+          {loadingSession ? (
+            <div style={{ padding: '32px', textAlign: 'center' }}>
+              <div className="spinner" />
             </div>
-          </div>
-        )}
+          ) : sessionDetail ? (
+            <div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                <Badge variant="neutral">Date: {sessionDetail.session_date}</Badge>
+                <Badge variant="neutral">Slot: {sessionDetail.time_slot || 'Regular'}</Badge>
+                <Badge variant="success">Present: {modalPresentCount}</Badge>
+                <Badge variant="danger">Absent: {modalAbsentCount}</Badge>
+                <Badge variant="primary">{modalAttendanceRate}%</Badge>
+              </div>
 
-        {/* Edit Past Attendance Session Modal */}
-        {editingSessionId && (
-          <div className="modal-backdrop" onClick={() => !savingSession && setEditingSessionId(null)}>
-            <div
-              className="modal-dialog"
-              onClick={e => e.stopPropagation()}
-              style={{ maxWidth: 680, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
-            >
-              <div className="modal-header">
-                <div>
-                  <h3 className="modal-title" style={{ fontSize: 16 }}>
-                    ✏️ Edit Past Attendance Session
-                  </h3>
-                  {sessionDetail && (
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                      {sessionDetail.course_code} - {sessionDetail.course_name} (Section {sessionDetail.section})
+              {sessionDetail.is_edited && (
+                <div style={{
+                  padding: '10px 12px',
+                  backgroundColor: 'var(--warning-subtle)',
+                  border: '1px solid var(--warning-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '12px',
+                  color: 'var(--warning)',
+                  marginBottom: 16,
+                }}>
+                  <strong>Audit History:</strong> Modified previously by {sessionDetail.edited_by || 'Faculty'}
+                  {sessionDetail.change_comment && (
+                    <div style={{ color: 'var(--text-primary)', marginTop: 2, fontStyle: 'italic' }}>
+                      "{sessionDetail.change_comment}"
                     </div>
                   )}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setEditingSessionId(null)}
-                  disabled={savingSession}
-                  className="btn btn-ghost btn-xs"
-                  style={{ fontSize: 18 }}
-                >
-                  ✕
-                </button>
+              )}
+
+              {/* Roster Controls */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {['all', 'present', 'absent'].map(f => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setSessionFilter(f)}
+                      className={`btn btn-sm ${sessionFilter === f ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ textTransform: 'capitalize' }}
+                    >
+                      {f}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleBatchModalToggle('present')}
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: 'var(--success)' }}
+                  >
+                    All Present
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleBatchModalToggle('absent')}
+                    className="btn btn-ghost btn-sm"
+                    style={{ color: 'var(--danger)' }}
+                  >
+                    All Absent
+                  </button>
+                </div>
               </div>
 
-              <div className="modal-body" style={{ overflowY: 'auto', flex: 1, padding: '16px 20px' }}>
-                {loadingSession ? (
-                  <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-secondary)' }}>
-                    Loading session attendance details…
-                  </div>
-                ) : sessionDetail ? (
-                  <div>
-                    {/* Session Metadata Badges */}
-                    <div style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 8,
-                      alignItems: 'center',
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 8,
-                      padding: '10px 14px',
-                      marginBottom: 14,
-                    }}>
-                      <span className="badge badge-neutral" style={{ fontSize: 11 }}>
-                        📅 Date: <strong>{sessionDetail.session_date}</strong>
-                      </span>
-                      <span className="badge badge-neutral" style={{ fontSize: 11 }}>
-                        🕒 Slot: <strong>{sessionDetail.time_slot || 'Regular'}</strong>
-                      </span>
-                      <span className="badge badge-neutral" style={{ fontSize: 11 }}>
-                        👥 Roster: <strong>{sessionRoster.length} students</strong>
-                      </span>
-                      <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: '#10b981', fontWeight: 700 }}>
-                          ● {modalPresentCount} Present
-                        </span>
-                        <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 700 }}>
-                          ● {modalAbsentCount} Absent
-                        </span>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          ({modalAttendanceRate}%)
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Previous edit audit banner if modified */}
-                    {sessionDetail.is_edited && (
-                      <div style={{
-                        background: 'rgba(245, 158, 11, 0.1)',
-                        border: '1px solid rgba(245, 158, 11, 0.3)',
-                        borderRadius: 6,
-                        padding: '10px 12px',
-                        marginBottom: 14,
-                        fontSize: 12,
-                        color: 'var(--amber)',
-                      }}>
-                        <strong>⚠️ Audit History:</strong> This session was previously modified by{' '}
-                        <strong>{sessionDetail.edited_by || 'Faculty'}</strong> on{' '}
-                        {sessionDetail.edited_at ? new Date(sessionDetail.edited_at).toLocaleString() : 'earlier date'}.
-                        {sessionDetail.change_comment && (
-                          <div style={{ marginTop: 4, color: 'var(--text-primary)', fontStyle: 'italic' }}>
-                            "{sessionDetail.change_comment}"
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Search & Quick Toggles */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {['all', 'present', 'absent'].map(f => (
-                          <button
-                            key={f}
-                            type="button"
-                            onClick={() => setSessionFilter(f)}
-                            className={`btn btn-xs ${sessionFilter === f ? 'btn-primary' : 'btn-ghost'}`}
-                            style={{ textTransform: 'capitalize', fontSize: 11 }}
-                          >
-                            {f} {f === 'all' ? `(${sessionRoster.length})` : f === 'present' ? `(${modalPresentCount})` : `(${modalAbsentCount})`}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <input
-                          type="text"
-                          placeholder="Search student…"
-                          value={sessionSearch}
-                          onChange={e => setSessionSearch(e.target.value)}
-                          className="form-input"
-                          style={{ height: 28, fontSize: 11, width: 140, padding: '2px 8px' }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleBatchModalToggle('present')}
-                          className="btn btn-ghost btn-xs"
-                          style={{ color: '#10b981', fontSize: 11 }}
-                        >
-                          All Present
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleBatchModalToggle('absent')}
-                          className="btn btn-ghost btn-xs"
-                          style={{ color: '#ef4444', fontSize: 11 }}
-                        >
-                          All Absent
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Student List in Modal */}
-                    <div style={{
-                      border: '1px solid var(--border)',
-                      borderRadius: 6,
-                      maxHeight: 260,
-                      overflowY: 'auto',
-                      marginBottom: 16,
-                      background: 'var(--bg-800)',
-                    }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-                        <thead>
-                          <tr style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 1 }}>
-                            <th style={{ padding: '6px 10px', textAlign: 'left', width: 40 }}>#</th>
-                            <th style={{ padding: '6px 10px', textAlign: 'left' }}>Student</th>
-                            <th style={{ padding: '6px 10px', textAlign: 'center', width: 160 }}>Session Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredModalRoster.map((s, idx) => {
-                            const isPres = s.status === 'present'
-                            return (
-                              <tr
-                                key={s.student_id}
-                                style={{
-                                  borderBottom: '1px solid var(--border)',
-                                  background: isPres ? 'transparent' : 'rgba(239, 68, 68, 0.05)',
-                                }}
-                              >
-                                <td style={{ padding: '6px 10px', color: 'var(--text-muted)' }}>{idx + 1}</td>
-                                <td style={{ padding: '6px 10px' }}>
-                                  <span style={{ fontWeight: 600 }}>{s.name}</span>{' '}
-                                  <code style={{ fontSize: 10, color: 'var(--text-muted)' }}>{s.student_id}</code>
-                                </td>
-                                <td style={{ padding: '6px 10px', textAlign: 'center' }}>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleModalStudent(s.student_id)}
-                                    style={{
-                                      padding: '3px 12px',
-                                      borderRadius: 20,
-                                      fontSize: 11,
-                                      fontWeight: 700,
-                                      cursor: 'pointer',
-                                      border: isPres ? '1px solid #10b981' : '1px solid #ef4444',
-                                      background: isPres ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                      color: isPres ? '#10b981' : '#ef4444',
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: 4,
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                  >
-                                    {isPres ? '✓ Present' : '✗ Absent'}
-                                  </button>
-                                </td>
-                              </tr>
-                            )
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Mandatory Reason for Change (Audit Requirement) */}
-                    <div style={{
-                      background: 'rgba(59, 130, 246, 0.06)',
-                      border: '1px solid rgba(59, 130, 246, 0.25)',
-                      borderRadius: 8,
-                      padding: 12,
-                    }}>
-                      <label style={{
-                        display: 'block',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: 'var(--primary)',
-                        marginBottom: 4,
-                      }}>
-                        📝 Reason for Attendance Modification * (Required for Institutional Audit)
-                      </label>
-                      <textarea
-                        rows={3}
-                        required
-                        value={changeComment}
-                        onChange={e => setChangeComment(e.target.value)}
-                        placeholder="State reason for change (e.g., Medical certificate submitted for STU003; Approved OD for VTU Athletics; Clerical correction verified by faculty)..."
-                        className="form-textarea"
-                        style={{ width: '100%', fontSize: 12, resize: 'vertical' }}
-                      />
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                        🔒 <em>This justification will be permanently saved with your faculty ID to maintain accreditation data integrity.</em>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
+              {/* Student List */}
+              <div className="table-wrapper" style={{ maxHeight: 220, marginBottom: 16 }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 30 }}>#</th>
+                      <th>Student</th>
+                      <th style={{ textAlign: 'center', width: 140 }}>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredModalRoster.map((s, idx) => {
+                      const isP = s.status === 'present'
+                      return (
+                        <tr key={s.student_id}>
+                          <td>{idx + 1}</td>
+                          <td>
+                            <span style={{ fontWeight: 600 }}>{s.name}</span>{' '}
+                            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-muted)' }}>
+                              ({s.student_id})
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleModalStudent(s.student_id)}
+                              className={`btn btn-sm ${isP ? 'btn-success' : 'btn-danger'}`}
+                              style={{ width: 100 }}
+                            >
+                              {isP ? '✓ Present' : '✗ Absent'}
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
 
-              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setEditingSessionId(null)}
-                  disabled={savingSession}
-                  className="btn btn-secondary btn-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveSessionChanges}
-                  disabled={savingSession || !changeComment.trim()}
-                  className="btn btn-primary btn-sm"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  {savingSession ? 'Saving Changes…' : '💾 Save Changes & Update Records'}
-                </button>
+              {/* Mandatory Reason */}
+              <div className="form-group">
+                <label className="form-label">
+                  Institutional Reason for Modification * (Required for NBA Audit)
+                </label>
+                <textarea
+                  className="form-textarea"
+                  value={changeComment}
+                  onChange={e => setChangeComment(e.target.value)}
+                  placeholder="State official reason (e.g. Medical certificate approved for STU002, On-Duty participation in VTU hackathon verified)..."
+                  required
+                />
               </div>
             </div>
-          </div>
-        )}
+          ) : null}
+        </Modal>
+
+        {/* ── Parent Contact SMS Modal ── */}
+        <Modal
+          isOpen={contactModal !== null}
+          onClose={() => setContactModal(null)}
+          title={`Contact Guardian: ${contactModal?.name}`}
+          maxWidth={540}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setContactModal(null)}
+                className="btn btn-secondary btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSendSms}
+                disabled={sendingSms || !smsText.trim()}
+                className="btn btn-primary btn-sm"
+              >
+                {sendingSms ? 'Sending Alert…' : 'Send Alert via Encrypted SMS'}
+              </button>
+            </>
+          }
+        >
+          {contactModal && (
+            <div>
+              <div style={{
+                padding: '12px',
+                backgroundColor: 'var(--bg-subtle)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-default)',
+                marginBottom: 16,
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontWeight: 600 }}>{contactModal.name}</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>{contactModal.student_id}</span>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                  Current Course Attendance: <strong style={{ color: 'var(--danger)' }}>{contactModal.attendance_pct ?? contactModal.attendance_rate ?? 0}%</strong> (Threshold: 75%)
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">SMS Alert Content</label>
+                <textarea
+                  className="form-textarea"
+                  rows={4}
+                  value={smsText}
+                  onChange={e => setSmsText(e.target.value)}
+                  placeholder="Enter message to student's guardian..."
+                />
+                <p className="form-hint">
+                  Dispatched via DPDP Act compliant Twilio proxy bridge. Personal phone numbers remain masked.
+                </p>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+        {/* ── Audit Review Modal for Workstation Updates ── */}
+        <Modal
+          isOpen={showAuditReviewModal}
+          onClose={() => !updatingSession && setShowAuditReviewModal(false)}
+          title="Attendance Modification Audit Review"
+          maxWidth={580}
+          footer={
+            <>
+              <button
+                type="button"
+                onClick={() => setShowAuditReviewModal(false)}
+                disabled={updatingSession}
+                className="btn btn-secondary btn-sm"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSessionUpdate}
+                disabled={updatingSession || !auditJustification.trim()}
+                className="btn btn-warning btn-sm"
+              >
+                {updatingSession ? 'Recording Audit…' : 'Confirm & Update Audit Log'}
+              </button>
+            </>
+          }
+        >
+          {activeExistingSession && (
+            <div>
+              <div style={{
+                padding: '12px 14px',
+                backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                border: '1px solid rgba(234, 179, 8, 0.3)',
+                borderRadius: 'var(--radius-md)',
+                marginBottom: 16,
+                fontSize: '13px',
+                color: 'var(--text-primary)'
+              }}>
+                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <ShieldAlert size={16} color="var(--warning)" />
+                  <span>Institutional Accreditation Compliance Notice</span>
+                </div>
+                You are modifying an archived attendance session for <strong>{activeClass?.course_name} ({activeClass?.course_code} - Sec {activeClass?.section})</strong> on <strong>{activeExistingSession.session_date} ({activeExistingSession.time_slot})</strong>. An institutional justification is mandatory for NBA/NAAC audit trails.
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                <Badge variant="neutral">Session #{activeExistingSession.id}</Badge>
+                <Badge variant="neutral">{activeExistingSession.session_date}</Badge>
+                <Badge variant="neutral">{activeExistingSession.time_slot}</Badge>
+                <Badge variant="success">{currentWorkstationPresent} Present</Badge>
+                <Badge variant="danger">{currentWorkstationAbsent} Absent</Badge>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: 600 }}>
+                  Reason for Attendance Revision * (Mandatory)
+                </label>
+                <textarea
+                  className="form-textarea"
+                  rows={4}
+                  placeholder="e.g. Medical leave approved by HOD for STU002; On-duty certificate verified for STU005..."
+                  value={auditJustification}
+                  onChange={e => setAuditJustification(e.target.value)}
+                  style={{ width: '100%', resize: 'vertical' }}
+                />
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  This reason will be stamped with your faculty ID and UTC timestamp in the institutional database.
+                </span>
+              </div>
+            </div>
+          )}
+        </Modal>
       </div>
     </div>
   )
 }
-

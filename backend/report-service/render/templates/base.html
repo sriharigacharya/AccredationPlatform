@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>{{ report.institution_name }} — NBA SAR {{ report.academic_year }}</title>
+  <title>{{ report.institution_name }} — {% if report.report_type in ('nba', 'sar') %}NBA SAR{% else %}Academic Report{% endif %} {{ report.academic_year }}</title>
   <style>
     /* Inline report.css content — WeasyPrint doesn't resolve relative @import in all environments */
     {{ css_content }}
@@ -20,6 +20,7 @@
 
 <!-- ── Title Page ────────────────────────────────────────────── -->
 <div class="title-page">
+  {% if report.report_type in ('nba', 'sar') %}
   <div class="nba-logo-area">
     <div style="font-size:9pt;color:#718096;letter-spacing:1pt;text-transform:uppercase;margin-bottom:8pt;">
       National Board of Accreditation
@@ -31,6 +32,19 @@
       UG Engineering Programs — Tier-II Institution | GAPC Version 4.0 | January 2025
     </div>
   </div>
+  {% else %}
+  <div class="nba-logo-area">
+    <div style="font-size:9pt;color:#718096;letter-spacing:1pt;text-transform:uppercase;margin-bottom:8pt;">
+      AcademiQ AI Platform
+    </div>
+    <div style="font-size:11pt;font-weight:700;color:#2d3748;">
+      {{ report.report_type | replace('_', ' ') | title }} Report
+    </div>
+    <div style="font-size:9.5pt;color:#4a5568;margin-top:4pt;">
+      Institutional & Academic Performance Analytics
+    </div>
+  </div>
+  {% endif %}
 
   <h1>{{ report.institution_name }}</h1>
   <h2>{{ report.program_name }}</h2>
@@ -38,7 +52,11 @@
   <div class="subtitle" style="margin-top:4pt;">Academic Year: <strong>{{ report.academic_year }}</strong></div>
 
   <div class="meta-block">
+    {% if report.report_type in ('nba', 'sar') %}
     <div><strong>SAR Format:</strong> {{ report.sar_format }}</div>
+    {% else %}
+    <div><strong>Report Type:</strong> {{ report.report_type | replace('_', ' ') | title }}</div>
+    {% endif %}
     <div><strong>Scope:</strong> {{ report.scope }}</div>
     <div><strong>Generated:</strong> {{ report.generated_at[:10] }}</div>
     {% if report.report_id %}
@@ -61,6 +79,10 @@
     <div class="toc-entry" style="padding-left:{{ (section.level - 1) * 12 }}pt;">
       <span>{{ section.id }}  {{ section.title }}</span>
       <span class="toc-marks">{{ section.marks }} marks</span>
+    </div>
+    {% elif report.report_type not in ('nba', 'sar') %}
+    <div class="toc-entry" style="padding-left:0pt;">
+      <span>{{ section.title }}</span>
     </div>
     {% endif %}
   {% endfor %}
@@ -101,16 +123,22 @@
 
     {# Section heading #}
     <div class="section-header" style="margin-bottom: 8pt;">
-      {% if section.level == 1 or section.level == 2 %}
-      <h3 style="font-size: 12pt; color: #1a202c; margin: 0 0 4pt 0;">
-        {{ section.id }}  {{ section.title }}
-        <span class="marks-badge" style="font-size: 9.5pt; color: #2b6cb0; font-weight: 600;">({{ section.marks }} Marks)</span>
-      </h3>
+      {% if report.report_type in ('nba', 'sar') %}
+        {% if section.level == 1 or section.level == 2 %}
+        <h3 style="font-size: 12pt; color: #1a202c; margin: 0 0 4pt 0;">
+          {{ section.id }}  {{ section.title }}
+          <span class="marks-badge" style="font-size: 9.5pt; color: #2b6cb0; font-weight: 600;">({{ section.marks }} Marks)</span>
+        </h3>
+        {% else %}
+        <h4 style="font-size: 11pt; color: #2d3748; margin: 0 0 4pt 0;">
+          {{ section.id }}  {{ section.title }}
+          <span class="marks-badge" style="font-size: 9pt; color: #2b6cb0; font-weight: 600;">({{ section.marks }} Marks)</span>
+        </h4>
+        {% endif %}
       {% else %}
-      <h4 style="font-size: 11pt; color: #2d3748; margin: 0 0 4pt 0;">
-        {{ section.id }}  {{ section.title }}
-        <span class="marks-badge" style="font-size: 9pt; color: #2b6cb0; font-weight: 600;">({{ section.marks }} Marks)</span>
-      </h4>
+        <h3 style="font-size: 13pt; color: #1a202c; margin: 0 0 6pt 0; border-bottom: 1pt solid #e2e8f0; padding-bottom: 3pt;">
+          {{ section.title }}
+        </h3>
       {% endif %}
     </div>
 
@@ -215,8 +243,12 @@
                 {% if sheet.photos_formatted %}
                 <div style="display: flex; gap: 8pt; flex-wrap: wrap;">
                   {% for photo in sheet.photos_formatted %}
-                  <div style="text-align: center;">
-                    <img src="{{ photo.photo_data_url or photo.photo_url }}" alt="Event photo" style="max-height: 90pt; max-width: 160pt; border: 1pt solid #cbd5e0; border-radius: 3pt; object-fit: cover;" onerror="this.style.display='none'" />
+                  <div style="text-align: center; margin: 4pt;">
+                    {% if photo.photo_data_url %}
+                    <img src="{{ photo.photo_data_url }}" alt="Event photo" style="max-height: 90pt; max-width: 160pt; border: 1pt solid #cbd5e0; border-radius: 3pt; object-fit: cover;" onerror="this.style.display='none'" />
+                    {% elif photo.photo_url and (photo.photo_url.startswith('data:') or photo.photo_url.startswith('http')) %}
+                    <img src="{{ photo.photo_url }}" alt="Event photo" style="max-height: 90pt; max-width: 160pt; border: 1pt solid #cbd5e0; border-radius: 3pt; object-fit: cover;" onerror="this.style.display='none'" />
+                    {% endif %}
                     {% if photo.caption %}
                     <div style="font-size: 7.5pt; color: #4a5568; margin-top: 2pt;">{{ photo.caption }}</div>
                     {% endif %}

@@ -1,207 +1,411 @@
-import React, { useState, useEffect, useRef } from 'react'
-import { reportsAPI, departmentsAPI, eventsAPI } from '../api/client'
-import { useAuth } from '../context/AuthContext'
-import toast from 'react-hot-toast'
+import React, { useEffect, useState, useMemo } from 'react'
 import {
-  FileText, Cpu, Clock, Download, RefreshCw,
-  ChevronRight, AlertTriangle, CheckCircle, Loader,
-  ClipboardList, Sparkles, CheckSquare, Square, Calendar,
-  MapPin, Users, Info, Award, Image, Eye, Edit3, Save, Check
+  reportsAPI, departmentsAPI, eventsAPI, studentsAPI, facultyAPI
+} from '../api/client'
+import {
+  FileText, Download, Clock, CheckCircle2, XCircle,
+  AlertTriangle, RefreshCw, Eye, Sparkles, ChevronRight,
+  Award, Calendar, Users, Info, Cpu, CheckSquare, Square,
+  Check, Save, Edit3, Loader2, ArrowRight, GraduationCap, UserCheck, User
 } from 'lucide-react'
+import toast from 'react-hot-toast'
+import { useAuth } from '../context/AuthContext'
+import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
+import Badge from '../components/Badge'
+import Tabs from '../components/Tabs'
+import Modal from '../components/Modal'
+import EmptyState from '../components/EmptyState'
 
-// ── Status helpers ────────────────────────────────────────────────────────────
+// ── Report Type Options ───────────────────────────────────────────────────────
+const REPORT_TYPES = [
+  {
+    id: 'sar',
+    label: 'NBA SAR (Criterion 4)',
+    badge: 'Tier-II GAPC V4.0',
+    desc: 'Automated Self-Assessment Report with verified mathematical scores and 9-subsection data breakdown.',
+    icon: FileText,
+  },
+  {
+    id: 'department_summary',
+    label: 'Department Executive Summary',
+    badge: 'Institutional',
+    desc: 'Executive-level summary covering academic outcomes, faculty research contributions, and student cohorts.',
+    icon: Cpu,
+  },
+  {
+    id: 'student_report',
+    label: 'Individual Student Dossier',
+    badge: 'Student Record',
+    desc: 'Official student dossier: enrolled courses, semester GPA, attendance, backlogs, and academic assessment.',
+    icon: GraduationCap,
+  },
+  {
+    id: 'faculty_report',
+    label: 'Faculty Appraisal & Research Dossier',
+    badge: 'Faculty Profile',
+    desc: 'Faculty credential dossier: teaching load, publications, sponsored projects, and performance appraisal.',
+    icon: UserCheck,
+  },
+  {
+    id: 'club_activity',
+    label: 'Co-Curricular & Club Activities',
+    badge: 'Activities',
+    desc: 'Verified technical hackathons, workshops, symposiums, and community outreach metrics.',
+    icon: Award,
+  },
+  {
+    id: 'custom',
+    label: 'Custom AI Report Builder',
+    badge: 'RAG Grounded',
+    desc: 'Bespoke accreditation report with user-specified section headings and narrative instructions.',
+    icon: Sparkles,
+  },
+]
 
-function StatusBadge({ status }) {
-  const map = {
-    done:    { color: 'var(--success)',   icon: CheckCircle, label: 'Done' },
-    pending: { color: 'var(--warning)',   icon: Loader,      label: 'Processing' },
-    error:   { color: 'var(--danger)',    icon: AlertTriangle, label: 'Error' },
+export default function ReportsPage() {
+  const { user }                     = useAuth()
+  const isStudent                    = user?.role === 'student'
+  const [reportType, setReportType]   = useState(isStudent ? 'department_summary' : 'sar')
+  const [departments, setDepartments] = useState([])
+  const [reports, setReports]         = useState([])
+  const [histLoading, setHistLoading] = useState(true)
+
+  const loadDepartments = async () => {
+    try {
+      const res = await departmentsAPI.list()
+      setDepartments(res.data || [])
+    } catch (_) {}
   }
-  const cfg = map[status] || map.pending
-  const Icon = cfg.icon
+
+  const loadHistory = async () => {
+    setHistLoading(true)
+    try {
+      const res = await reportsAPI.list()
+      setReports(res.data || [])
+    } catch (_) {}
+    finally {
+      setHistLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadDepartments()
+    loadHistory()
+  }, [])
+
+  const handleDownload = async (reportId, filename, format = 'pdf') => {
+    const t = toast.loading(`Preparing ${format.toUpperCase()} export…`)
+    try {
+      const fn = format === 'docx' ? reportsAPI.downloadDocx : reportsAPI.downloadPdf
+      const res = await fn(reportId)
+      const blob = new Blob([res.data], {
+        type: format === 'docx'
+          ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          : 'application/pdf',
+      })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename || `AcademiQ_Report_${reportId}.${format}`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      toast.success(`${format.toUpperCase()} export complete`, { id: t })
+    } catch (_) {
+      toast.error(`Failed to export ${format.toUpperCase()}`, { id: t })
+    }
+  }
+
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4,
-                   color: cfg.color, fontSize: 12, fontWeight: 600 }}>
-      <Icon size={12} style={status === 'pending' ? { animation: 'spin 1s linear infinite' } : {}} />
-      {cfg.label}
-    </span>
+    <div>
+      <PageHeader
+        category="Intelligence & Accreditation"
+        title="Accreditation Reports & NBA SAR Generation"
+        description="Automated compilation of NBA Tier-II GAPC V4.0 Self-Assessment Reports, executive summaries, and AI synthesized documentation."
+        badge="NBA Tier-II Validated"
+        actions={
+          <button
+            type="button"
+            onClick={loadHistory}
+            className="btn btn-secondary btn-sm"
+          >
+            <RefreshCw size={14} />
+            <span>Refresh History</span>
+          </button>
+        }
+      />
+
+      <div className="page-body">
+        {/* ── Report Type Selector Cards ── */}
+        <div style={{ marginBottom: 'var(--space-6)' }}>
+          <div style={{
+            fontSize: '11px',
+            fontWeight: 600,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: 'var(--text-muted)',
+            marginBottom: 8
+          }}>
+            Select Report Template
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+            {REPORT_TYPES.map(rt => {
+              const isSelected = reportType === rt.id
+              const isDisabled = rt.id === 'sar' && isStudent
+              const Icon = rt.icon
+              return (
+                <div
+                  key={rt.id}
+                  onClick={() => !isDisabled && setReportType(rt.id)}
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    backgroundColor: isSelected ? 'var(--primary-subtle)' : 'var(--bg-surface)',
+                    border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border-default)'}`,
+                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                    opacity: isDisabled ? 0.45 : 1,
+                    transition: 'all var(--transition-fast)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Icon size={16} color={isSelected ? 'var(--primary)' : 'var(--text-muted)'} />
+                      <span style={{ fontWeight: 600, fontSize: '13.5px', color: isSelected ? 'var(--primary)' : 'var(--text-primary)' }}>
+                        {rt.label}
+                      </span>
+                    </div>
+                    <Badge variant={isSelected ? 'primary' : 'neutral'}>
+                      {rt.badge}
+                    </Badge>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {rt.desc}
+                  </p>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ── Active Report Generator Form ── */}
+        <div className="card" style={{ marginBottom: 'var(--space-6)' }}>
+          {reportType === 'sar' && !isStudent ? (
+            <div>
+              <div className="card-header">
+                <div>
+                  <h3 className="card-title">NBA Self-Assessment Report Compiler</h3>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: 2 }}>
+                    Compiles verified academic data into official Tier-II SAR tables. Includes live Criterion 4 preview.
+                  </p>
+                </div>
+                <Badge variant="primary">UG Tier-II GAPC V4.0</Badge>
+              </div>
+
+              <NbaSarForm
+                departments={departments}
+                onGenerated={loadHistory}
+              />
+            </div>
+          ) : reportType === 'student_report' ? (
+            <div>
+              <div className="card-header">
+                <div>
+                  <h3 className="card-title">Individual Student Academic Dossier</h3>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: 2 }}>
+                    Generates official student academic profile: semester load, attendance, CGPA, backlogs, and mentorship notes.
+                  </p>
+                </div>
+                <Badge variant="primary">Student Dossier</Badge>
+              </div>
+
+              <StudentReportForm
+                departments={departments}
+                onGenerated={loadHistory}
+              />
+            </div>
+          ) : reportType === 'faculty_report' && !isStudent ? (
+            <div>
+              <div className="card-header">
+                <div>
+                  <h3 className="card-title">Faculty Performance & Research Appraisal</h3>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: 2 }}>
+                    Compiles teaching workload, peer-reviewed publications, sponsored research grants, and institutional appraisal.
+                  </p>
+                </div>
+                <Badge variant="purple">Faculty Appraisal</Badge>
+              </div>
+
+              <FacultyReportForm
+                departments={departments}
+                onGenerated={loadHistory}
+              />
+            </div>
+          ) : (
+            <div>
+              <div className="card-header">
+                <div>
+                  <h3 className="card-title">
+                    {reportType === 'department_summary' && 'Department Executive Overview'}
+                    {reportType === 'club_activity' && 'Co-Curricular & Student Club Report'}
+                    {reportType === 'custom' && 'Bespoke AI Synthesis Report'}
+                  </h3>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: 2 }}>
+                    {reportType === 'department_summary' && 'Synthesizes student enrollment, academic trends, and faculty publications.'}
+                    {reportType === 'club_activity' && 'Gathers verified club activities, attendee metrics, and student competitions.'}
+                    {reportType === 'custom' && 'Directs Llama 3.1 & Qdrant to assemble grounded documentation based on custom outlines.'}
+                  </p>
+                </div>
+              </div>
+
+              <GeneralReportForm
+                departments={departments}
+                reportType={reportType}
+                onGenerated={loadHistory}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Report Generation History ── */}
+        <div className="card">
+          <div className="card-header">
+            <div>
+              <h3 className="card-title">Generated Accreditation Reports History</h3>
+              <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: 2 }}>
+                Archive of compiled reports with direct PDF and Word exports.
+              </p>
+            </div>
+          </div>
+
+          <ReportHistoryTable
+            reports={reports}
+            loading={histLoading}
+            onDownload={handleDownload}
+            onRefresh={loadHistory}
+          />
+        </div>
+      </div>
+    </div>
   )
 }
 
-// ── NBA generate form ─────────────────────────────────────────────────────────
-
-function NbaForm({ departments, onSubmitted }) {
+// ── Sub-component: NBA SAR Form ───────────────────────────────────────────────
+function NbaSarForm({ departments, onGenerated }) {
   const [form, setForm] = useState({
-    sar_format: 'ug_tier_ii_gapc_v4',
-    department_id: '',
+    department_id: departments[0]?.code || 'CSE',
     academic_year: '2025-26',
-    scope: 'full',
+    scope: 'criterion:4',
     format: 'pdf',
     expand_narratives: false,
+    sar_format: 'ug_tier_ii_gapc_v4',
   })
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading]               = useState(false)
+  const [loadingPreview, setLoadingPreview] = useState(false)
+  const [previewData, setPreviewData]       = useState(null)
+  const [showPreview, setShowPreview]       = useState(false)
   const [approvedEvents, setApprovedEvents] = useState([])
   const [selectedEventIds, setSelectedEventIds] = useState([])
-  const [loadingEvents, setLoadingEvents] = useState(false)
-  const [criteriaList, setCriteriaList] = useState([])
-  const [loadingCriteria, setLoadingCriteria] = useState(false)
-  const [previewData, setPreviewData] = useState(null)
-  const [loadingPreview, setLoadingPreview] = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
+  const [loadingEvents, setLoadingEvents]   = useState(false)
 
-
-  // Default fallback criteria list (9 root criteria) if API is loading
-  const defaultCriteria = [
-    { id: '1', criterion_number: 1, title: 'Outcome-Based Curriculum', marks: 120, is_implemented: false, scope: 'criterion:1', tooltip: 'Not yet available — Coming Soon' },
-    { id: '2', criterion_number: 2, title: 'Outcome-Based Teaching Learning Processes', marks: 120, is_implemented: false, scope: 'criterion:2', tooltip: 'Not yet available — Coming Soon' },
-    { id: '3', criterion_number: 3, title: 'Outcome-Based Assessment', marks: 120, is_implemented: false, scope: 'criterion:3', tooltip: 'Not yet available — Coming Soon' },
-    { id: '4', criterion_number: 4, title: "Students' Performance", marks: 150, is_implemented: true, scope: 'criterion:4', tooltip: 'Available for report generation' },
-    { id: '5', criterion_number: 5, title: 'Faculty Information and Contributions', marks: 100, is_implemented: false, scope: 'criterion:5', tooltip: 'Not yet available — Coming Soon' },
-    { id: '6', criterion_number: 6, title: 'Faculty Contributions', marks: 120, is_implemented: false, scope: 'criterion:6', tooltip: 'Not yet available — Coming Soon' },
-    { id: '7', criterion_number: 7, title: 'Facilities and Technical Support', marks: 80, is_implemented: false, scope: 'criterion:7', tooltip: 'Not yet available — Coming Soon' },
-    { id: '8', criterion_number: 8, title: 'Continuous Improvement', marks: 70, is_implemented: false, scope: 'criterion:8', tooltip: 'Not yet available — Coming Soon' },
-    { id: '9', criterion_number: 9, title: 'Student Support System and Governance', marks: 120, is_implemented: false, scope: 'criterion:9', tooltip: 'Not yet available — Coming Soon' },
-  ]
-
-  // Fetch dynamic criteria list directly from tree definitions
   useEffect(() => {
-    let active = true
-    setLoadingCriteria(true)
-    reportsAPI.getCriteria(form.sar_format)
-      .then(res => {
-        if (!active) return
-        const list = res.data?.criteria
-        if (Array.isArray(list) && list.length > 0) {
-          setCriteriaList(list)
-        }
-      })
-      .catch(err => {
-        console.error('Failed to fetch criteria list:', err)
-      })
-      .finally(() => {
-        if (active) setLoadingCriteria(false)
-      })
-    return () => { active = false }
-  }, [form.sar_format])
+    if (!form.department_id && departments.length > 0) {
+      setForm(prev => ({ ...prev, department_id: departments[0].code || departments[0].id }))
+    }
+  }, [departments])
 
-  const activeCriteria = criteriaList.length > 0 ? criteriaList : defaultCriteria
-  const isCriterion4 = form.scope === 'full' || form.scope === 'criterion:4'
+  const isCriterion4 = form.scope === 'criterion:4' || form.scope === 'full'
 
-
-  // Fetch approved events for the selected academic year & department
   useEffect(() => {
     if (!isCriterion4) return
-    let active = true
     setLoadingEvents(true)
-    eventsAPI.list({ status: 'approved', academic_year: form.academic_year })
-      .then(async res => {
-        if (!active) return
-        let evs = res.data || []
-        if (evs.length === 0) {
-          try {
-            const fb = await eventsAPI.list({ status: 'approved' })
-            evs = fb.data || []
-          } catch (_) {}
-        }
+    eventsAPI.list({
+      status: 'approved',
+      academic_year: form.academic_year,
+      limit: 100,
+    })
+      .then(res => {
+        const evs = res.data || []
         setApprovedEvents(evs)
-        // Default to all approved selected for detailed treatment
-        setSelectedEventIds(prev => prev.length > 0 ? prev.filter(id => evs.some(e => e.id === id)) : evs.map(e => e.id))
+        setSelectedEventIds(evs.map(e => e.id))
       })
-      .catch(err => {
-        console.error('Failed to load approved events:', err)
-      })
-      .finally(() => {
-        if (active) setLoadingEvents(false)
-      })
+      .catch(() => {})
+      .finally(() => setLoadingEvents(false))
+  }, [isCriterion4, form.academic_year])
 
-    return () => { active = false }
-  }, [isCriterion4, form.academic_year, form.department_id])
-
-  function toggleEvent(id) {
+  const toggleEvent = (id) => {
     setSelectedEventIds(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     )
   }
 
-  function selectAllEvents() {
-    setSelectedEventIds(approvedEvents.map(e => e.id))
-  }
-
-  function clearAllEvents() {
-    setSelectedEventIds([])
-  }
-
-  async function handleFetchPreview() {
-    if (!form.department_id) {
-      toast.error('Select a department first')
-      return
-    }
+  const handleFetchPreview = async () => {
     setLoadingPreview(true)
-    setShowPreview(true)
     try {
       const res = await reportsAPI.previewCriterion4({
-        department_id: form.department_id,
+        department_id: form.department_id || 'CSE',
         academic_year: form.academic_year,
-        include_event_ids: selectedEventIds.join(','),
+        sar_format: form.sar_format,
+        selected_event_ids: selectedEventIds,
       })
       setPreviewData(res.data)
-      toast.success('Criterion 4 preview generated!')
+      setShowPreview(true)
+      toast.success('Criterion 4 live preview generated')
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to load preview')
+      toast.error(err.response?.data?.error || 'Failed to generate preview')
     } finally {
       setLoadingPreview(false)
     }
   }
 
-  async function handleSubmit(e) {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.department_id) { toast.error('Select a department'); return }
     setLoading(true)
     try {
       const payload = {
         ...form,
-        include_event_ids: isCriterion4 ? selectedEventIds : [],
+        selected_event_ids: isCriterion4 ? selectedEventIds : undefined,
       }
       const res = await reportsAPI.generateNba(payload)
-      toast.success(`Report generated! ID: ${res.data.report_id?.slice(0, 8)}…`)
-      onSubmitted(res.data)
+      toast.success(res.data?.message || 'Report generation queued')
+      onGenerated()
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Generation failed')
+      toast.error(err.response?.data?.error || 'Failed to submit generation job')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="report-form">
-
-      <div className="form-grid-2">
+    <form onSubmit={handleSubmit}>
+      <div className="grid-3" style={{ gap: 14, marginBottom: 16 }}>
         <div className="form-group">
-          <label className="form-label">SAR Format</label>
-          <select className="form-select" value={form.sar_format}
-                  onChange={e => setForm(p => ({ ...p, sar_format: e.target.value }))}>
-            <option value="ug_tier_ii_gapc_v4">UG Tier-II GAPC V4.0 (Jan 2025)</option>
-          </select>
-        </div>
-
-        <div className="form-group">
-          <label className="form-label">Department</label>
-          <select className="form-select" value={form.department_id}
-                  onChange={e => setForm(p => ({ ...p, department_id: e.target.value }))}
-                  required>
-            <option value="">— Select department —</option>
+          <label className="form-label">Academic Department</label>
+          <select
+            className="form-select"
+            value={form.department_id}
+            onChange={e => setForm(p => ({ ...p, department_id: e.target.value }))}
+          >
             {departments.map(d => (
-              <option key={d.id || d.code} value={d.code || d.id}>
-                {d.name} ({d.code})
+              <option key={d.code || d.id} value={d.code || d.id}>
+                {d.name} ({d.code || d.id})
               </option>
             ))}
           </select>
         </div>
 
         <div className="form-group">
-          <label className="form-label">Academic Year</label>
-          <select className="form-select" value={form.academic_year}
-                  onChange={e => setForm(p => ({ ...p, academic_year: e.target.value }))}>
+          <label className="form-label">Accreditation Academic Year</label>
+          <select
+            className="form-select"
+            value={form.academic_year}
+            onChange={e => setForm(p => ({ ...p, academic_year: e.target.value }))}
+          >
             {['2025-26', '2024-25', '2023-24', '2022-23'].map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
@@ -209,123 +413,97 @@ function NbaForm({ departments, onSubmitted }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>Scope</span>
-            {loadingCriteria && <small style={{ color: 'var(--text-muted)' }}>Syncing criteria…</small>}
-          </label>
+          <label className="form-label">SAR Scope / Criterion</label>
           <select
             className="form-select"
             value={form.scope}
             onChange={e => setForm(p => ({ ...p, scope: e.target.value }))}
           >
-            <option value="full">Full SAR (all 9 criteria)</option>
-            <optgroup label="Individual Criteria (1–9)">
-              {activeCriteria.map(c => {
-                const isAvail = c.is_implemented
-                const num = c.criterion_number || c.id
-                const label = `Criterion ${num} — ${c.title} (${c.marks} marks)${isAvail ? '' : ' [Coming Soon]'}`
-                const tip = c.tooltip || (isAvail ? 'Available for report generation' : 'Not yet available — Coming Soon')
-                return (
-                  <option
-                    key={c.id || num}
-                    value={c.scope || `criterion:${num}`}
-                    disabled={!isAvail}
-                    title={tip}
-                    style={!isAvail ? { color: 'var(--text-muted, #94a3b8)', fontStyle: 'italic' } : { fontWeight: 600 }}
-                  >
-                    {label}
-                  </option>
-                )
-              })}
-            </optgroup>
+            <option value="criterion:4">Criterion 4: Students' Performance (150 M) [Ready]</option>
+            <option value="full">Full SAR Compilation (Criteria 1–10)</option>
+            <option value="criterion:1" disabled>Criterion 1: Vision, Mission & PEOs (Pending)</option>
+            <option value="criterion:2" disabled>Criterion 2: Program Curriculum (Pending)</option>
+            <option value="criterion:3" disabled>Criterion 3: Course Outcomes (Pending)</option>
+            <option value="criterion:5" disabled>Criterion 5: Faculty Information (Pending)</option>
           </select>
         </div>
+      </div>
 
-
-        <div className="form-group">
-          <label className="form-label">Output Format</label>
-          <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+      <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+        <div>
+          <label className="form-label">Output Document Format</label>
+          <div style={{ display: 'flex', gap: 8 }}>
             {['pdf', 'docx', 'both'].map(f => (
-              <label key={f} className="radio-label">
-                <input type="radio" name="format" value={f}
-                       checked={form.format === f}
-                       onChange={() => setForm(p => ({ ...p, format: f }))} />
+              <button
+                key={f}
+                type="button"
+                className={`btn btn-sm ${form.format === f ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setForm(p => ({ ...p, format: f }))}
+              >
                 {f.toUpperCase()}
-              </label>
+              </button>
             ))}
           </div>
         </div>
 
-        <div className="form-group" style={{ display: 'flex', alignItems: 'flex-end' }}>
-          <label className="checkbox-label">
-            <input type="checkbox" checked={form.expand_narratives}
-                   onChange={e => setForm(p => ({ ...p, expand_narratives: e.target.checked }))} />
-            <span>Expand narratives with AI <small style={{ color: 'var(--text-secondary)' }}>(slower)</small></span>
+        <div style={{ paddingTop: 18 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '13px' }}>
+            <input
+              type="checkbox"
+              checked={form.expand_narratives}
+              onChange={e => setForm(p => ({ ...p, expand_narratives: e.target.checked }))}
+            />
+            <span style={{ color: 'var(--text-secondary)' }}>Expand contextual narratives with AI synthesis</span>
           </label>
         </div>
       </div>
 
-      {/* ── Event Selection for Detailed Summary Sheets (Criterion 4) ── */}
+      {/* ── Criterion 4 Event Selection Checklist ── */}
       {isCriterion4 && (
         <div style={{
-          marginTop: 18,
+          backgroundColor: 'var(--bg-subtle)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '14px 16px',
           marginBottom: 16,
-          padding: 16,
-          background: 'var(--surface-sunken, #f8fafc)',
-          borderRadius: 8,
-          border: '1px solid var(--border-color, #e2e8f0)',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Award size={18} style={{ color: 'var(--primary, #3b82f6)' }} />
-              <h4 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
+              <Award size={16} color="var(--primary)" />
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
                 Include Events for Detailed Treatment (Section 4.6.1)
-              </h4>
-              <span className="badge badge-blue" style={{ fontSize: 11 }}>
-                {selectedEventIds.length} / {approvedEvents.length} selected
               </span>
+              <Badge variant="primary">{selectedEventIds.length} / {approvedEvents.length} selected</Badge>
             </div>
-            {approvedEvents.length > 0 && (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button type="button" className="btn btn-xs btn-outline" onClick={selectAllEvents}>
-                  <CheckSquare size={11} /> Select All
-                </button>
-                <button type="button" className="btn btn-xs btn-ghost" onClick={clearAllEvents}>
-                  <Square size={11} /> Clear
-                </button>
-              </div>
-            )}
-          </div>
 
-          <div style={{
-            fontSize: 12,
-            color: 'var(--text-secondary)',
-            background: 'var(--surface, #ffffff)',
-            padding: '8px 12px',
-            borderRadius: 6,
-            border: '1px solid var(--border-color, #e2e8f0)',
-            marginBottom: 12,
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 6,
-          }}>
-            <Info size={14} style={{ color: 'var(--primary, #3b82f6)', flexShrink: 0, marginTop: 2 }} />
-            <span>
-              <strong>NBA SAR Rule:</strong> All mentor-approved club & college events appear in the compact Layer 1 summary table.
-              Checked events below will additionally receive a full detailed <strong>Summary Sheet</strong> (with PO mapping, resource person, outcomes, and event photos) in Section 4.6.1.
-            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={() => setSelectedEventIds(approvedEvents.map(e => e.id))}
+                className="btn btn-ghost btn-sm"
+              >
+                Select All
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedEventIds([])}
+                className="btn btn-ghost btn-sm"
+              >
+                Clear
+              </button>
+            </div>
           </div>
 
           {loadingEvents ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 12, fontSize: 13, color: 'var(--text-secondary)' }}>
-              <Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Loading approved events…
+            <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div className="spinner" />
             </div>
           ) : approvedEvents.length === 0 ? (
-            <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: 'var(--text-secondary)' }}>
-              No approved events found for academic year {form.academic_year}. The compact table will still render normally.
+            <div style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>
+              No approved events found for {form.academic_year}.
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10, maxHeight: 320, overflowY: 'auto', paddingRight: 4 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
               {approvedEvents.map(ev => {
                 const isSelected = selectedEventIds.includes(ev.id)
                 return (
@@ -333,141 +511,654 @@ function NbaForm({ departments, onSubmitted }) {
                     key={ev.id}
                     onClick={() => toggleEvent(ev.id)}
                     style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: 10,
-                      padding: 10,
-                      borderRadius: 6,
-                      background: isSelected ? 'rgba(59, 130, 246, 0.06)' : 'var(--surface, #ffffff)',
-                      border: `1.5px solid ${isSelected ? 'var(--primary, #3b82f6)' : 'var(--border-color, #e2e8f0)'}`,
+                      padding: '8px 10px',
+                      borderRadius: 'var(--radius-xs)',
+                      backgroundColor: isSelected ? 'var(--primary-subtle)' : 'var(--bg-surface)',
+                      border: `1px solid ${isSelected ? 'var(--primary)' : 'var(--border-default)'}`,
                       cursor: 'pointer',
-                      transition: 'all 0.15s ease',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      transition: 'all var(--transition-fast)',
                     }}
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
-                      onChange={() => {}} // handled by card click
-                      style={{ marginTop: 3, cursor: 'pointer' }}
+                      onChange={() => {}}
+                      style={{ cursor: 'pointer' }}
                     />
-                    {ev.thumbnail_url ? (
-                      <img
-                        src={ev.thumbnail_url}
-                        alt="Event"
-                        style={{ width: 44, height: 44, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }}
-                        onError={e => { e.target.style.display = 'none' }}
-                      />
-                    ) : (
-                      <div style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 4,
-                        background: 'var(--surface-sunken, #e2e8f0)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--text-secondary)',
-                        flexShrink: 0,
-                      }}>
-                        <Award size={20} />
+                    <div className="truncate" style={{ flex: 1, minWidth: 0 }}>
+                      <div className="truncate" style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {ev.title}
                       </div>
-                    )}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                        <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {ev.title}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 4 }}>
-                        <span className="badge badge-purple" style={{ fontSize: 10, padding: '1px 5px' }}>
-                          {ev.event_type}
-                        </span>
-                        <span className="badge" style={{ fontSize: 10, padding: '1px 5px' }}>
-                          {ev.club_name || `Club #${ev.club_id}`}
-                        </span>
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                          <Calendar size={11} /> {(ev.event_date || '').slice(0, 10)}
-                        </span>
-                        {ev.attendee_count && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-                            <Users size={11} /> {ev.attendee_count}
-                          </span>
-                        )}
+                      <div style={{ fontSize: '10.5px', color: 'var(--text-muted)' }}>
+                        {ev.event_type} · {(ev.event_date || '').slice(0, 10)}
                       </div>
                     </div>
                   </div>
                 )
               })}
-
             </div>
           )}
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-
-        <button type="submit" className="btn btn-primary" id="btn-generate-nba" disabled={loading}>
-          {loading
-            ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Generating…</>
-            : <><FileText size={14} /> Generate SAR Report</>}
+      {/* Action Buttons */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <button
+          type="submit"
+          className="btn btn-primary btn-sm"
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <div className="spinner" style={{ width: 12, height: 12 }} />
+              <span>Generating Report…</span>
+            </>
+          ) : (
+            <>
+              <FileText size={14} />
+              <span>Generate NBA SAR Report</span>
+            </>
+          )}
         </button>
 
         {isCriterion4 && (
           <button
             type="button"
-            className="btn btn-secondary"
-            id="btn-preview-c4"
-            disabled={loadingPreview}
+            className="btn btn-secondary btn-sm"
             onClick={handleFetchPreview}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            disabled={loadingPreview}
           >
-            {loadingPreview
-              ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Loading Preview…</>
-              : <><Eye size={14} /> Live Preview Criterion 4 (150 Marks)</>}
+            {loadingPreview ? (
+              <>
+                <div className="spinner" style={{ width: 12, height: 12 }} />
+                <span>Compiling Live Preview…</span>
+              </>
+            ) : (
+              <>
+                <Eye size={14} />
+                <span>Live Preview Criterion 4 (150 Marks)</span>
+              </>
+            )}
           </button>
         )}
       </div>
 
-      {/* ── Criterion 4 Interactive Preview Section ── */}
+      {/* Live Preview Display */}
       {showPreview && isCriterion4 && (
-        <Criterion4PreviewSection
-          previewData={previewData}
-          loading={loadingPreview}
-          academicYear={form.academic_year}
-          deptCode={form.department_id || 'CSE'}
-          onRefresh={handleFetchPreview}
-        />
+        <div style={{ marginTop: 20 }}>
+          <Criterion4PreviewSection
+            previewData={previewData}
+            academicYear={form.academic_year}
+            deptCode={form.department_id || 'CSE'}
+            onRefresh={handleFetchPreview}
+          />
+        </div>
       )}
     </form>
   )
 }
 
+// ── Sub-component: General AI Report Form ─────────────────────────────────────
+function GeneralReportForm({ departments, reportType, onGenerated }) {
+  const [departmentId, setDepartmentId] = useState(departments[0]?.code || 'CSE')
+  const [academicYear, setAcademicYear] = useState('2025-26')
+  const [format, setFormat]             = useState('pdf')
+  const [instructions, setInstructions] = useState('')
+  const [reportTitle, setReportTitle]   = useState('')
+  const [loading, setLoading]           = useState(false)
 
-// ── Criterion 4 Live Preview Component ────────────────────────────────────────
+  // Auto-populate selected_data based on report type
+  const getDefaultSelectedData = (type) => {
+    switch (type) {
+      case 'department_summary':
+        return ['student_records', 'faculty_data', 'placement_data', 'club_events']
+      case 'club_activity':
+        return ['club_events', 'student_records']
+      case 'custom':
+        return ['student_records', 'faculty_data', 'placement_data', 'club_events']
+      default:
+        return ['student_records', 'faculty_data']
+    }
+  }
 
-function Criterion4PreviewSection({ previewData, loading, academicYear, deptCode, onRefresh }) {
+  const [selectedData, setSelectedData] = useState(getDefaultSelectedData(reportType))
+
+  useEffect(() => {
+    setSelectedData(getDefaultSelectedData(reportType))
+  }, [reportType])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+    try {
+      await reportsAPI.generateGeneral({
+        report_type: reportType,
+        department_id: departmentId,
+        academic_year: academicYear,
+        format,
+        selected_data: selectedData,
+        instructions: instructions.trim() || undefined,
+        report_title: reportTitle.trim() || undefined,
+      })
+      toast.success('Report generation started')
+      onGenerated()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to generate report')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="grid-2" style={{ gap: 14, marginBottom: 16 }}>
+        <div className="form-group">
+          <label className="form-label">Department</label>
+          <select
+            className="form-select"
+            value={departmentId}
+            onChange={e => setDepartmentId(e.target.value)}
+          >
+            {departments.map(d => (
+              <option key={d.code || d.id} value={d.code || d.id}>
+                {d.name} ({d.code || d.id})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Academic Year</label>
+          <select
+            className="form-select"
+            value={academicYear}
+            onChange={e => setAcademicYear(e.target.value)}
+          >
+            {['2025-26', '2024-25', '2023-24'].map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="form-group" style={{ marginBottom: 16 }}>
+        <label className="form-label">Data Sources to Include</label>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {[
+            { key: 'student_records', label: 'Student Records' },
+            { key: 'faculty_data', label: 'Faculty Data' },
+            { key: 'placement_data', label: 'Placement Data' },
+            { key: 'club_events', label: 'Club & Events' },
+          ].map(ds => (
+            <label key={ds.key} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: '13px' }}>
+              <input
+                type="checkbox"
+                checked={selectedData.includes(ds.key)}
+                onChange={e => {
+                  if (e.target.checked) {
+                    setSelectedData(prev => [...prev, ds.key])
+                  } else {
+                    setSelectedData(prev => prev.filter(x => x !== ds.key))
+                  }
+                }}
+              />
+              <span style={{ color: 'var(--text-secondary)' }}>{ds.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {reportType === 'custom' && (
+        <>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginBottom: 6, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Sparkles size={12} color="var(--primary)" />
+              <span>Quick Prompt Templates (Click to fill):</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[
+                { label: '📊 Students CIE Marks & Attendance', prompt: 'Create a report of all the students cie marks and attendence..', title: 'Student Continuous Internal Evaluation (CIE) & Attendance Report' },
+                { label: '🏆 Club Activities & Hackathons', prompt: 'Create a comprehensive report on all club activities, hackathons, and student participation', title: 'Student Clubs & Co-Curricular Activities Comprehensive Report' },
+                { label: '👨‍🏫 Faculty Research & Dossier', prompt: 'Create a detailed report on faculty members, publications, and active research projects', title: 'Faculty Appraisal & Academic Research Portfolio Report' },
+                { label: '⚠️ Attendance Shortage & At-Risk', prompt: 'Generate an academic intervention report for students with attendance shortage (<75%) and low CIE marks', title: 'Attendance Shortage & Student Academic Risk Report' },
+              ].map(tpl => (
+                <button
+                  key={tpl.label}
+                  type="button"
+                  className="btn btn-secondary btn-xs"
+                  style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '14px', background: 'var(--bg-surface)' }}
+                  onClick={() => {
+                    setInstructions(tpl.prompt)
+                    setReportTitle(tpl.title)
+                  }}
+                >
+                  {tpl.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label className="form-label">Report Title (Optional)</label>
+            <input
+              type="text"
+              className="form-input"
+              value={reportTitle}
+              onChange={e => setReportTitle(e.target.value)}
+              placeholder="e.g., Student Continuous Internal Evaluation (CIE) & Attendance Report"
+            />
+          </div>
+        </>
+      )}
+
+      <div className="form-group" style={{ marginBottom: 16 }}>
+        <label className="form-label">
+          {reportType === 'custom' ? 'Custom Report Prompt / Query *' : 'Special Directives & Narrative Guidelines'}
+        </label>
+        <textarea
+          className="form-textarea"
+          rows={3}
+          value={instructions}
+          onChange={e => setInstructions(e.target.value)}
+          placeholder={
+            reportType === 'custom'
+              ? 'e.g., Create a report of all the students cie marks and attendence..'
+              : 'Specify focus areas, key highlights, or specific criteria to emphasize in the synthesized document…'
+          }
+        />
+        {reportType === 'custom' && (
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 4 }}>
+            💡 You can request general reports on anything: student marks/attendance matrices, club hackathons, faculty portfolios, or class reviews. The AI builder dynamically compiles data tables and analytical narratives.
+          </div>
+        )}
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">Output Format</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {['pdf', 'docx', 'both'].map(f => (
+            <button
+              key={f}
+              type="button"
+              className={`btn btn-sm ${format === f ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setFormat(f)}
+            >
+              {f.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <button
+          type="submit"
+          className="btn btn-primary btn-sm"
+          disabled={loading}
+        >
+          {loading ? 'Synthesizing…' : 'Synthesize Report'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ── Sub-component: Individual Student Report Form ─────────────────────────────
+function StudentReportForm({ departments, onGenerated }) {
+  const [departmentId, setDepartmentId]       = useState(departments[0]?.code || 'CSE')
+  const [students, setStudents]               = useState([])
+  const [selectedStudentId, setSelectedStudentId] = useState('')
+  const [customStudentId, setCustomStudentId] = useState('')
+  const [useCustom, setUseCustom]             = useState(false)
+  const [academicYear, setAcademicYear]       = useState('2025-26')
+  const [format, setFormat]                   = useState('both')
+  const [loading, setLoading]                 = useState(false)
+  const [fetchingStudents, setFetchingStudents] = useState(false)
+
+  useEffect(() => {
+    if (departments.length > 0 && !departmentId) {
+      setDepartmentId(departments[0]?.code || 'CSE')
+    }
+  }, [departments])
+
+  useEffect(() => {
+    const fetchStudents = async () => {
+      setFetchingStudents(true)
+      try {
+        const res = await studentsAPI.list({ department: departmentId })
+        const list = res.data || []
+        setStudents(list)
+        if (list.length > 0) {
+          setSelectedStudentId(list[0].student_id || list[0].id)
+        } else {
+          setSelectedStudentId('')
+        }
+      } catch (_) {
+        setStudents([])
+      } finally {
+        setFetchingStudents(false)
+      }
+    }
+    if (departmentId) {
+      fetchStudents()
+    }
+  }, [departmentId])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const targetId = useCustom ? customStudentId.trim() : selectedStudentId
+    if (!targetId) {
+      toast.error('Please select or specify a Student ID')
+      return
+    }
+    setLoading(true)
+    try {
+      await reportsAPI.generateStudent({
+        student_id: targetId,
+        department_id: departmentId,
+        academic_year: academicYear,
+        format,
+      })
+      toast.success(`Dossier for ${targetId} generated successfully!`)
+      onGenerated()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to generate student report')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="grid-3" style={{ gap: 14, marginBottom: 16 }}>
+        <div className="form-group">
+          <label className="form-label">Department</label>
+          <select
+            className="form-select"
+            value={departmentId}
+            onChange={e => setDepartmentId(e.target.value)}
+          >
+            {departments.map(d => (
+              <option key={d.code || d.id} value={d.code || d.id}>
+                {d.name} ({d.code || d.id})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <label className="form-label" style={{ margin: 0 }}>Target Student</label>
+            <button
+              type="button"
+              className="btn btn-link btn-xs"
+              style={{ padding: 0, fontSize: '11px', color: 'var(--primary)', cursor: 'pointer', background: 'none', border: 'none' }}
+              onClick={() => setUseCustom(!useCustom)}
+            >
+              {useCustom ? 'Pick from List' : 'Enter Custom ID'}
+            </button>
+          </div>
+          {useCustom ? (
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. STU011"
+              value={customStudentId}
+              onChange={e => setCustomStudentId(e.target.value)}
+              required
+            />
+          ) : (
+            <select
+              className="form-select"
+              value={selectedStudentId}
+              onChange={e => setSelectedStudentId(e.target.value)}
+              disabled={fetchingStudents || students.length === 0}
+            >
+              {fetchingStudents ? (
+                <option>Loading enrolled students…</option>
+              ) : students.length === 0 ? (
+                <option value="">No students found in this department</option>
+              ) : (
+                students.map(s => (
+                  <option key={s.id || s.student_id} value={s.student_id || s.id}>
+                    {s.student_id} — {s.name} (Sem {s.semester}, Sec {s.section})
+                  </option>
+                ))
+              )}
+            </select>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Academic Year</label>
+          <select
+            className="form-select"
+            value={academicYear}
+            onChange={e => setAcademicYear(e.target.value)}
+          >
+            {['2025-26', '2024-25', '2023-24'].map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">Output Format</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {['pdf', 'docx', 'both'].map(f => (
+            <button
+              key={f}
+              type="button"
+              className={`btn btn-sm ${format === f ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setFormat(f)}
+            >
+              {f.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <button
+          type="submit"
+          className="btn btn-primary btn-sm"
+          disabled={loading || (!useCustom && !selectedStudentId)}
+        >
+          {loading ? 'Generating Dossier…' : 'Generate Student Dossier'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ── Sub-component: Faculty Appraisal Report Form ──────────────────────────────
+function FacultyReportForm({ departments, onGenerated }) {
+  const [departmentId, setDepartmentId]       = useState(departments[0]?.code || 'CSE')
+  const [faculty, setFaculty]                 = useState([])
+  const [selectedFacultyId, setSelectedFacultyId] = useState('')
+  const [customFacultyId, setCustomFacultyId] = useState('')
+  const [useCustom, setUseCustom]             = useState(false)
+  const [academicYear, setAcademicYear]       = useState('2025-26')
+  const [format, setFormat]                   = useState('both')
+  const [loading, setLoading]                 = useState(false)
+  const [fetchingFaculty, setFetchingFaculty] = useState(false)
+
+  useEffect(() => {
+    if (departments.length > 0 && !departmentId) {
+      setDepartmentId(departments[0]?.code || 'CSE')
+    }
+  }, [departments])
+
+  useEffect(() => {
+    const fetchFaculty = async () => {
+      setFetchingFaculty(true)
+      try {
+        const res = await facultyAPI.list({ department: departmentId })
+        const list = res.data || []
+        setFaculty(list)
+        if (list.length > 0) {
+          setSelectedFacultyId(list[0].faculty_id || list[0].id)
+        } else {
+          setSelectedFacultyId('')
+        }
+      } catch (_) {
+        setFaculty([])
+      } finally {
+        setFetchingFaculty(false)
+      }
+    }
+    if (departmentId) {
+      fetchFaculty()
+    }
+  }, [departmentId])
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    const targetId = useCustom ? customFacultyId.trim() : selectedFacultyId
+    if (!targetId) {
+      toast.error('Please select or specify a Faculty ID')
+      return
+    }
+    setLoading(true)
+    try {
+      await reportsAPI.generateFaculty({
+        faculty_id: targetId,
+        department_id: departmentId,
+        academic_year: academicYear,
+        format,
+      })
+      toast.success(`Appraisal report for ${targetId} generated successfully!`)
+      onGenerated()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to generate faculty report')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="grid-3" style={{ gap: 14, marginBottom: 16 }}>
+        <div className="form-group">
+          <label className="form-label">Department</label>
+          <select
+            className="form-select"
+            value={departmentId}
+            onChange={e => setDepartmentId(e.target.value)}
+          >
+            {departments.map(d => (
+              <option key={d.code || d.id} value={d.code || d.id}>
+                {d.name} ({d.code || d.id})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="form-group">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <label className="form-label" style={{ margin: 0 }}>Target Faculty Member</label>
+            <button
+              type="button"
+              className="btn btn-link btn-xs"
+              style={{ padding: 0, fontSize: '11px', color: 'var(--primary)', cursor: 'pointer', background: 'none', border: 'none' }}
+              onClick={() => setUseCustom(!useCustom)}
+            >
+              {useCustom ? 'Pick from List' : 'Enter Custom ID'}
+            </button>
+          </div>
+          {useCustom ? (
+            <input
+              type="text"
+              className="form-input"
+              placeholder="e.g. FAC001"
+              value={customFacultyId}
+              onChange={e => setCustomFacultyId(e.target.value)}
+              required
+            />
+          ) : (
+            <select
+              className="form-select"
+              value={selectedFacultyId}
+              onChange={e => setSelectedFacultyId(e.target.value)}
+              disabled={fetchingFaculty || faculty.length === 0}
+            >
+              {fetchingFaculty ? (
+                <option>Loading faculty roster…</option>
+              ) : faculty.length === 0 ? (
+                <option value="">No faculty found in this department</option>
+              ) : (
+                faculty.map(f => (
+                  <option key={f.id || f.faculty_id} value={f.faculty_id || f.id}>
+                    {f.faculty_id} — {f.name} ({f.designation || 'Faculty'})
+                  </option>
+                ))
+              )}
+            </select>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Academic Year</label>
+          <select
+            className="form-select"
+            value={academicYear}
+            onChange={e => setAcademicYear(e.target.value)}
+          >
+            {['2025-26', '2024-25', '2023-24'].map(y => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="form-group">
+        <label className="form-label">Output Format</label>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          {['pdf', 'docx', 'both'].map(f => (
+            <button
+              key={f}
+              type="button"
+              className={`btn btn-sm ${format === f ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => setFormat(f)}
+            >
+              {f.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+        <button
+          type="submit"
+          className="btn btn-primary btn-sm"
+          disabled={loading || (!useCustom && !selectedFacultyId)}
+        >
+          {loading ? 'Generating Appraisal…' : 'Generate Faculty Appraisal'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+// ── Sub-component: Criterion 4 Live Preview ───────────────────────────────────
+function Criterion4PreviewSection({ previewData, academicYear, deptCode, onRefresh }) {
   const [narrativeText, setNarrativeText] = useState('')
-  const [savingNarrative, setSavingNarrative] = useState(false)
-  const [isEditingNarrative, setIsEditingNarrative] = useState(false)
+  const [isEditing, setIsEditing]         = useState(false)
+  const [saving, setSaving]               = useState(false)
 
-  // Sync 4.6.2 narrative from preview
   useEffect(() => {
     if (previewData?.subsections) {
       const sec462 = previewData.subsections.find(s => s.id === '4.6.2')
-      if (sec462) {
-        setNarrativeText(sec462.narrative || '')
-      }
+      if (sec462) setNarrativeText(sec462.narrative || '')
     }
   }, [previewData])
 
-  async function handleSaveNarrative() {
-    if (!narrativeText.trim()) {
-      toast.error('Narrative text cannot be empty')
-      return
-    }
-    setSavingNarrative(true)
+  const handleSaveNarrative = async () => {
+    if (!narrativeText.trim()) return
+    setSaving(true)
     try {
       await reportsAPI.saveNarrative('4.6.2', {
         department_id: deptCode,
@@ -475,106 +1166,83 @@ function Criterion4PreviewSection({ previewData, loading, academicYear, deptCode
         narrative_text: narrativeText,
         sar_format: 'ug_tier_ii_gapc_v4',
       })
-      toast.success('Section 4.6.2 narrative saved successfully!')
-      setIsEditingNarrative(false)
+      toast.success('Section 4.6.2 narrative updated')
+      setIsEditing(false)
       onRefresh()
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to save narrative')
+    } catch (_) {
+      toast.error('Failed to save narrative')
     } finally {
-      setSavingNarrative(false)
+      setSaving(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div style={{
-        marginTop: 24,
-        padding: 32,
-        background: 'var(--surface, #ffffff)',
-        borderRadius: 8,
-        border: '1px solid var(--border-color, #e2e8f0)',
-        textAlign: 'center',
-      }}>
-        <Loader size={24} style={{ animation: 'spin 1s linear infinite', color: 'var(--primary, #3b82f6)', marginBottom: 8 }} />
-        <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Compiling Criterion 4 SAR Tree Preview…</div>
-        <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Calculating verified admission ratios, success indices, APIs, and placement scores</div>
-      </div>
-    )
   }
 
   if (!previewData) return null
 
   const totalMarks = previewData.max_marks || 150
-  const computedMarks = previewData.computed_marks_total || 0
-  const pct = Math.round((computedMarks / totalMarks) * 100)
+  const computed = previewData.computed_marks_total || 0
+  const pct = Math.round((computed / totalMarks) * 100)
 
   return (
     <div style={{
-      marginTop: 24,
-      background: 'var(--surface, #ffffff)',
-      borderRadius: 8,
-      border: '1px solid var(--border-color, #e2e8f0)',
+      backgroundColor: 'var(--bg-surface)',
+      border: '1px solid var(--border-default)',
+      borderRadius: 'var(--radius-md)',
       overflow: 'hidden',
     }}>
-      {/* ── Header Summary ── */}
+      {/* Summary Header */}
       <div style={{
         padding: '16px 20px',
-        background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(99, 102, 241, 0.05))',
-        borderBottom: '1px solid var(--border-color, #e2e8f0)',
+        borderBottom: '1px solid var(--border-default)',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         flexWrap: 'wrap',
         gap: 12,
+        backgroundColor: 'rgba(59, 130, 246, 0.04)',
       }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+            <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)' }}>
               Criterion 4 — Students' Performance (NBA SAR UG Tier-II)
-            </h3>
-            <span className="badge badge-blue">Verified Data</span>
+            </h4>
+            <Badge variant="success">Verified Academic Records</Badge>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-            Department: <strong>{deptCode}</strong> | Academic Year: <strong>{academicYear}</strong> | 9 Canonical Subsections
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 2 }}>
+            Department of {deptCode} · {academicYear} · 9 Canonical Subsections
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Total Score
-            </div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--primary, #3b82f6)' }}>
-              {computedMarks} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>/ {totalMarks} Marks ({pct}%)</span>
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Computed Score</div>
+            <div style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>
+              {computed} <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>/ {totalMarks} M ({pct}%)</span>
             </div>
           </div>
-          <button type="button" className="btn btn-sm btn-ghost" onClick={onRefresh} title="Refresh Preview">
-            <RefreshCw size={14} /> Refresh
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onRefresh}>
+            <RefreshCw size={13} />
           </button>
         </div>
       </div>
 
-      {/* ── Subsections List in Canonical Order ── */}
-      <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {previewData.subsections?.map((sub, idx) => {
+      {/* Subsections list */}
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {previewData.subsections?.map(sub => {
           const isNarrative = sub.id === '4.6.2'
-          const isEvents = sub.id === '4.6.1'
-
           return (
             <div
               key={sub.id}
               style={{
-                border: '1px solid var(--border-color, #e2e8f0)',
-                borderRadius: 6,
-                background: 'var(--surface-sunken, #f8fafc)',
+                backgroundColor: 'var(--bg-subtle)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-sm)',
                 overflow: 'hidden',
               }}
             >
-              {/* Section Header */}
               <div style={{
                 padding: '10px 14px',
-                background: 'var(--surface, #ffffff)',
-                borderBottom: '1px solid var(--border-color, #e2e8f0)',
+                backgroundColor: 'var(--bg-surface)',
+                borderBottom: '1px solid var(--border-default)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -583,69 +1251,48 @@ function Criterion4PreviewSection({ previewData, loading, academicYear, deptCode
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: 'rgba(59, 130, 246, 0.1)',
-                    color: 'var(--primary, #3b82f6)',
+                    fontFamily: 'var(--font-mono)',
                     fontWeight: 700,
-                    fontSize: 12,
+                    fontSize: '12px',
+                    color: 'var(--primary)',
                   }}>
                     {sub.id}
                   </span>
-                  <div>
-                    <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{sub.title}</strong>
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                      Weight: {sub.marks_allocated} Marks | Format: {sub.content_type}
-                    </div>
-                  </div>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
+                    {sub.title}
+                  </span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {sub.has_placeholders ? (
-                    <span className="badge badge-yellow" style={{ fontSize: 11 }}>Data not available</span>
-                  ) : (
-                    <span className="badge badge-green" style={{ fontSize: 11 }}>
-                      <Check size={10} /> Verified
-                    </span>
-                  )}
-                  <span className="badge badge-purple" style={{ fontSize: 12, fontWeight: 700 }}>
-                    {sub.marks_computed} / {sub.marks_allocated} M
-                  </span>
+                  <Badge variant="neutral">Weight: {sub.marks_allocated} M</Badge>
+                  <Badge variant="primary">{sub.marks_computed} / {sub.marks_allocated} M</Badge>
                 </div>
               </div>
 
-              {/* Section Body */}
-              <div style={{ padding: 12 }}>
-                {/* 4.6.2 Narrative Editor */}
+              <div style={{ padding: '12px 14px' }}>
                 {isNarrative ? (
                   <div>
-                    {isEditingNarrative ? (
+                    {isEditing ? (
                       <div>
                         <textarea
                           className="form-textarea"
                           rows={4}
                           value={narrativeText}
                           onChange={e => setNarrativeText(e.target.value)}
-                          placeholder="Author publication details, magazine issues, newsletters, editorial board members, and student contributions…"
-                          style={{ width: '100%', fontSize: 13 }}
                         />
                         <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                           <button
                             type="button"
-                            className="btn btn-xs btn-primary"
+                            className="btn btn-primary btn-sm"
                             onClick={handleSaveNarrative}
-                            disabled={savingNarrative}
+                            disabled={saving}
                           >
-                            {savingNarrative ? <Loader size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={12} />} Save Narrative
+                            <Save size={12} /> {saving ? 'Saving…' : 'Save Narrative'}
                           </button>
                           <button
                             type="button"
-                            className="btn btn-xs btn-ghost"
-                            onClick={() => setIsEditingNarrative(false)}
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => setIsEditing(false)}
                           >
                             Cancel
                           </button>
@@ -653,26 +1300,25 @@ function Criterion4PreviewSection({ previewData, loading, academicYear, deptCode
                       </div>
                     ) : (
                       <div>
-                        <p style={{ margin: 0, fontSize: 12, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
+                        <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
                           {narrativeText || sub.narrative}
                         </p>
                         <button
                           type="button"
-                          className="btn btn-xs btn-outline"
-                          onClick={() => setIsEditingNarrative(true)}
-                          style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          className="btn btn-secondary btn-sm"
+                          style={{ marginTop: 8 }}
+                          onClick={() => setIsEditing(true)}
                         >
-                          <Edit3 size={11} /> Edit Publication Narrative
+                          <Edit3 size={12} /> Edit Narrative
                         </button>
                       </div>
                     )}
                   </div>
                 ) : (
-                  /* Tables for other 8 sections */
                   <div>
                     {sub.table_headers?.length > 0 && (
-                      <div style={{ overflowX: 'auto' }}>
-                        <table className="data-table" style={{ fontSize: 12, margin: 0 }}>
+                      <div className="table-wrapper" style={{ margin: 0 }}>
+                        <table className="data-table" style={{ fontSize: '12px' }}>
                           <thead>
                             <tr>
                               {sub.table_headers.map((h, i) => (
@@ -684,64 +1330,14 @@ function Criterion4PreviewSection({ previewData, loading, academicYear, deptCode
                             {sub.table_rows?.map((row, rIdx) => (
                               <tr key={rIdx}>
                                 {row.map((cell, cIdx) => (
-                                  <td key={cIdx}>
-                                    {typeof cell === 'number' ? cell : String(cell ?? '—')}
+                                  <td key={cIdx} className={typeof cell === 'number' ? 'tabular-nums' : ''}>
+                                    {cell !== null && cell !== undefined ? String(cell) : '—'}
                                   </td>
                                 ))}
                               </tr>
                             ))}
                           </tbody>
                         </table>
-                      </div>
-                    )}
-
-                    {/* 4.6.1 Summary Sheets Preview */}
-                    {isEvents && sub.summary_sheets?.length > 0 && (
-                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-color, #e2e8f0)' }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }}>
-                          Layer 2 Detailed Summary Sheets ({sub.summary_sheets.length} Selected Events):
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>
-                          {sub.summary_sheets.map((sheet, sIdx) => {
-                            const firstPhoto = sheet.photos_formatted?.[0] || (sheet.photos && sheet.photos[0])
-                            const photoSrc = firstPhoto?.photo_data_url || firstPhoto?.photo_url
-                            const photoCount = sheet.photos_formatted?.length || sheet.photos?.length || 0
-                            return (
-                              <div key={sIdx} style={{
-                                padding: 8,
-                                borderRadius: 6,
-                                background: 'var(--surface, #ffffff)',
-                                border: '1px solid var(--border-color, #e2e8f0)',
-                                fontSize: 11,
-                                display: 'flex',
-                                gap: 8,
-                                alignItems: 'center',
-                              }}>
-                                {photoSrc && (
-                                  <img
-                                    src={photoSrc}
-                                    alt="Event"
-                                    style={{
-                                      width: 48,
-                                      height: 48,
-                                      borderRadius: 4,
-                                      objectFit: 'cover',
-                                      border: '1px solid #cbd5e0',
-                                      flexShrink: 0,
-                                    }}
-                                  />
-                                )}
-                                <div style={{ minWidth: 0, flex: 1 }}>
-                                  <div style={{ fontWeight: 600, color: 'var(--primary, #3b82f6)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{sheet.title}</div>
-                                  <div style={{ color: 'var(--text-secondary)' }}>Resource: {sheet.resource_person || '—'}</div>
-                                  <div style={{ color: 'var(--text-secondary)', fontSize: 10 }}>
-                                    📷 {photoCount} photo{photoCount !== 1 ? 's' : ''} attached
-                                  </div>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
                       </div>
                     )}
                   </div>
@@ -755,431 +1351,91 @@ function Criterion4PreviewSection({ previewData, loading, academicYear, deptCode
   )
 }
 
+// ── Sub-component: Report History Table ───────────────────────────────────────
+function ReportHistoryTable({ reports, loading, onDownload, onRefresh }) {
+  if (loading) {
+    return (
+      <div style={{ padding: '32px', textAlign: 'center' }}>
+        <div className="spinner" />
+      </div>
+    )
+  }
 
-
-// ── Ad-hoc AI form ────────────────────────────────────────────────────────────
-
-function AdhocForm({ onSubmitted }) {
-  const [query, setQuery]   = useState('')
-  const [format, setFormat] = useState('pdf')
-  const [loading, setLoading] = useState(false)
-
-  const examples = [
-    'Generate a detailed performance report for student STU001',
-    'Summarise faculty qualification and research output for the department',
-    'Create an at-risk students report with retention recommendations',
-  ]
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    if (!query.trim()) { toast.error('Enter a report request'); return }
-    setLoading(true)
-    try {
-      const res = await reportsAPI.adhoc(query, format)
-      toast.success('AI report ready!')
-      onSubmitted(res.data)
-    } catch (err) {
-      toast.error(err.response?.data?.error || 'AI report failed')
-    } finally {
-      setLoading(false)
-    }
+  if (reports.length === 0) {
+    return (
+      <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+        No generated reports yet. Select a template above to generate your first accreditation report.
+      </div>
+    )
   }
 
   return (
-    <form onSubmit={handleSubmit} className="report-form">
-      <div className="adhoc-examples">
-        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Examples:</span>
-        {examples.map((ex, i) => (
-          <button key={i} type="button" className="example-chip"
-                  onClick={() => setQuery(ex)}>
-            {ex}
-          </button>
-        ))}
-      </div>
-
-      <div className="form-group" style={{ marginTop: 12 }}>
-        <label className="form-label">Your report request</label>
-        <textarea
-          id="adhoc-query-input"
-          className="form-textarea"
-          rows={4}
-          placeholder="Describe the report you need…"
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-        />
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">Output Format</label>
-        <div style={{ display: 'flex', gap: 8 }}>
-          {['pdf', 'docx', 'both'].map(f => (
-            <label key={f} className="radio-label">
-              <input type="radio" name="adhoc-format" value={f}
-                     checked={format === f}
-                     onChange={() => setFormat(f)} />
-              {f.toUpperCase()}
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="adhoc-note">
-        <Sparkles size={12} />
-        AI-generated reports use only real data fetched from the system — no hallucinations.
-      </div>
-
-      <button type="submit" className="btn btn-primary" id="btn-generate-adhoc"
-              disabled={loading} style={{ marginTop: 8 }}>
-        {loading
-          ? <><Loader size={14} style={{ animation: 'spin 1s linear infinite' }} /> Generating…</>
-          : <><Sparkles size={14} /> Generate AI Report</>}
-      </button>
-    </form>
-  )
-}
-
-// ── History table ─────────────────────────────────────────────────────────────
-
-function ReportHistoryTable({ reports, onDownload, onRefresh, loading }) {
-  if (loading) return (
-    <div className="spinner-area">
-      <div className="spinner" />
-    </div>
-  )
-
-  if (!reports.length) return (
-    <div className="empty-state">
-      <ClipboardList size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
-      <p>No reports generated yet. Use the forms above to create your first report.</p>
-    </div>
-  )
-
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <button className="btn btn-ghost" onClick={onRefresh}>
-          <RefreshCw size={13} /> Refresh
-        </button>
-      </div>
-      <div className="table-scroll">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Report ID</th>
-              <th>Type</th>
-              <th>Scope</th>
-              <th>Dept</th>
-              <th>Year</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th>Download</th>
+    <div className="table-wrapper">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Report Title</th>
+            <th>Type</th>
+            <th>Department</th>
+            <th>Academic Year</th>
+            <th>Generated On</th>
+            <th>Status</th>
+            <th style={{ textAlign: 'right' }}>Exports</th>
+          </tr>
+        </thead>
+        <tbody>
+          {reports.map(rep => (
+            <tr key={rep.report_id || rep.id}>
+              <td style={{ fontWeight: 600 }}>{rep.title || `Report #${(rep.report_id || rep.id || '').toString().slice(0, 8)}`}</td>
+              <td>
+                <Badge variant="neutral">{rep.report_type || 'SAR'}</Badge>
+              </td>
+              <td>{rep.department_id || 'CSE'}</td>
+              <td className="tabular-nums">{rep.academic_year || '2025-26'}</td>
+              <td style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                {rep.created_at ? new Date(rep.created_at).toLocaleDateString('en-IN') : 'Recent'}
+              </td>
+              <td>
+                {rep.status === 'done' || rep.status === 'completed' ? (
+                  <Badge variant="success">Completed</Badge>
+                ) : rep.status === 'error' || rep.status === 'failed' ? (
+                  <Badge variant="danger">Failed{rep.error_msg ? `: ${rep.error_msg.slice(0, 40)}` : ''}</Badge>
+                ) : (
+                  <Badge variant="warning">Processing</Badge>
+                )}
+              </td>
+              <td style={{ textAlign: 'right' }}>
+                {(rep.status === 'done' || rep.status === 'completed') ? (
+                  <div style={{ display: 'inline-flex', gap: 6 }}>
+                    {rep.has_pdf !== false && (
+                      <button
+                        type="button"
+                        onClick={() => onDownload(rep.report_id, rep.title, 'pdf')}
+                        className="btn btn-secondary btn-sm"
+                        title="Download PDF"
+                      >
+                        <Download size={12} />
+                        <span>PDF</span>
+                      </button>
+                    )}
+                    {rep.has_docx !== false && (
+                      <button
+                        type="button"
+                        onClick={() => onDownload(rep.report_id, rep.title, 'docx')}
+                        className="btn btn-secondary btn-sm"
+                        title="Download Word Document"
+                      >
+                        <Download size={12} />
+                        <span>DOCX</span>
+                      </button>
+                    )}
+                  </div>
+                ) : null}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {reports.map(r => (
-              <tr key={r.report_id}>
-                <td>
-                  <code style={{ fontSize: 11 }}>{r.report_id?.slice(0, 8)}…</code>
-                </td>
-                <td>
-                  <span className={`badge ${r.report_type === 'nba' ? 'badge-blue' : 'badge-purple'}`}>
-                    {r.report_type?.toUpperCase()}
-                  </span>
-                </td>
-                <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {r.scope}
-                </td>
-                <td>{r.department_id || '—'}</td>
-                <td>{r.academic_year || '—'}</td>
-                <td><StatusBadge status={r.status} /></td>
-                <td style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  {r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}
-                </td>
-                <td>
-                  {r.status === 'done' && (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      {r.has_pdf && (
-                        <button className="btn btn-xs" id={`btn-dl-pdf-${r.report_id?.slice(0,8)}`}
-                                onClick={() => onDownload(r.report_id, 'pdf')}>
-                          <Download size={11} /> PDF
-                        </button>
-                      )}
-                      {r.has_docx && (
-                        <button className="btn btn-xs btn-outline" id={`btn-dl-docx-${r.report_id?.slice(0,8)}`}
-                                onClick={() => onDownload(r.report_id, 'docx')}>
-                          <Download size={11} /> DOCX
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  {r.status === 'error' && (
-                    <span style={{ fontSize: 11, color: 'var(--danger)' }}
-                          title={r.error_msg}>Error</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
-
-export default function ReportsPage() {
-  const { user } = useAuth()
-  const [tab, setTab]         = useState('nba')   // 'nba' | 'adhoc'
-  const [reports, setReports] = useState([])
-  const [departments, setDepts] = useState([])
-  const [histLoading, setHistLoading] = useState(true)
-  const pollingRef = useRef(null)
-
-  const isStudent = user?.role === 'student'
-
-  // Students only see adhoc
-  useEffect(() => {
-    if (isStudent) setTab('adhoc')
-  }, [isStudent])
-
-  useEffect(() => {
-    loadDepartments()
-    loadHistory()
-    // Poll every 8s while any report is pending
-    pollingRef.current = setInterval(() => {
-      setReports(prev => {
-        if (prev.some(r => r.status === 'pending')) {
-          loadHistory()
-        }
-        return prev
-      })
-    }, 8000)
-    return () => clearInterval(pollingRef.current)
-  }, [])
-
-  async function loadDepartments() {
-    try {
-      const res = await departmentsAPI.list()
-      setDepts(res.data || [])
-    } catch {}
-  }
-
-  async function loadHistory() {
-    setHistLoading(true)
-    try {
-      const res = await reportsAPI.history()
-      setReports(res.data || [])
-    } catch (err) {
-      console.warn('Could not load report history', err)
-    } finally {
-      setHistLoading(false)
-    }
-  }
-
-  function handleGenerated(job) {
-    setReports(prev => [{ ...job, created_at: new Date().toISOString() }, ...prev])
-  }
-
-  async function handleDownload(reportId, fmt) {
-    try {
-      const res = await reportsAPI.download(reportId, fmt)
-      const url  = URL.createObjectURL(new Blob([res.data],
-        { type: fmt === 'pdf' ? 'application/pdf' :
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }))
-      const a    = document.createElement('a')
-      a.href     = url
-      a.download = `report_${reportId.slice(0,8)}.${fmt}`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch {
-      toast.error('Download failed. The file may not be ready yet.')
-    }
-  }
-
-  return (
-    <div className="page-container">
-      {/* ── Header ── */}
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">
-            <ClipboardList size={22} style={{ verticalAlign: 'middle', marginRight: 8 }} />
-            Reports
-          </h1>
-          <p className="page-subtitle">Generate NBA SAR documents and AI-powered academic reports</p>
-        </div>
-      </div>
-
-      {/* ── Tabs ── */}
-      <div className="reports-tabs">
-        {!isStudent && (
-          <button
-            className={`report-tab ${tab === 'nba' ? 'active' : ''}`}
-            id="tab-nba"
-            onClick={() => setTab('nba')}
-          >
-            <FileText size={15} />
-            NBA SAR Generator
-          </button>
-        )}
-        <button
-          className={`report-tab ${tab === 'adhoc' ? 'active' : ''}`}
-          id="tab-adhoc"
-          onClick={() => setTab('adhoc')}
-        >
-          <Cpu size={15} />
-          AI Report Builder
-        </button>
-      </div>
-
-      {/* ── Active form ── */}
-      <div className="card reports-card">
-        {tab === 'nba' && !isStudent && (
-          <>
-            <div className="card-header">
-              <h3>Generate NBA Self-Assessment Report</h3>
-              <p className="text-secondary" style={{ fontSize: 13, marginTop: 4 }}>
-                Pulls live data from academic records and computes NBA GAPC V4.0 formula scores.
-                Placeholder sections are clearly marked in the output.
-              </p>
-            </div>
-            <NbaForm departments={departments} onSubmitted={handleGenerated} />
-          </>
-        )}
-
-        {tab === 'adhoc' && (
-          <>
-            <div className="card-header">
-              <h3>AI Report Builder</h3>
-              <p className="text-secondary" style={{ fontSize: 13, marginTop: 4 }}>
-                Describe the report you need in plain English. The system fetches real data
-                and uses AI to write the narrative — no invented facts.
-              </p>
-            </div>
-            <AdhocForm onSubmitted={handleGenerated} />
-          </>
-        )}
-      </div>
-
-      {/* ── History ── */}
-      <div className="card" style={{ marginTop: 20 }}>
-        <div className="card-header" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Clock size={16} />
-          <h3>Report History</h3>
-        </div>
-        <ReportHistoryTable
-          reports={reports}
-          onDownload={handleDownload}
-          onRefresh={loadHistory}
-          loading={histLoading}
-        />
-      </div>
-
-      {/* ── Page-local styles ── */}
-      <style>{`
-        .reports-tabs {
-          display: flex;
-          gap: 4px;
-          margin-bottom: 16px;
-          background: var(--bg-800);
-          border-radius: var(--radius-md);
-          padding: 4px;
-        }
-        .report-tab {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 8px 16px;
-          border-radius: var(--radius-sm);
-          border: none;
-          cursor: pointer;
-          font-size: 13.5px;
-          font-weight: 500;
-          color: var(--text-secondary);
-          background: transparent;
-          transition: all 0.15s;
-        }
-        .report-tab:hover { color: var(--text-primary); background: var(--bg-700); }
-        .report-tab.active { color: var(--text-primary); background: var(--bg-600);
-                             box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
-
-        .reports-card { padding: 20px; }
-        .card-header { margin-bottom: 16px; }
-        .card-header h3 { font-size: 15px; font-weight: 600; }
-
-        .report-form { display: flex; flex-direction: column; gap: 8px; }
-        .form-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-
-        .radio-label {
-          display: flex; align-items: center; gap: 6px;
-          font-size: 13px; cursor: pointer;
-          padding: 6px 12px;
-          border: 1px solid var(--border);
-          border-radius: var(--radius-sm);
-          transition: all 0.15s;
-        }
-        .radio-label:has(input:checked) {
-          border-color: var(--primary);
-          background: rgba(99,102,241,0.08);
-          color: var(--primary);
-        }
-        .checkbox-label { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
-
-        .adhoc-examples {
-          display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
-        }
-        .example-chip {
-          font-size: 11.5px; padding: 4px 10px;
-          border: 1px solid var(--border); border-radius: 20px;
-          background: var(--bg-700); color: var(--text-secondary);
-          cursor: pointer; transition: all 0.15s;
-        }
-        .example-chip:hover { border-color: var(--primary); color: var(--primary); }
-
-        .form-textarea {
-          width: 100%; padding: 10px 12px;
-          background: var(--bg-700); border: 1px solid var(--border);
-          border-radius: var(--radius-sm); color: var(--text-primary);
-          font-size: 13.5px; line-height: 1.6; resize: vertical;
-          font-family: inherit;
-        }
-        .form-textarea:focus { outline: none; border-color: var(--primary); }
-
-        .adhoc-note {
-          display: flex; align-items: center; gap: 6px;
-          font-size: 12px; color: var(--text-secondary);
-          padding: 8px 12px; border-radius: var(--radius-sm);
-          background: var(--bg-700); margin-top: 4px;
-        }
-
-        .table-scroll { overflow-x: auto; }
-
-        .badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px; }
-        .badge-blue   { background: rgba(59,130,246,0.15); color: #60a5fa; }
-        .badge-purple { background: rgba(139,92,246,0.15); color: #a78bfa; }
-
-        .btn-xs {
-          font-size: 11px; padding: 3px 8px;
-          display: inline-flex; align-items: center; gap: 4px;
-        }
-        .btn-outline {
-          background: transparent; border: 1px solid var(--border);
-          color: var(--text-secondary);
-        }
-        .btn-outline:hover { border-color: var(--primary); color: var(--primary); }
-
-        .spinner-area { display: flex; justify-content: center; padding: 40px; }
-        .empty-state {
-          display: flex; flex-direction: column; align-items: center;
-          padding: 40px; color: var(--text-secondary); text-align: center;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        @media (max-width: 640px) {
-          .form-grid-2 { grid-template-columns: 1fr; }
-        }
-      `}</style>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

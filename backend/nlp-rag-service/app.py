@@ -16,7 +16,8 @@ def create_app():
     app.config["QDRANT_PORT"]    = int(os.getenv("QDRANT_PORT", 6333))
     app.config["QDRANT_COLLECTION"] = os.getenv("QDRANT_COLLECTION", "academiq_docs")
     app.config["LLM_BACKEND"]   = os.getenv("LLM_BACKEND", "groq")
-    app.config["LLM_MODEL"]     = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+    raw_model                   = os.getenv("LLM_MODEL", "openai/gpt-oss-20b")
+    app.config["LLM_MODEL"]     = "openai/gpt-oss-20b" if "llama-3.1-8b" in raw_model else raw_model
     app.config["OPENAI_API_KEY"]= os.getenv("OPENAI_API_KEY", "")
     app.config["OPENAI_BASE_URL"]= os.getenv("OPENAI_BASE_URL", "https://api.groq.com/openai/v1")
     app.config["OLLAMA_HOST"]   = os.getenv("OLLAMA_HOST", "http://ollama:11434")

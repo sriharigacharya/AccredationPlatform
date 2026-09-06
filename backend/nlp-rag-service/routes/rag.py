@@ -12,6 +12,13 @@ rag_bp = Blueprint("rag", __name__)
 logger = logging.getLogger(__name__)
 
 
+def _require_staff():
+    role = request.headers.get("X-User-Role", "").lower()
+    if role in ("student", "worker"):
+        return jsonify({"error": f"Role '{role}' is not permitted to query AI document features"}), 403
+    return None
+
+
 @rag_bp.post("/query")
 def rag_query():
     """
@@ -28,6 +35,10 @@ def rag_query():
         "sources": [ { "doc_id", "doc_type", "text", "score" }, ... ]
     }
     """
+    err = _require_staff()
+    if err:
+        return err
+
     data       = request.get_json(force=True) or {}
     query      = data.get("query", "").strip()
     collection = data.get("collection", current_app.config["QDRANT_COLLECTION"])
@@ -92,6 +103,10 @@ def summarize():
     Body: { "text": "...", "max_length": 200 }
     Returns: { "summary": "..." }
     """
+    err = _require_staff()
+    if err:
+        return err
+
     data   = request.get_json(force=True) or {}
     text   = data.get("text", "").strip()
     max_len= int(data.get("max_length", 200))
@@ -149,6 +164,7 @@ def narrate():
     bullets       = data.get("bullets", [])
     style         = data.get("style", "sar_tier_ii")
     max_words     = int(data.get("max_words", 300))
+    system_prompt = data.get("system_prompt")
 
     if not bullets:
         return jsonify({"error": "bullets is required and must be non-empty"}), 400
@@ -162,6 +178,7 @@ def narrate():
             bullets=bullets,
             style=style,
             max_words=max_words,
+            system_prompt=system_prompt,
         )
         return jsonify({"narrative": narrative, "section_id": section_id})
     except Exception as e:

@@ -39,7 +39,7 @@ def generate_answer(app, query: str, context: str) -> str:
     Backends: ollama | openai | groq (openai-compatible)
     """
     backend = app.config.get("LLM_BACKEND", "groq")
-    model   = app.config.get("LLM_MODEL", "llama-3.1-8b-instant")
+    model   = app.config.get("LLM_MODEL", "openai/gpt-oss-20b")
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
@@ -72,8 +72,9 @@ def _generate_openai_compatible(api_key: str, base_url: str, model: str, message
                 "(get a free key at console.groq.com). Context retrieved successfully.")
 
     try:
+        import httpx
         from openai import OpenAI
-        client = OpenAI(api_key=api_key, base_url=base_url)
+        client = OpenAI(api_key=api_key, base_url=base_url, http_client=httpx.Client())
         resp   = client.chat.completions.create(
             model=model,
             messages=messages,
@@ -106,30 +107,38 @@ def generate_narrative(
     bullets: list[str],
     style: str = "sar_tier_ii",
     max_words: int = 300,
+    system_prompt: str | None = None,
 ) -> str:
     """
-    Generate formal SAR narrative prose from structured bullet points.
-    Uses a dedicated system prompt appropriate for NBA accreditation writing.
+    Generate narrative prose from structured bullet points.
+    Uses a dedicated system prompt appropriate for the requested report style.
     NEVER mutates module-level SYSTEM_PROMPT.
     NEVER introduces facts not present in the bullets (grounding contract).
     """
     backend = app.config.get("LLM_BACKEND", "groq")
-    model   = app.config.get("LLM_MODEL", "llama-3.1-8b-instant")
+    model   = app.config.get("LLM_MODEL", "openai/gpt-oss-20b")
 
-    system_prompt = (
-        NARRATE_SYSTEM_PROMPT_JSON if style == "json_only"
-        else NARRATE_SYSTEM_PROMPT_SAR
-    )
+    if system_prompt:
+        active_prompt = system_prompt
+    elif style == "json_only":
+        active_prompt = NARRATE_SYSTEM_PROMPT_JSON
+    else:
+        active_prompt = NARRATE_SYSTEM_PROMPT_SAR
 
     bullet_text = "\n".join(f"- {b}" for b in bullets)
+    prose_instruction = (
+        f"Write formal SAR prose, maximum {max_words} words:"
+        if style == "sar_tier_ii"
+        else f"Write grounded narrative prose for {section_title}, maximum {max_words} words:"
+    )
     user_content = (
         f"Section: {section_id} — {section_title}\n\n"
         f"Bullet points (these are ALL the facts you may use):\n{bullet_text}\n\n"
-        f"Write formal SAR prose, maximum {max_words} words:"
+        f"{prose_instruction}"
     )
 
     messages = [
-        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": active_prompt},
         {"role": "user",   "content": user_content},
     ]
 

@@ -106,6 +106,9 @@ services:
     env_file: .env
     environment:
       - SERVICE_PORT=8002
+    volumes:
+      - ./backend/academic-data-service/event_uploads:/app/event_uploads
+      - ./backend/academic-data-service/achievement_photos:/app/achievement_photos
     depends_on:
       postgres:
         condition: service_healthy
@@ -284,6 +287,8 @@ services:
       - "3000:3000"
     environment:
       - VITE_API_URL=http://localhost:8000/api/v1
+    volumes:
+      - ./frontend/app/src:/app/src
     depends_on:
       - api-gateway
     networks: [academiq-net]

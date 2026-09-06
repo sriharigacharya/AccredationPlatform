@@ -122,6 +122,14 @@ def create_student():
 
 
 
+def _find_student(student_id):
+    """Lookup student by canonical student_id or primary key id."""
+    query_filter = (Student.student_id == student_id)
+    if str(student_id).isdigit():
+        query_filter = query_filter | (Student.id == int(student_id))
+    return Student.query.filter(query_filter).first_or_404()
+
+
 @students_bp.get("/<student_id>")
 def get_student(student_id):
     """
@@ -131,10 +139,11 @@ def get_student(student_id):
     role      = _get_role()
     linked_id = _get_linked_id()
 
-    if _is_readonly_role(role) and student_id != linked_id:
+    s = _find_student(student_id)
+
+    if _is_readonly_role(role) and student_id != linked_id and s.student_id != linked_id:
         return jsonify({"error": "You can only view your own record"}), 403
 
-    s = Student.query.filter_by(student_id=student_id).first_or_404()
     return jsonify(s.to_dict(include_dept=True))
 
 
@@ -145,7 +154,7 @@ def update_student(student_id):
     if _is_readonly_role(role):
         return jsonify({"error": "Students cannot modify records"}), 403
 
-    s = Student.query.filter_by(student_id=student_id).first_or_404()
+    s = _find_student(student_id)
     data = request.get_json(force=True) or {}
 
     for field in ["name", "email", "phone", "semester", "attendance_pct", "internal_marks",
@@ -173,7 +182,7 @@ def delete_student(student_id):
     if role not in ("admin",):
         return jsonify({"error": "Admin access required to delete records"}), 403
 
-    s = Student.query.filter_by(student_id=student_id).first_or_404()
+    s = _find_student(student_id)
     db.session.delete(s)
     db.session.commit()
     return jsonify({"message": "Student deleted"}), 200
@@ -189,10 +198,10 @@ def student_analytics(student_id):
     role      = _get_role()
     linked_id = _get_linked_id()
 
-    if _is_readonly_role(role) and student_id != linked_id:
-        return jsonify({"error": "You can only view your own analytics"}), 403
+    s = _find_student(student_id)
 
-    s = Student.query.filter_by(student_id=student_id).first_or_404()
+    if _is_readonly_role(role) and student_id != linked_id and s.student_id != linked_id:
+        return jsonify({"error": "You can only view your own analytics"}), 403
 
     # Rule-based risk flags
     risks = []
@@ -215,7 +224,7 @@ def student_analytics(student_id):
                    "low"    if risks else "none"
 
     return jsonify({
-        "student_id":   student_id,
+        "student_id":   s.student_id,
         "overall_risk": overall_risk,
         "risk_flags":   risks,
         "performance_summary": {

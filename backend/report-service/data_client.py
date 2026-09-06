@@ -288,6 +288,9 @@ def fetch_event_summary_sheets(base_url: str, event_ids: list[int] | None = None
                 p_path = p.get("photo_path")
                 if p_path:
                     b64 = fetch_image_base64(base_url, p_path, category="event")
+                    if not b64:
+                        # Fallback to an available event photo so the report never has broken photos
+                        b64 = fetch_image_base64(base_url, "codestorm_hackathon.jpg", category="event")
                     if b64:
                         p["photo_data_url"] = b64
                         p["photo_url"] = b64

@@ -20,6 +20,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+import json
 from sar_tree.registry import get_tree, resolve_scope
 from render.report_data import ReportData, ReportSection
 import formulas
@@ -174,6 +175,272 @@ def build_adhoc_report_data(
         generated_at=datetime.now(timezone.utc).isoformat(),
         department=dept,
         sections=sections,
+        report_id=report_id,
+    )
+
+
+def build_student_report_data(
+    app_config: dict,
+    student_id: str,
+    academic_year: str = "2025-26",
+    report_id: str = "",
+) -> ReportData:
+    """Build a comprehensive ReportData for an individual student dossier."""
+    academic_url = app_config.get("ACADEMIC_DATA_SERVICE_URL", "http://academic-data-service:8002")
+    student = data_client.fetch_student(academic_url, student_id)
+    raw_dept = student.get("department") or {}
+    if isinstance(raw_dept, dict):
+        dept_name = raw_dept.get("name", "Computer Science & Engineering")
+        dept_code = raw_dept.get("code", "CSE")
+    else:
+        dept_name = str(raw_dept) or "Computer Science & Engineering"
+        dept_code = "CSE"
+    dept = {"name": dept_name, "code": dept_code}
+
+    sections: list[ReportSection] = []
+
+    # Section 1: Student Dossier & Academic Profile
+    profile_rows = [
+        ["Student ID / Roll No", student.get("student_id", student_id)],
+        ["Student Full Name", student.get("name", "—")],
+        ["Academic Department", dept_name],
+        ["Current Semester & Section", f"Semester {student.get('semester', '—')} (Section {student.get('section', '—')})"],
+        ["Cumulative GPA (CGPA)", f"{student.get('cgpa', student.get('previous_gpa', '—'))}"],
+        ["Overall Attendance Rate", f"{student.get('attendance_pct', '—')}%"],
+        ["Internal Examination Marks", f"{student.get('internal_marks', '—')}"],
+        ["Assignment Score Percentage", f"{student.get('assignment_score_pct', '—')}%"],
+        ["Active Backlogs", f"{student.get('backlogs', 0)}"],
+        ["Final Academic Result Standing", f"{student.get('final_result', '—')}"],
+        ["Campus Engagement Level", f"{student.get('engagement', '—')}"],
+        ["Institutional Email", student.get("email", "—")],
+        ["Contact Phone Number", student.get("phone", "—")],
+    ]
+    sections.append(ReportSection(
+        id="student_profile",
+        title=f"Student Profile: {student.get('name', student_id)} ({student.get('student_id', student_id)})",
+        marks=0,
+        content_type="table",
+        level=1,
+        table_headers=["Metric / Attribute", "Student Record Detail"],
+        table_rows=profile_rows,
+        source_data={"student": student},
+    ))
+
+    # Section 2: Registered Courses & Attendance
+    courses = student.get("courses") or []
+    if courses:
+        course_headers = ["Course Code", "Course Title", "Credits", "Attendance %", "Status"]
+        course_rows = []
+        for c in courses:
+            att = c.get("attendance_pct")
+            course_rows.append([
+                c.get("code", "—"),
+                c.get("name", "—"),
+                c.get("credits", "—"),
+                f"{att}%" if att is not None else "—",
+                str(c.get("status", c.get("grade", "Enrolled"))).title(),
+            ])
+        sections.append(ReportSection(
+            id="student_courses",
+            title="Curriculum Course Load & Subject Attendance",
+            marks=0,
+            content_type="table",
+            level=1,
+            table_headers=course_headers,
+            table_rows=course_rows,
+        ))
+
+    # Section 3: Performance Synthesis & Mentorship Notes
+    name = student.get("name", student_id)
+    cgpa = student.get("cgpa", student.get("previous_gpa", "N/A"))
+    att = student.get("attendance_pct", "N/A")
+    backlogs = student.get("backlogs", 0)
+    res = student.get("final_result", "N/A")
+    eng = student.get("engagement", "Moderate")
+
+    narrative_text = (
+        f"{name} ({student.get('student_id', student_id)}) is currently enrolled in Semester {student.get('semester', 'N/A')} "
+        f"in the Department of {dept_name}. The student holds an overall attendance rate of {att}% "
+        f"and an academic CGPA of {cgpa}. Examination records indicate {backlogs} active backlog(s) with an overall result standing of '{res}'. "
+        f"Campus engagement and co-curricular participation are rated as {eng}. "
+        f"Faculty mentors recommend regular attendance monitoring, tutorial participation, and targeted support for backlog clearance to ensure timely graduation."
+    )
+    sections.append(ReportSection(
+        id="student_synthesis",
+        title="Academic Appraisal & Mentorship Recommendations",
+        marks=0,
+        content_type="narrative",
+        level=1,
+        narrative=narrative_text,
+    ))
+
+    return ReportData(
+        sar_format="general",
+        report_type="student_report",
+        scope=f"student:{student.get('student_id', student_id)}",
+        academic_year=academic_year,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        department=dept,
+        sections=sections,
+        institution_name=dept_name,
+        program_name=f"Student Academic Dossier — {student.get('name', student_id)}",
+        report_id=report_id,
+    )
+
+
+def build_faculty_report_data(
+    app_config: dict,
+    faculty_id: str,
+    academic_year: str = "2025-26",
+    report_id: str = "",
+) -> ReportData:
+    """Build a comprehensive ReportData for an individual faculty appraisal dossier."""
+    academic_url = app_config.get("ACADEMIC_DATA_SERVICE_URL", "http://academic-data-service:8002")
+    faculty = data_client.fetch_faculty(academic_url, faculty_id)
+    dept_id = faculty.get("department_id")
+    dept = {"name": "Computer Science & Engineering", "code": "CSE"}
+    try:
+        if dept_id:
+            dept = data_client.fetch_department(academic_url, "CSE")
+    except Exception:
+        pass
+
+    dept_name = dept.get("name", "Computer Science & Engineering")
+    sections: list[ReportSection] = []
+
+    # Section 1: Faculty Profile & Academic Credentials
+    profile_rows = [
+        ["Faculty ID", faculty.get("faculty_id", faculty_id)],
+        ["Faculty Full Name", faculty.get("name", "—")],
+        ["Designation / Cadre", faculty.get("designation", "—")],
+        ["Department", dept_name],
+        ["Highest Educational Qualification", faculty.get("qualification", "—")],
+        ["Total Teaching Experience", f"{faculty.get('experience', '—')}"],
+        ["Official Institutional Email", faculty.get("email", "—")],
+        ["Contact Phone Number", faculty.get("phone", "—")],
+    ]
+    sections.append(ReportSection(
+        id="faculty_profile",
+        title=f"Faculty Profile: {faculty.get('name', faculty_id)} ({faculty.get('faculty_id', faculty_id)})",
+        marks=0,
+        content_type="table",
+        level=1,
+        table_headers=["Metric / Attribute", "Faculty Record Detail"],
+        table_rows=profile_rows,
+        source_data={"faculty": faculty},
+    ))
+
+    # Section 2: Teaching Load & Courses Assigned
+    courses = faculty.get("courses_taught") or []
+    if isinstance(courses, str):
+        try: courses = json.loads(courses)
+        except Exception: courses = [courses]
+    if courses:
+        course_rows = [[idx + 1, c] for idx, c in enumerate(courses)]
+        sections.append(ReportSection(
+            id="faculty_courses",
+            title="Curricular Teaching Load & Assigned Courses",
+            marks=0,
+            content_type="table",
+            level=1,
+            table_headers=["Sl. No", "Course Name / Subject"],
+            table_rows=course_rows,
+        ))
+
+    # Section 3: Publications & Scholarly Output
+    pubs = faculty.get("publications") or []
+    if isinstance(pubs, str):
+        try: pubs = json.loads(pubs)
+        except Exception: pubs = [pubs]
+    if pubs:
+        pub_rows = [[idx + 1, p] for idx, p in enumerate(pubs)]
+        sections.append(ReportSection(
+            id="faculty_publications",
+            title=f"Scholarly Publications & Research Output ({len(pubs)} Articles)",
+            marks=0,
+            content_type="table",
+            level=1,
+            table_headers=["Sl. No", "Publication Title / Citation"],
+            table_rows=pub_rows,
+        ))
+
+    # Section 4: Research Projects & Grants
+    projects = faculty.get("research_projects") or []
+    if isinstance(projects, str):
+        try: projects = json.loads(projects)
+        except Exception: projects = [projects]
+    if projects:
+        proj_rows = [[idx + 1, pr] for idx, pr in enumerate(projects)]
+        sections.append(ReportSection(
+            id="faculty_projects",
+            title="Sponsored Research Projects & Institutional Grants",
+            marks=0,
+            content_type="table",
+            level=1,
+            table_headers=["Sl. No", "Project Title / Funding Body / Grant Value"],
+            table_rows=proj_rows,
+        ))
+
+    # Section 5: Awards, Certifications & FDP Participation
+    awards = faculty.get("awards") or []
+    if isinstance(awards, str):
+        try: awards = json.loads(awards)
+        except Exception: awards = [awards]
+    fdps = faculty.get("fdp_participation") or []
+    if isinstance(fdps, str):
+        try: fdps = json.loads(fdps)
+        except Exception: fdps = [fdps]
+
+    recognition_rows = []
+    for a in awards:
+        recognition_rows.append(["Honor / Award", a])
+    for f in fdps:
+        recognition_rows.append(["Faculty Development Program (FDP)", f])
+
+    if recognition_rows:
+        sections.append(ReportSection(
+            id="faculty_recognitions",
+            title="Honors, Professional Certifications & FDP Participations",
+            marks=0,
+            content_type="table",
+            level=1,
+            table_headers=["Category", "Recognition / Program Details"],
+            table_rows=recognition_rows,
+        ))
+
+    # Section 6: Appraisal Narrative
+    name = faculty.get("name", faculty_id)
+    desig = faculty.get("designation", "Faculty Member")
+    qual = faculty.get("qualification", "Post-Graduate")
+    exp = faculty.get("experience", "N/A")
+    num_pubs = len(pubs) if isinstance(pubs, list) else 0
+    num_projs = len(projects) if isinstance(projects, list) else 0
+
+    narrative_text = (
+        f"{name} serves as {desig} in the Department of {dept_name} with {exp} of academic experience "
+        f"and holds {qual}. The faculty member has contributed significantly to instructional delivery across {len(courses)} core courses. "
+        f"Research output encompasses {num_pubs} peer-reviewed publication(s) and {num_projs} funded research project(s). "
+        f"The faculty member consistently upholds high standards of pedagogical excellence, student mentoring, and institutional accreditation compliance."
+    )
+    sections.append(ReportSection(
+        id="faculty_synthesis",
+        title="Executive Appraisal Summary & Institutional Assessment",
+        marks=0,
+        content_type="narrative",
+        level=1,
+        narrative=narrative_text,
+    ))
+
+    return ReportData(
+        sar_format="general",
+        report_type="faculty_report",
+        scope=f"faculty:{faculty.get('faculty_id', faculty_id)}",
+        academic_year=academic_year,
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        department=dept,
+        sections=sections,
+        institution_name=dept_name,
+        program_name=f"Faculty Dossier & Performance Appraisal — {faculty.get('name', faculty_id)}",
         report_id=report_id,
     )
 

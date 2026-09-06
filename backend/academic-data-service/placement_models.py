@@ -49,6 +49,7 @@ class StudentPlacement(db.Model):
             "academic_year":          self.academic_year,
             "final_year_cohort_year": self.final_year_cohort_year,
             "verified_by_admin":      self.verified_by_admin,
+            "is_verified":            bool(self.verified_by_admin),
             "verified_by":            self.verified_by,
             "verified_at":            self.verified_at.isoformat() if self.verified_at else None,
             "submitted_at":           self.submitted_at.isoformat() if self.submitted_at else None,
@@ -58,6 +59,7 @@ class StudentPlacement(db.Model):
             from models import Student
             stu = Student.query.filter_by(student_id=self.student_id).first()
             if stu:
+                d["student_name"] = stu.name
                 d["student"] = {
                     "name":       stu.name,
                     "email":      stu.email,
