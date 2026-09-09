@@ -165,7 +165,7 @@
         {% for row in section.table_rows %}
         <tr style="background-color: {{ '#f7fafc' if loop.index0 % 2 == 1 else '#ffffff' }};">
           {% for cell in row %}
-          <td style="border: 1pt solid #cbd5e0; padding: 5pt 8pt;">{{ cell }}</td>
+          <td style="border: 1pt solid #cbd5e0; padding: 5pt 8pt; white-space: pre-line;">{{ cell }}</td>
           {% endfor %}
         </tr>
         {% endfor %}

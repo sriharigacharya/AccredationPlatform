@@ -78,34 +78,43 @@ def _enrich_event(event, include_photos=True):
 
 
 @events_bp.post("/clubs/<int:club_id>/events")
-def create_event(club_id):
+@events_bp.post("/events")
+@events_bp.post("/events/")
+def create_event(club_id=None):
     """
-    POST /clubs/:id/events (multipart/form-data)
+    POST /clubs/:id/events or POST /events (multipart/form-data)
 
     Form fields: title, event_type, description, venue, event_date,
                  attendee_count, guest_names (JSON), report_text,
-                 po_mapping?, resource_person?, skill_orientation?
+                 po_mapping?, resource_person?, skill_orientation?, club_id?
     Files: photos (multiple, optional)
 
     Who can submit:
       - student with head|council role in this club → submitted_via=club_head
-      - worker role → submitted_via=worker
-      - admin role → submitted_via=admin
+      - student (any member or enrolled student)   → submitted_via=student
+      - worker role                               → submitted_via=worker
+      - admin role                                → submitted_via=admin
     """
     ctx = _get_user_context()
+
+    if club_id is None:
+        club_id = request.form.get("club_id", type=int)
+        if not club_id:
+            return jsonify({"error": "club_id is required"}), 400
+
     club = Club.query.get_or_404(club_id)
 
     # Determine submitted_via and organized_by
     if ctx["role"] == "student":
+        student_id = ctx.get("linked_id") or ctx.get("user_id") or "student"
         sr = StudentRole.query.filter_by(
-            club_id=club_id, student_id=ctx["linked_id"]
+            club_id=club_id, student_id=student_id
         ).first()
-        if not sr or sr.role not in ("head", "council"):
-            return jsonify({
-                "error": "Only Club Head or Council members can submit events"
-            }), 403
-        submitted_via = "club_head"
-        organized_by  = ctx["linked_id"]
+        if sr and sr.role in ("head", "council"):
+            submitted_via = "club_head"
+        else:
+            submitted_via = "student"
+        organized_by = student_id
     elif ctx["role"] == "worker":
         submitted_via = "worker"
         # Worker must specify organized_by_student_id
@@ -245,12 +254,15 @@ def list_club_events(club_id):
         if created_by == "me":
             query = query.filter_by(organized_by_student_id=ctx["linked_id"])
         else:
-            # Students can see all events in clubs where they have a role
             sr = StudentRole.query.filter_by(
                 club_id=club_id, student_id=ctx["linked_id"]
             ).first()
             if not sr:
-                return jsonify({"error": "You are not a member of this club"}), 403
+                student_id = ctx.get("linked_id")
+                conds = [Event.status == "approved"]
+                if student_id:
+                    conds.append(Event.organized_by_student_id == student_id)
+                query = query.filter(db.or_(*conds))
 
     elif ctx["role"] == "teacher":
         # Teachers can only see events in clubs they mentor
@@ -304,9 +316,15 @@ def list_all_events():
         elif user_role == "student":
             my_roles = StudentRole.query.filter_by(student_id=ctx["linked_id"]).all()
             my_club_ids = [r.club_id for r in my_roles]
-            if not my_club_ids:
-                return jsonify([])
-            query = Event.query.filter(Event.club_id.in_(my_club_ids))
+            student_id = ctx.get("linked_id")
+
+            conds = [Event.status == "approved"]
+            if my_club_ids:
+                conds.append(Event.club_id.in_(my_club_ids))
+            if student_id:
+                conds.append(Event.organized_by_student_id == student_id)
+
+            query = Event.query.filter(db.or_(*conds))
             if status and status in VALID_EVENT_STATUSES:
                 query = query.filter_by(status=status)
         else:

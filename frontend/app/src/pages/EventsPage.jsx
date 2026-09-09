@@ -41,24 +41,24 @@ export default function EventsPage() {
   const { user } = useAuth()
   const role = user?.role || 'student'
 
-  const [clubs, setClubs]               = useState([])
-  const [events, setEvents]             = useState([])
-  const [facultyList, setFacultyList]   = useState([])
+  const [clubs, setClubs] = useState([])
+  const [events, setEvents] = useState([])
+  const [facultyList, setFacultyList] = useState([])
   const [studentsList, setStudentsList] = useState([])
   const [studentRoles, setStudentRoles] = useState([])
-  const [loading, setLoading]           = useState(true)
+  const [loading, setLoading] = useState(true)
 
-  const [activeTab, setActiveTab]       = useState(role === 'admin' ? 'clubs' : 'events')
+  const [activeTab, setActiveTab] = useState(role === 'admin' ? 'clubs' : 'events')
   const [selectedClubId, setSelectedClubId] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
-  const [searchQuery, setSearchQuery]   = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Modals
   const [showSubmitModal, setShowSubmitModal] = useState(false)
-  const [showClubModal, setShowClubModal]     = useState(false)
-  const [showRoleModal, setShowRoleModal]     = useState(false)
-  const [reviewingEvent, setReviewingEvent]   = useState(null)
-  const [viewingEvent, setViewingEvent]       = useState(null)
+  const [showClubModal, setShowClubModal] = useState(false)
+  const [showRoleModal, setShowRoleModal] = useState(false)
+  const [reviewingEvent, setReviewingEvent] = useState(null)
+  const [viewingEvent, setViewingEvent] = useState(null)
 
   // Mentor Review Form
   const [reviewData, setReviewData] = useState({
@@ -134,7 +134,7 @@ export default function EventsPage() {
     try {
       const res = await eventsAPI.listAll()
       setEvents(res.data || [])
-    } catch (_) {}
+    } catch (_) { }
   }
 
   useEffect(() => {
@@ -223,10 +223,25 @@ export default function EventsPage() {
     }
 
     try {
-      await eventsAPI.create(formData)
+      await eventsAPI.create(eventForm.club_id, formData)
       toast.success('Event proposal submitted for faculty review!')
       setShowSubmitModal(false)
       setSelectedPhotos([])
+      setEventForm({
+        club_id: '',
+        title: '',
+        event_type: 'workshop',
+        event_date: '',
+        venue: '',
+        attendee_count: '',
+        guest_names: '',
+        description: '',
+        report_text: '',
+        po_mapping: '',
+        resource_person: '',
+        skill_orientation: '',
+        organized_by_student_id: user?.linked_id || '',
+      })
       loadEvents()
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to submit event')

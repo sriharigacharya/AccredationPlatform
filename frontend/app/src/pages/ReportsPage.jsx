@@ -57,8 +57,8 @@ const REPORT_TYPES = [
   {
     id: 'custom',
     label: 'Custom AI Report Builder',
-    badge: 'RAG Grounded',
-    desc: 'Bespoke accreditation report with user-specified section headings and narrative instructions.',
+    badge: 'Direct Relational AI',
+    desc: 'Bespoke accreditation report with user-specified section headings, course allocations, CIE marks, or custom narrative instructions.',
     icon: Sparkles,
   },
 ]
@@ -720,9 +720,12 @@ function GeneralReportForm({ departments, reportType, onGenerated }) {
             </div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {[
+                { label: '📚 Faculty Course Allocations', prompt: 'Create a report on courses assigned to each faculty', title: 'Faculty Course Allocation & Teaching Workload Report' },
                 { label: '📊 Students CIE Marks & Attendance', prompt: 'Create a report of all the students cie marks and attendence..', title: 'Student Continuous Internal Evaluation (CIE) & Attendance Report' },
+                { label: '💼 Placements & Career Outcomes', prompt: 'Generate a comprehensive report on placement statistics, salary packages, and career outcomes', title: 'Department Campus Placement & Career Outcomes Report' },
                 { label: '🏆 Club Activities & Hackathons', prompt: 'Create a comprehensive report on all club activities, hackathons, and student participation', title: 'Student Clubs & Co-Curricular Activities Comprehensive Report' },
                 { label: '👨‍🏫 Faculty Research & Dossier', prompt: 'Create a detailed report on faculty members, publications, and active research projects', title: 'Faculty Appraisal & Academic Research Portfolio Report' },
+                { label: '🏅 Faculty FDP & Certifications', prompt: 'Create a report on faculty development programmes (FDP), pedagogy training, and industry certifications', title: 'Faculty Development & Pedagogy Training Report' },
                 { label: '⚠️ Attendance Shortage & At-Risk', prompt: 'Generate an academic intervention report for students with attendance shortage (<75%) and low CIE marks', title: 'Attendance Shortage & Student Academic Risk Report' },
               ].map(tpl => (
                 <button
