@@ -1491,20 +1491,41 @@ function FacultySubSection({ title, items, icon: Icon, color }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {items.map((item, idx) => (
-          <div
-            key={idx}
-            style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              lineHeight: 1.45,
-              paddingLeft: 8,
-              borderLeft: `2px solid ${color}`,
-            }}
-          >
-            {item}
-          </div>
-        ))}
+        {items.map((item, idx) => {
+          const isCert = title.toLowerCase().includes('certification')
+          return (
+            <div
+              key={idx}
+              style={{
+                fontSize: '12px',
+                color: 'var(--text-secondary)',
+                lineHeight: 1.45,
+                paddingLeft: 8,
+                borderLeft: `2px solid ${color}`,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <span>{item}</span>
+              {isCert && (
+                <span style={{
+                  fontSize: '9.5px',
+                  fontWeight: 700,
+                  color: 'var(--success)',
+                  background: 'rgba(16, 185, 129, 0.12)',
+                  border: '1px solid rgba(16, 185, 129, 0.25)',
+                  borderRadius: '10px',
+                  padding: '1px 6px',
+                  whiteSpace: 'nowrap',
+                }}>
+                  Verified
+                </span>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

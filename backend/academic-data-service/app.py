@@ -20,25 +20,50 @@ from routes.placements     import placements_bp
 from routes.student_achievements import student_achievements_bp
 from routes.historical_data import historical_data_bp
 from routes.classes import classes_bp
+from routes.timetable import timetable_bp
+from routes.attendance import attendance_bp
+from routes.leave import leave_bp
+from routes.notifications import notifications_bp
+from routes.admin_review import admin_review_bp
+
 import event_models        # noqa: F401
 import placement_models    # noqa: F401
 import achievement_models  # noqa: F401
 import historical_models   # noqa: F401 — ensure tables are registered with SQLAlchemy
+import timetable_models    # noqa: F401
 
 
 def create_app():
     app = Flask(__name__)
     CORS(app)
 
-    pg_user = os.getenv("POSTGRES_USER", "academiq")
-    pg_pass = os.getenv("POSTGRES_PASSWORD", "academiq_pass")
-    pg_host = os.getenv("POSTGRES_HOST", "postgres")
-    pg_port = os.getenv("POSTGRES_PORT", "5432")
-    pg_db   = os.getenv("POSTGRES_DB", "academiq")
+    # Ensure attendance proofs storage directory exists
+    proofs_dir = os.path.join(os.path.dirname(__file__), "attendance_proofs")
+    os.makedirs(proofs_dir, exist_ok=True)
+    app.config["ATTENDANCE_PROOFS_FOLDER"] = proofs_dir
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = (
-        f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
-    )
+    db_url = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URI")
+    if not db_url:
+        try:
+            import psycopg2  # noqa: F401
+            has_psycopg2 = True
+        except ImportError:
+            has_psycopg2 = False
+
+        if has_psycopg2 and os.getenv("POSTGRES_HOST"):
+            pg_user = os.getenv("POSTGRES_USER", "academiq")
+            pg_pass = os.getenv("POSTGRES_PASSWORD", "academiq_pass")
+            pg_host = os.getenv("POSTGRES_HOST", "postgres")
+            pg_port = os.getenv("POSTGRES_PORT", "5432")
+            pg_db   = os.getenv("POSTGRES_DB", "academiq")
+            db_url  = f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
+        else:
+            sqlite_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "academiq.db"))
+            db_url = f"sqlite:///{sqlite_path}"
+            print(f"[*] Defaulting to local SQLite database: {db_url}")
+
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     db.init_app(app)
@@ -50,6 +75,12 @@ def create_app():
     app.register_blueprint(clubs_bp,                url_prefix="/clubs")
     app.register_blueprint(student_roles_bp,        url_prefix="/student-roles")
     app.register_blueprint(classes_bp,              url_prefix="/classes")
+    app.register_blueprint(timetable_bp,            url_prefix="/timetable")
+    app.register_blueprint(attendance_bp,           url_prefix="/attendance")
+    app.register_blueprint(leave_bp,                url_prefix="/leave")
+    app.register_blueprint(notifications_bp,        url_prefix="/notifications")
+    app.register_blueprint(admin_review_bp,         url_prefix="/admin-review")
+
     app.register_blueprint(events_bp)               # routes use /clubs/:id/events + /events/
     app.register_blueprint(placements_bp)           # routes use /profile/placement + /placements/
     app.register_blueprint(student_achievements_bp) # routes use /student-achievements + /achievement-proofs/
@@ -60,7 +91,7 @@ def create_app():
     def health():
         return {"status": "ok", "service": "academic-data-service"}
 
-    with app.app_context():
+    def _init_db_and_seed():
         db.create_all()
         _run_db_migrations()
         _seed_demo_data()
@@ -68,8 +99,26 @@ def create_app():
         _seed_demo_placements()
         _seed_demo_achievements()
         _seed_demo_historical_data()
+        _auto_seed_timetable()
+        _seed_mock_completed_event()
+
+    try:
+        with app.app_context():
+            _init_db_and_seed()
+    except Exception as e:
+        err_msg = str(e).lower()
+        if any(keyword in err_msg for keyword in ["could not translate host", "connection refused", "is the server running", "failed to connect", "no such host"]):
+            print(f"[*] PostgreSQL not accessible -> Falling back to local SQLite database (academiq.db)...")
+            sqlite_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "academiq.db"))
+            app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{sqlite_path}"
+            with app.app_context():
+                _init_db_and_seed()
+        else:
+            raise e
 
     return app
+
+
 
 
 def _run_db_migrations():
@@ -84,8 +133,11 @@ def _run_db_migrations():
         "ALTER TABLE departments ADD COLUMN IF NOT EXISTS industry_interaction TEXT",
         "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS course_code VARCHAR(32)",
         "ALTER TABLE assignments ADD COLUMN IF NOT EXISTS course_name VARCHAR(128)",
+        "ALTER TABLE faculty ADD COLUMN IF NOT EXISTS initials VARCHAR(20)",
+        "ALTER TABLE faculty ADD COLUMN IF NOT EXISTS is_course_coordinator BOOLEAN DEFAULT FALSE",
         """
         CREATE TABLE IF NOT EXISTS faculty_profile_updates (
+
             id SERIAL PRIMARY KEY,
             faculty_id VARCHAR(50) NOT NULL,
             status VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -108,6 +160,58 @@ def _run_db_migrations():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        # ── Event Lifecycle Migrations ─────────────────────────────────────
+        "ALTER TABLE events ADD COLUMN IF NOT EXISTS time_slot VARCHAR(100)",
+        "ALTER TABLE events ADD COLUMN IF NOT EXISTS start_time VARCHAR(10)",
+        "ALTER TABLE events ADD COLUMN IF NOT EXISTS end_time VARCHAR(10)",
+        "ALTER TABLE events ADD COLUMN IF NOT EXISTS is_completed BOOLEAN DEFAULT FALSE",
+        """
+        CREATE TABLE IF NOT EXISTS event_registrations (
+            id SERIAL PRIMARY KEY,
+            event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+            student_id VARCHAR(50) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'registered',
+            registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_event_registration UNIQUE (event_id, student_id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS event_attendance_awards (
+            id SERIAL PRIMARY KEY,
+            event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+            student_id VARCHAR(50) NOT NULL,
+            course_code VARCHAR(50) NOT NULL,
+            section VARCHAR(10) NOT NULL,
+            class_session_id INTEGER NOT NULL REFERENCES class_attendance_sessions(id) ON DELETE CASCADE,
+            faculty_id VARCHAR(50) NOT NULL,
+            awarded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT uq_event_student_course_award UNIQUE (event_id, student_id, course_code, section)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS teacher_event_attendance_requests (
+            id SERIAL PRIMARY KEY,
+            faculty_id VARCHAR(50) NOT NULL,
+            course_name VARCHAR(255) NOT NULL,
+            event_type VARCHAR(100) NOT NULL DEFAULT 'Workshop',
+            organizer VARCHAR(255),
+            event_date DATE NOT NULL,
+            start_time VARCHAR(10),
+            end_time VARCHAR(10),
+            is_full_day BOOLEAN DEFAULT TRUE,
+            description TEXT,
+            certificate_filename VARCHAR(255) NOT NULL,
+            certificate_original_name VARCHAR(255),
+            certificate_file_type VARCHAR(100),
+            status VARCHAR(20) NOT NULL DEFAULT 'pending',
+            requested_by VARCHAR(50) NOT NULL,
+            reviewed_by VARCHAR(50),
+            reviewed_at TIMESTAMP,
+            admin_remarks TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
     ]
     for sql in migrations:
         try:
@@ -117,10 +221,35 @@ def _run_db_migrations():
             db.session.rollback()
 
 
+def _auto_seed_timetable():
 
+    """Auto-ingest timetable if TimetableSlot is empty."""
+    from timetable_models import TimetableSlot
+    try:
+        count = TimetableSlot.query.count()
+        if count == 0:
+            print("[*] Timetable slots empty — running auto-ingestion...")
+            from scripts.ingest_timetable import ingest_all
+            ingest_all()
+    except Exception as e:
+        print(f"[*] Note: Timetable auto-ingestion check: {e}")
+
+
+def _seed_mock_completed_event():
+    """Seed a rich mock completed event with student attendee roster if not present."""
+    from event_models import Event
+    try:
+        completed_count = Event.query.filter_by(is_completed=True).count()
+        if completed_count == 0:
+            print("[*] No completed events found — running mock completed event seeding...")
+            from scripts.seed_mock_completed_event import seed_completed_event
+            seed_completed_event()
+    except Exception as e:
+        print(f"[*] Note: Mock completed event seeding check: {e}")
 
 
 def _seed_demo_data():
+
     """Insert demo students + faculty if DB is empty.
     
     Layout:

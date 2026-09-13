@@ -216,6 +216,17 @@ export const eventsAPI = {
   reject: (id, data) => api.patch(`/events/${id}/reject`, data),
 
   photos: (id) => api.get(`/events/${id}/photos`),
+
+  // ── Event Lifecycle ──
+  register:              (id) => api.post(`/events/${id}/register`),
+  cancelRegistration:    (id) => api.post(`/events/${id}/cancel-registration`),
+  getRegistrations:      (id) => api.get(`/events/${id}/registrations`),
+  submitAttendance:      (id, data) => api.post(`/events/${id}/attendance`, data),
+  submitPostEventReport: (id, formData) => api.post(`/events/${id}/post-event`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  awardClassAttendance:  (id, data) => api.post(`/events/${id}/award-class-attendance`, data),
+  getAwards:             (id) => api.get(`/events/${id}/awards`),
 }
 
 // ── Classes & Evaluations (Attendance & Marks) ────────────────────────────────
@@ -311,6 +322,55 @@ export const historicalAPI = {
   },
 }
 
+// ── Timetable ─────────────────────────────────────────────────────────────────
+export const timetableAPI = {
+  getMeta: () => api.get('/timetable/meta'),
+  getFaculty: (id, params) => api.get(`/timetable/faculty/${id}`, { params }),
+  getSection: (id, params) => api.get(`/timetable/section/${id}`, { params }),
+  getSlots: (params) => api.get('/timetable/slots', { params }),
+  getRooms: (params) => api.get('/timetable/rooms', { params }),
+}
 
+// ── Faculty Attendance & Biometric Punch ─────────────────────────────────────
+export const attendanceAPI = {
+  punch: (data) => api.post('/attendance/punch', data),
+  getToday: (params) => api.get('/attendance/today', { params }),
+  getFacultyHistory: (id, params) => api.get(`/attendance/faculty/${id}`, { params }),
+  manualRecord: (data) => api.post('/attendance/manual', data),
+  resetDemo: () => api.post('/attendance/reset-demo'),
 
+  // Event Attendance Requests & Certificate Proofs
+  submitEventRequest: (formData) => api.post('/attendance/event-requests', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  listEventRequests: (params) => api.get('/attendance/event-requests', { params }),
+  getEventRequest: (id) => api.get(`/attendance/event-requests/${id}`),
+  approveEventRequest: (id, data) => api.post(`/attendance/event-requests/${id}/approve`, data),
+  rejectEventRequest: (id, data) => api.post(`/attendance/event-requests/${id}/reject`, data),
+  cancelEventRequest: (id) => api.delete(`/attendance/event-requests/${id}`),
+  getProofUrl: (filename) => `${API_URL}/attendance/proofs/${filename}`,
+}
 
+// ── Leave Management ──────────────────────────────────────────────────────────
+export const leaveAPI = {
+  preview: (data) => api.post('/leave/preview-affected', data),
+  submit: (data) => api.post('/leave', data),
+  cancel: (id) => api.delete(`/leave/${id}`),
+  assignSubstitute: (id, data) => api.post(`/leave/${id}/substitute`, data),
+  list: (params) => api.get('/leave', { params }),
+}
+
+// ── Schedule Notifications (Student Absence Alerts) ───────────────────────────
+export const notificationsAPI = {
+  getForStudent: (studentId, params) => api.get(`/notifications/student/${studentId}`, { params }),
+  markRead: (id) => api.post(`/notifications/${id}/read`),
+  markAllRead: (studentId) => api.post(`/notifications/student/${studentId}/mark-all-read`),
+}
+
+// ── Admin Review Queue ────────────────────────────────────────────────────────
+export const adminReviewAPI = {
+  listLegend: (params) => api.get('/admin-review/legend', { params }),
+  confirmSubject: (id, data) => api.put(`/admin-review/legend/${id}`, data),
+  listWarnings: (params) => api.get('/admin-review/warnings', { params }),
+  resolveWarning: (id, data) => api.put(`/admin-review/warnings/${id}/resolve`, data),
+}

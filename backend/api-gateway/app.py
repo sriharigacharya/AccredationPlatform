@@ -18,8 +18,13 @@ def create_app():
     CORS(app, origins=["http://localhost:3000", "http://frontend:3000"])
 
     # Service URLs
-    app.config["AUTH_SERVICE_URL"]         = os.getenv("AUTH_SERVICE_URL",         "http://auth-service:8001")
-    app.config["ACADEMIC_DATA_SERVICE_URL"]= os.getenv("ACADEMIC_DATA_SERVICE_URL","http://academic-data-service:8002")
+    in_docker = os.path.exists("/.dockerenv") or bool(os.getenv("DOCKER_ENV"))
+    default_host = "academic-data-service" if in_docker else "127.0.0.1"
+    default_auth_host = "auth-service" if in_docker else "127.0.0.1"
+
+    app.config["AUTH_SERVICE_URL"]          = os.getenv("AUTH_SERVICE_URL",          f"http://{default_auth_host}:8001")
+    app.config["ACADEMIC_DATA_SERVICE_URL"] = os.getenv("ACADEMIC_DATA_SERVICE_URL",  f"http://{default_host}:8002")
+
     app.config["PARENT_CONTACT_SERVICE_URL"]= os.getenv("PARENT_CONTACT_SERVICE_URL","http://parent-contact-service:8003")
     app.config["DOCUMENT_SERVICE_URL"]     = os.getenv("DOCUMENT_SERVICE_URL",     "http://document-service:8004")
     app.config["NLP_RAG_SERVICE_URL"]      = os.getenv("NLP_RAG_SERVICE_URL",      "http://nlp-rag-service:8005")

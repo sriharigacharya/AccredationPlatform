@@ -22,6 +22,11 @@ import EventsPage         from './pages/EventsPage'
 import HistoricalDataPage from './pages/HistoricalDataPage'
 import TeacherClassesPage from './pages/TeacherClassesPage'
 
+import MockDeviceKiosk    from './pages/MockDeviceKiosk'
+import TimetablePage      from './pages/TimetablePage'
+import FacultyAttendancePage from './pages/FacultyAttendancePage'
+
+
 // ── Route guard ────────────────────────────────────────────────────────────────
 function ProtectedRoute({ children, roles }) {
   const { user, loading } = useAuth()
@@ -106,6 +111,24 @@ function AppRoutes() {
         path="/login"
         element={user ? <Navigate to={ROLE_HOME[user.role] || '/dashboard'} replace /> : <LoginPage />}
       />
+
+      {/* Standalone Biometric Terminal Kiosk (Public / Gate Terminal) */}
+      <Route path="/mock-device" element={<MockDeviceKiosk />} />
+
+      {/* Timetable — admin + teacher + student */}
+      <Route path="/timetable" element={
+        <ProtectedRoute roles={['admin', 'teacher', 'student']}>
+          <AppLayout><TimetablePage /></AppLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Faculty Attendance & Live Roster — admin + teacher */}
+      <Route path="/faculty-attendance" element={
+        <ProtectedRoute roles={['admin', 'teacher']}>
+          <AppLayout><FacultyAttendancePage /></AppLayout>
+        </ProtectedRoute>
+      } />
+
 
       {/* Admin + Teacher shared dashboard */}
       <Route path="/dashboard" element={

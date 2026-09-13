@@ -409,6 +409,9 @@ class Faculty(db.Model):
     qualification= db.Column(db.String(200))
     experience   = db.Column(db.String(100))
 
+    initials     = db.Column(db.String(20), nullable=True)
+    is_course_coordinator = db.Column(db.Boolean, default=False)
+
     # Stored as JSON strings
     courses_taught   = db.Column(db.Text)  # JSON list
     publications     = db.Column(db.Text)  # JSON list
@@ -434,6 +437,8 @@ class Faculty(db.Model):
             "id":             self.id,
             "faculty_id":     self.faculty_id,
             "name":           self.name,
+            "initials":       self.initials,
+            "is_course_coordinator": bool(self.is_course_coordinator),
             "email":          self.email,
             "phone":          self.phone,
             "department_id":  self.department_id,
@@ -448,6 +453,7 @@ class Faculty(db.Model):
             "awards":            safe_json(self.awards),
             "created_at":        self.created_at.isoformat(),
         }
+
 
 
 class FacultyProfileUpdate(db.Model):
@@ -718,4 +724,19 @@ class ClassAttendanceEntry(db.Model):
             "student_id": self.student_id,
             "status":     self.status,
         }
+
+
+# Register Timetable, Attendance & Leave Notification models
+from timetable_models import (  # noqa: E402, F401
+    Subject,
+    Section,
+    StudentEnrollment,
+    TimetableSlot,
+    AttendanceEvent,
+    FacultyDailyAttendance,
+    LeaveNotice,
+    ScheduleNotification,
+    IngestionWarning,
+)
+
 

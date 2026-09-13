@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, GraduationCap, FileText,
   MessageSquare, Phone, Settings, LogOut, BookOpen,
   Upload, User, ClipboardList, Calendar, ClipboardCheck,
-  X
+  Clock, Fingerprint, X
 } from 'lucide-react'
 
 const NAV_SECTIONS = [
@@ -14,20 +14,23 @@ const NAV_SECTIONS = [
     items: [
       { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard',   roles: ['admin', 'teacher'] },
       { to: '/my-record',  icon: User,            label: 'My Record',   roles: ['student'] },
+      { to: '/timetable',  icon: Clock,           label: 'Timetable',   roles: ['admin', 'teacher', 'student'] },
       { to: '/documents',  icon: FileText,        label: 'Documents',   roles: ['admin', 'teacher', 'worker'] },
     ],
   },
   {
     label: 'Academic Operations',
     items: [
-      { to: '/classes',         icon: ClipboardCheck, label: 'Classes & Marks', roles: ['admin', 'teacher'] },
-      { to: '/students',        icon: Users,          label: 'Students',        roles: ['admin', 'teacher'] },
-      { to: '/faculty',         icon: GraduationCap,  label: 'Faculty',         roles: ['admin', 'teacher'] },
-      { to: '/assignments',     icon: BookOpen,       label: 'Assignments',     roles: ['admin', 'teacher', 'student'] },
-      { to: '/events',          icon: Calendar,       label: 'Events & Clubs',  roles: ['admin', 'teacher', 'student', 'worker'] },
-      { to: '/historical-data', icon: Upload,         label: 'Historical Data', roles: ['admin', 'teacher', 'worker'] },
+      { to: '/faculty-attendance', icon: Fingerprint,   label: 'Faculty Attendance', roles: ['admin', 'teacher'] },
+      { to: '/classes',            icon: ClipboardCheck, label: 'Classes & Marks',    roles: ['admin', 'teacher'] },
+      { to: '/students',           icon: Users,          label: 'Students',           roles: ['admin', 'teacher'] },
+      { to: '/faculty',            icon: GraduationCap,  label: 'Faculty',            roles: ['admin', 'teacher'] },
+      { to: '/assignments',        icon: BookOpen,       label: 'Assignments',        roles: ['admin', 'teacher', 'student'] },
+      { to: '/events',             icon: Calendar,       label: 'Events & Clubs',     roles: ['admin', 'teacher', 'student', 'worker'] },
+      { to: '/historical-data',    icon: Upload,         label: 'Historical Data',    roles: ['admin', 'teacher', 'worker'] },
     ],
   },
+
   {
     label: 'Intelligence & Reports',
     items: [

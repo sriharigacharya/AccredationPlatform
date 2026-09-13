@@ -58,6 +58,18 @@ ROUTE_TABLE = [
     ("/assignments",    "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
     ("/classes",        "ACADEMIC_DATA_SERVICE_URL",  True, _STAFF),
 
+    ("/timetable/meta", "ACADEMIC_DATA_SERVICE_URL",  False, None),
+    ("/timetable",      "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
+    ("/attendance/punch","ACADEMIC_DATA_SERVICE_URL", False, None),
+    ("/attendance/today","ACADEMIC_DATA_SERVICE_URL", False, None),
+    ("/attendance/reset-demo", "ACADEMIC_DATA_SERVICE_URL", False, None),
+    ("/attendance",     "ACADEMIC_DATA_SERVICE_URL",  True, _STAFF),
+    ("/attendance-proofs","ACADEMIC_DATA_SERVICE_URL", True, _STAFF),
+    ("/leave",          "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
+    ("/notifications",  "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
+    ("/admin-review",   "ACADEMIC_DATA_SERVICE_URL",  True, _ADMIN),
+
+
 
     # ── Clubs & Events ────────────────────────────────────────
     # Fine-grained role checks (mentor-only approve, head/council submit)

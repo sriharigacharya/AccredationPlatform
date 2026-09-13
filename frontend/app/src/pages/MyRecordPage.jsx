@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import {
   studentsAPI, predictAPI, parentsAPI, assignmentsAPI,
-  placementsAPI, achievementsAPI
+  placementsAPI, achievementsAPI, notificationsAPI
 } from '../api/client'
+
 import { useAuth } from '../context/AuthContext'
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, ResponsiveContainer,
@@ -86,8 +87,7 @@ export default function MyRecordPage() {
     remarks: '',
   })
   const [proofDocFile, setProofDocFile] = useState(null)
-  const [photoFiles, setPhotoFiles] = useState([])
-
+  const [scheduleNotifs, setScheduleNotifs] = useState([])
   const [loading, setLoading] = useState(true)
 
   const fetchMyAchievements = () => {
@@ -107,11 +107,14 @@ export default function MyRecordPage() {
       assignmentsAPI.myList().catch(() => ({ data: [] })),
       placementsAPI.myPlacement().catch(() => ({ data: null })),
       achievementsAPI.myList().catch(() => ({ data: [] })),
-    ]).then(([s, p, a, pl, ach]) => {
+      notificationsAPI.getForStudent(user.linked_id).catch(() => ({ data: { notifications: [] } })),
+    ]).then(([s, p, a, pl, ach, notifRes]) => {
       setStudent(s.data)
       setParent(p?.data || null)
       setAssignments(a?.data || [])
       setAchievements(ach?.data || [])
+      setScheduleNotifs(notifRes?.data?.notifications || [])
+
       if (pl?.data) {
         setPlacement(pl.data)
         setPlacementForm({
@@ -258,8 +261,70 @@ export default function MyRecordPage() {
       />
 
       <div className="page-body">
+        {/* ── Schedule Absence / Cancellation Alerts Banner ── */}
+        {scheduleNotifs.length > 0 && (
+          <div style={{
+            background: 'var(--warning-subtle)',
+            border: '1px solid var(--warning-border)',
+            borderRadius: '12px',
+            padding: '16px 20px',
+            marginBottom: 'var(--space-6)',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--warning)', fontWeight: 700, fontSize: '14px' }}>
+                <AlertTriangle size={18} />
+                <span>Class Schedule Updates & Faculty Absence Notices ({scheduleNotifs.length})</span>
+              </div>
+              <button
+                onClick={() => {
+                  notificationsAPI.markAllRead(user.linked_id)
+                    .then(() => {
+                      setScheduleNotifs([])
+                      toast.success('Alerts acknowledged')
+                    })
+                }}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}
+              >
+                Dismiss All
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {scheduleNotifs.map(n => (
+                <div
+                  key={n.id}
+                  style={{
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '13px', color: n.is_retracted ? 'var(--success)' : 'var(--text-primary)' }}>
+                      {n.title}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                      {n.message}
+                    </div>
+                  </div>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                    {n.sent_at_display}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ── Summary Cards ── */}
         <div className="stats-grid" style={{ marginBottom: 'var(--space-6)' }}>
+
           <StatCard
             label="Current SGPA"
             value={sgpa ? sgpa.toFixed(2) : 'Pending'}

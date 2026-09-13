@@ -1,6 +1,6 @@
 """
 Event Models — AcademiQ
-Tables: clubs, student_roles, events, event_photos
+Tables: clubs, student_roles, events, event_photos, event_registrations, event_attendance_awards
 """
 
 from flask_sqlalchemy import SQLAlchemy
@@ -15,6 +15,21 @@ VALID_EVENT_TYPES     = ("hackathon", "workshop", "seminar", "webinar", "competi
                          "social_outreach", "other")
 VALID_SUBMITTED_VIA   = ("club_head", "worker", "admin")
 VALID_EVENT_STATUSES  = ("pending", "approved", "rejected")
+
+
+# ── Lifecycle Enums ────────────────────────────────────────────────────────────
+class EventStatus:
+    PENDING   = "pending"
+    APPROVED  = "approved"
+    REJECTED  = "rejected"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
+class EventAttendanceStatus:
+    REGISTERED = "registered"
+    PRESENT    = "present"
+    ABSENT     = "absent"
+    WALK_IN    = "walk_in"
 
 
 class Club(db.Model):
@@ -112,8 +127,15 @@ class Event(db.Model):
     reviewed_at             = db.Column(db.DateTime)
     rejection_reason        = db.Column(db.Text)
 
+    # ── Scheduler / Lifecycle fields ───────────────────────────────────────────
+    time_slot               = db.Column(db.String(100))   # e.g. "11:00 AM - 01:00 PM"
+    start_time              = db.Column(db.String(10))    # 24h "HH:MM" e.g. "11:00"
+    end_time                = db.Column(db.String(10))    # 24h "HH:MM" e.g. "13:00"
+    is_completed            = db.Column(db.Boolean, default=False, nullable=False)
+
     # Relationships
-    photos = db.relationship("EventPhoto", backref="event", lazy=True, cascade="all, delete-orphan")
+    photos        = db.relationship("EventPhoto",        backref="event", lazy=True, cascade="all, delete-orphan")
+    registrations = db.relationship("EventRegistration", backref="event", lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self, include_photos=False):
         import json
@@ -138,6 +160,11 @@ class Event(db.Model):
             "reviewed_by":             self.reviewed_by,
             "reviewed_at":             self.reviewed_at.isoformat() if self.reviewed_at else None,
             "rejection_reason":        self.rejection_reason,
+            # Scheduler / lifecycle fields
+            "time_slot":               self.time_slot,
+            "start_time":              self.start_time,
+            "end_time":                self.end_time,
+            "is_completed":            bool(self.is_completed),
         }
         if include_photos:
             d["photos"] = [p.to_dict() for p in self.photos]
@@ -172,6 +199,66 @@ class EventPhoto(db.Model):
         }
 
 
+# ── Event Registration (Student RSVP) ─────────────────────────────────────────
+
+class EventRegistration(db.Model):
+    __tablename__ = "event_registrations"
+
+    id            = db.Column(db.Integer, primary_key=True)
+    event_id      = db.Column(db.Integer, db.ForeignKey("events.id", ondelete="CASCADE"),
+                              nullable=False, index=True)
+    student_id    = db.Column(db.String(50), nullable=False, index=True)
+    status        = db.Column(db.String(20), nullable=False, default=EventAttendanceStatus.REGISTERED)
+    registered_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("event_id", "student_id", name="uq_event_registration"),
+    )
+
+    def to_dict(self):
+        return {
+            "id":            self.id,
+            "event_id":      self.event_id,
+            "student_id":    self.student_id,
+            "status":        self.status,
+            "registered_at": self.registered_at.isoformat() if self.registered_at else None,
+        }
+
+
+# ── Event Attendance Award (Faculty Duty Attendance) ───────────────────────────
+
+class EventAttendanceAward(db.Model):
+    __tablename__ = "event_attendance_awards"
+
+    id               = db.Column(db.Integer, primary_key=True)
+    event_id         = db.Column(db.Integer, db.ForeignKey("events.id", ondelete="CASCADE"),
+                                 nullable=False, index=True)
+    student_id       = db.Column(db.String(50), nullable=False, index=True)
+    course_code      = db.Column(db.String(50), nullable=False, index=True)
+    section          = db.Column(db.String(10), nullable=False)
+    class_session_id = db.Column(db.Integer, db.ForeignKey("class_attendance_sessions.id", ondelete="CASCADE"),
+                                 nullable=False, index=True)
+    faculty_id       = db.Column(db.String(50), nullable=False)
+    awarded_at       = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint("event_id", "student_id", "course_code", "section",
+                            name="uq_event_student_course_award"),
+    )
+
+    def to_dict(self):
+        return {
+            "id":               self.id,
+            "event_id":         self.event_id,
+            "student_id":       self.student_id,
+            "course_code":      self.course_code,
+            "section":          self.section,
+            "class_session_id": self.class_session_id,
+            "faculty_id":       self.faculty_id,
+            "awarded_at":       self.awarded_at.isoformat() if self.awarded_at else None,
+        }
+
+
 
 def _safe_json(val):
     """Parse JSON string or return raw value."""
@@ -182,3 +269,5 @@ def _safe_json(val):
         return json.loads(val)
     except Exception:
         return val
+
+
