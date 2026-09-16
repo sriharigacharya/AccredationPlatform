@@ -76,6 +76,8 @@ class StudentAchievement(db.Model):
             "submitted_via":       self.submitted_via,
             "submitted_by":        self.submitted_by,
             "verification_status": self.verification_status,
+            "status":              self.verification_status,
+            "is_verified":         self.verification_status == "verified",
             "rejection_reason":    self.rejection_reason,
             "verified_by":         self.verified_by,
             "verified_at":         self.verified_at.isoformat() if self.verified_at else None,
@@ -83,14 +85,17 @@ class StudentAchievement(db.Model):
             "updated_at":          self.updated_at.isoformat() if self.updated_at else None,
             "is_team":             len(self.student_ids or []) > 1,
             "team_size":           len(self.student_ids or [self.student_id]),
+            "student_name":        self.student_id,
         }
 
         if include_students:
             from models import Student
             primary_student = Student.query.filter_by(student_id=self.student_id).first()
+            s_name = primary_student.name if primary_student else self.student_id
+            data["student_name"] = s_name
             data["student"] = {
                 "student_id": self.student_id,
-                "name": primary_student.name if primary_student else self.student_id,
+                "name": s_name,
                 "section": primary_student.section if primary_student else None,
                 "semester": primary_student.semester if primary_student else None,
             }

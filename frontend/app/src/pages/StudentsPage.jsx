@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { studentsAPI, predictAPI, placementsAPI, achievementsAPI } from '../api/client'
 import {
-  Search, Plus, ChevronRight, AlertTriangle, Users, Filter,
+  Search, Plus, ChevronRight, ChevronLeft, AlertTriangle, Users, Filter,
   Briefcase, ShieldCheck, CheckCircle2, ExternalLink, Clock,
   Unlock, Award, Trophy, Medal, FileCheck, XCircle, Image,
   Tag, X, Check, Eye, AlertCircle, Info, RefreshCw, Layers, FileText
@@ -15,11 +15,11 @@ import Tabs from '../components/Tabs'
 import Modal from '../components/Modal'
 import EmptyState from '../components/EmptyState'
 
-const SECTION_META = {
-  A: { label: 'Section A', sem: 'Sem 3' },
-  B: { label: 'Section B', sem: 'Sem 5' },
-  C: { label: 'Section C', sem: 'Sem 7' },
-}
+const COHORT_META = [
+  { sem: 3, label: 'Year II · Semester 3', desc: 'NBA Table 4.4 Cohort (Intake 180)' },
+  { sem: 5, label: 'Year III · Semester 5', desc: 'NBA Table 4.3 Cohort (Intake 180)' },
+  { sem: 7, label: 'Year IV · Semester 7', desc: 'Class of 2026 (Table 4.5 Cohort)' },
+]
 
 export default function StudentsPage() {
   const [activeTab, setActiveTab]   = useState('students')
@@ -43,7 +43,7 @@ export default function StudentsPage() {
   const [achievements, setAchievements] = useState([])
   const [achievementsReport, setAchievementsReport] = useState(null)
   const [achievementSubTab, setAchievementSubTab] = useState('queue')
-  const [achievementStatusFilter, setAchievementStatusFilter] = useState('pending')
+  const [achievementStatusFilter, setAchievementStatusFilter] = useState('all')
   const [achievementTypeFilter, setAchievementTypeFilter] = useState('all')
   const [achievementYearFilter, setAchievementYearFilter] = useState('all')
   const [loadingAchievements, setLoadingAchievements] = useState(false)
@@ -86,7 +86,7 @@ export default function StudentsPage() {
     setLoadingPlacements(true)
     Promise.all([
       placementsAPI.list({ cohort_year: cohortFilter }),
-      placementsAPI.summary(),
+      placementsAPI.summary({ cohort_year: cohortFilter }),
     ]).then(([listRes, sumRes]) => {
       setPlacements(listRes.data || [])
       setPlacementSummary(sumRes.data || null)
@@ -273,14 +273,37 @@ export default function StudentsPage() {
     studentsAPI.list({}).then(r => setAllStudents(r.data)).catch(() => {})
   }, [])
 
-  const sectionSummary = useMemo(() => {
-    const counts = { A: { total: 0, pass: 0, fail: 0 }, B: { total: 0, pass: 0, fail: 0 }, C: { total: 0, pass: 0, fail: 0 } }
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 50
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [search, semFilter, sectionFilter, riskFilter])
+
+  const cohortSummary = useMemo(() => {
+    const counts = {
+      3: { total: 0, pass: 0, fail: 0, meanGpa: '0.00' },
+      5: { total: 0, pass: 0, fail: 0, meanGpa: '0.00' },
+      7: { total: 0, pass: 0, fail: 0, meanGpa: '0.00' },
+    }
+    const gpas = { 3: [], 5: [], 7: [] }
     allStudents.forEach(s => {
-      const sec = s.section
-      if (!counts[sec]) return
-      counts[sec].total++
-      if (s.final_result === 'Pass') counts[sec].pass++
-      else if (s.final_result === 'Fail') counts[sec].fail++
+      const sem = s.semester
+      if (!counts[sem]) counts[sem] = { total: 0, pass: 0, fail: 0, meanGpa: '0.00' }
+      if (!gpas[sem]) gpas[sem] = []
+      counts[sem].total++
+      if (s.final_result === 'Pass') {
+        counts[sem].pass++
+        const g = Number(s.previous_gpa || s.cgpa || 0)
+        if (g > 0) gpas[sem].push(g)
+      } else if (s.final_result === 'Fail') {
+        counts[sem].fail++
+      }
+    })
+    Object.keys(gpas).forEach(sem => {
+      if (gpas[sem].length > 0) {
+        counts[sem].meanGpa = (gpas[sem].reduce((a, b) => a + b, 0) / gpas[sem].length).toFixed(2)
+      }
     })
     return counts
   }, [allStudents])
@@ -304,6 +327,35 @@ export default function StudentsPage() {
       return true
     })
   }, [students, risks, riskFilter])
+
+  const totalPages = Math.ceil(displayedStudents.length / pageSize) || 1
+  const pagedStudents = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return displayedStudents.slice(start, start + pageSize)
+  }, [displayedStudents, currentPage, pageSize])
+  const placedCount = placementSummary?.placed_count ?? placements.filter(p => p.status === 'placed').length
+  const higherCount = placementSummary?.higher_studies_count ?? placements.filter(p => p.status === 'higher_studies').length
+  const verifiedCount = placements.filter(p => p.is_verified || p.verified_by_admin).length
+  const verifiedRatio = placementSummary?.verified_ratio ?? (placements.length > 0 ? Math.round((verifiedCount / placements.length) * 100) : 0)
+
+  let medCtcText = placementSummary?.median_ctc ? `${placementSummary.median_ctc} LPA` : null
+  if (!medCtcText) {
+    const ctcs = placements
+      .filter(p => p.status === 'placed' && p.ctc_or_stipend)
+      .map(p => {
+        const m = p.ctc_or_stipend.match(/(\d+(?:\.\d+)?)/)
+        return m ? parseFloat(m[1]) : null
+      })
+      .filter(v => v !== null)
+      .sort((a, b) => a - b)
+    if (ctcs.length > 0) {
+      const mid = Math.floor(ctcs.length / 2)
+      const val = ctcs.length % 2 !== 0 ? ctcs[mid] : ((ctcs[mid - 1] + ctcs[mid]) / 2).toFixed(1)
+      medCtcText = `${val} LPA`
+    } else {
+      medCtcText = '—'
+    }
+  }
 
   return (
     <div>
@@ -341,15 +393,15 @@ export default function StudentsPage() {
         {/* ── TAB 1: ALL STUDENTS ── */}
         {activeTab === 'students' && (
           <div>
-            {/* Section Cohort Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 'var(--space-4)' }}>
-              {Object.entries(SECTION_META).map(([sec, meta]) => {
-                const s = sectionSummary[sec]
-                const isActive = sectionFilter === sec
+            {/* Year / Semester Cohort Summary Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginBottom: 'var(--space-4)' }}>
+              {COHORT_META.map(meta => {
+                const c = cohortSummary[meta.sem] || { total: 0, pass: 0, fail: 0, meanGpa: '0.00' }
+                const isActive = semFilter === String(meta.sem)
                 return (
                   <div
-                    key={sec}
-                    onClick={() => setSectionFilter(isActive ? '' : sec)}
+                    key={meta.sem}
+                    onClick={() => setSemFilter(isActive ? '' : String(meta.sem))}
                     style={{
                       padding: '12px 16px',
                       borderRadius: 'var(--radius-md)',
@@ -361,13 +413,18 @@ export default function StudentsPage() {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                       <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
-                        {meta.label} · {meta.sem}
+                        {meta.label}
                       </span>
-                      <Badge variant="neutral">{s.total} Enrolled</Badge>
+                      <Badge variant="neutral">{c.total} Enrolled</Badge>
                     </div>
-                    <div style={{ display: 'flex', gap: 12, fontSize: '12px' }}>
-                      <span style={{ color: 'var(--success)' }}>● {s.pass} Passing</span>
-                      <span style={{ color: s.fail > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>● {s.fail} Backlogs</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                        <span style={{ color: 'var(--success)' }}>● {c.pass} Pass</span>
+                        <span style={{ color: c.fail > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>● {c.fail} Fail</span>
+                      </div>
+                      {Number(c.meanGpa) > 0 && (
+                        <span style={{ fontWeight: 600, color: 'var(--primary)' }}>Mean CGPA: {c.meanGpa}</span>
+                      )}
                     </div>
                   </div>
                 )
@@ -466,26 +523,36 @@ export default function StudentsPage() {
                       </td>
                     </tr>
                   ) : (
-                    displayedStudents.map(s => {
+                    pagedStudents.map(s => {
                       const risk = risks[s.student_id] || risks[s.id]
                       const riskLevel = risk?.risk_level || 'Low'
                       return (
                         <tr key={s.id || s.student_id}>
                           <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{s.student_id || s.id}</td>
                           <td>
-                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.name}</span>
+                              {s.is_club_head && (
+                                <Badge variant="primary" style={{ fontSize: '10px', padding: '1px 6px' }}>
+                                  👑 Club Head{s.lead_clubs?.[0]?.name ? `: ${s.lead_clubs[0].name}` : ''}
+                                </Badge>
+                              )}
+                            </div>
                             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.email}</div>
                           </td>
                           <td>
                             <Badge variant="neutral">Sem {s.semester} · Sec {s.section}</Badge>
                           </td>
                           <td className="tabular-nums">
-                            <span style={{
-                              fontWeight: 600,
-                              color: (s.attendance_pct ?? s.attendance_rate ?? 75) < 75 ? 'var(--danger)' : 'var(--text-primary)'
-                            }}>
-                              {s.attendance_pct ?? s.attendance_rate ?? 75}%
-                            </span>
+                            {(() => {
+                              const attVal = Number(s.attendance_pct ?? s.attendance_rate ?? 75)
+                              const attColor = attVal < 75 ? 'var(--danger)' : attVal < 85 ? 'var(--warning)' : 'var(--success)'
+                              return (
+                                <span style={{ fontWeight: 700, color: attColor }}>
+                                  {attVal.toFixed(1)}%
+                                </span>
+                              )
+                            })()}
                           </td>
                           <td className="tabular-nums" style={{ fontWeight: 600 }}>
                             {s.previous_gpa ? Number(s.previous_gpa).toFixed(2) : '—'}
@@ -524,20 +591,67 @@ export default function StudentsPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {displayedStudents.length > pageSize && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px 16px',
+                  backgroundColor: 'var(--bg-surface)',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1px solid var(--border-default)',
+                  marginTop: 12,
+                }}
+              >
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  Showing <strong style={{ color: 'var(--text-primary)' }}>{(currentPage - 1) * pageSize + 1}</strong> to{' '}
+                  <strong style={{ color: 'var(--text-primary)' }}>
+                    {Math.min(currentPage * pageSize, displayedStudents.length)}
+                  </strong>{' '}
+                  of <strong style={{ color: 'var(--text-primary)' }}>{displayedStudents.length}</strong> students
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <ChevronLeft size={14} />
+                    <span>Previous</span>
+                  </button>
+                  <span style={{ fontSize: '13px', fontWeight: 600, padding: '0 8px', color: 'var(--text-secondary)' }}>
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <span>Next</span>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {/* ── TAB 2: PLACEMENTS (CRITERION 4.5) ── */}
         {activeTab === 'placements' && (
           <div>
-            {placementSummary && (
-              <div className="stats-grid" style={{ marginBottom: 'var(--space-4)' }}>
-                <StatCard label="Campus Placed" value={placementSummary.placed_count || 0} subtext="Direct Industry Offers" variant="success" icon={Briefcase} />
-                <StatCard label="Higher Education" value={placementSummary.higher_studies_count || 0} subtext="GATE / GRE Admitted" variant="primary" icon={Award} />
-                <StatCard label="Verified Ratio" value={`${placementSummary.verified_ratio || 0}%`} subtext="Criterion 4.5 Compliance" variant="info" icon={ShieldCheck} />
-                <StatCard label="Median Package" value={placementSummary.median_ctc ? `${placementSummary.median_ctc} LPA` : '—'} subtext="Annual CTC Index" variant="default" icon={Trophy} />
+            <div className="stats-grid" style={{ marginBottom: 'var(--space-4)' }}>
+                <StatCard label="Campus Placed" value={placedCount} subtext="Direct Industry Offers" variant="success" icon={Briefcase} />
+                <StatCard label="Higher Education" value={higherCount} subtext="GATE / GRE Admitted" variant="primary" icon={Award} />
+                <StatCard label="Verified Ratio" value={`${verifiedRatio}%`} subtext="Criterion 4.5 Compliance" variant="info" icon={ShieldCheck} />
+                <StatCard label="Median Package" value={medCtcText} subtext="Annual CTC Index" variant="default" icon={Trophy} />
               </div>
-            )}
 
             <div className="card" style={{ marginBottom: 'var(--space-4)', padding: '12px 16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
@@ -671,21 +785,43 @@ export default function StudentsPage() {
         {/* ── TAB 3: ACHIEVEMENTS (CRITERION 4.6.3) ── */}
         {activeTab === 'achievements' && (
           <div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 'var(--space-4)' }}>
-              <button
-                type="button"
-                className={`btn btn-sm ${achievementSubTab === 'queue' ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setAchievementSubTab('queue')}
-              >
-                Verification Queue ({achievements.filter(a => a.status === 'pending').length} Pending)
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${achievementSubTab === 'report' ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setAchievementSubTab('report')}
-              >
-                Criterion 4.6.3 Summary Index
-              </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${achievementSubTab === 'queue' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setAchievementSubTab('queue')}
+                >
+                  Verification Queue ({achievements.filter(a => a.status === 'pending' || a.verification_status === 'pending').length} Pending)
+                </button>
+                <button
+                  type="button"
+                  className={`btn btn-sm ${achievementSubTab === 'report' ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setAchievementSubTab('report')}
+                >
+                  Criterion 4.6.3 Summary Index
+                </button>
+              </div>
+
+              {achievementSubTab === 'queue' && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {[
+                    { id: 'all', label: `All (${achievements.length})` },
+                    { id: 'pending', label: `Pending (${achievements.filter(a => a.status === 'pending' || a.verification_status === 'pending').length})` },
+                    { id: 'verified', label: `Verified (${achievements.filter(a => a.status === 'verified' || a.status === 'approved' || a.verification_status === 'verified').length})` },
+                    { id: 'rejected', label: `Rejected (${achievements.filter(a => a.status === 'rejected').length})` },
+                  ].map(f => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      className={`btn btn-sm ${achievementStatusFilter === f.id ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => setAchievementStatusFilter(f.id)}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {achievementSubTab === 'queue' ? (
@@ -713,56 +849,62 @@ export default function StudentsPage() {
                     ) : achievements.length === 0 ? (
                       <tr>
                         <td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>
-                          No achievements pending mentor review.
+                          No achievements match the current filter.
                         </td>
                       </tr>
                     ) : (
-                      achievements.map(a => (
-                        <tr key={a.id}>
-                          <td>
-                            <div style={{ fontWeight: 600 }}>{a.student_name}</div>
-                            <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-muted)' }}>{a.student_id}</div>
-                          </td>
-                          <td style={{ fontWeight: 600 }}>{a.event_name}</td>
-                          <td>{a.organizing_body}</td>
-                          <td>
-                            <Badge variant="neutral">{a.activity_type}</Badge>
-                          </td>
-                          <td>{a.event_date}</td>
-                          <td style={{ color: 'var(--primary)', fontWeight: 600 }}>{a.result_description}</td>
-                          <td>
-                            {a.status === 'approved' ? (
-                              <Badge variant="success">Approved</Badge>
-                            ) : a.status === 'rejected' ? (
-                              <Badge variant="danger">Rejected</Badge>
-                            ) : (
-                              <Badge variant="warning">Needs Audit</Badge>
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <div style={{ display: 'inline-flex', gap: 6 }}>
-                              {a.status !== 'approved' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleVerifyAchievement(a.id)}
-                                  className="btn btn-success btn-sm"
-                                >
-                                  Approve
-                                </button>
+                      achievements.map(a => {
+                        const isVerified = a.status === 'approved' || a.status === 'verified' || a.verification_status === 'verified'
+                        const isRejected = a.status === 'rejected' || a.verification_status === 'rejected'
+                        const stuDisplayName = a.student_name || a.student?.name || a.student_id
+
+                        return (
+                          <tr key={a.id}>
+                            <td>
+                              <div style={{ fontWeight: 600 }}>{stuDisplayName}</div>
+                              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: 'var(--text-muted)' }}>{a.student_id}</div>
+                            </td>
+                            <td style={{ fontWeight: 600 }}>{a.event_name}</td>
+                            <td>{a.organizing_body}</td>
+                            <td>
+                              <Badge variant="neutral">{a.activity_type}</Badge>
+                            </td>
+                            <td>{a.event_date}</td>
+                            <td style={{ color: 'var(--primary)', fontWeight: 600 }}>{a.result_description}</td>
+                            <td>
+                              {isVerified ? (
+                                <Badge variant="success">Verified (NBA Ready)</Badge>
+                              ) : isRejected ? (
+                                <Badge variant="danger">Rejected</Badge>
+                              ) : (
+                                <Badge variant="warning">Pending Review</Badge>
                               )}
-                              {a.status !== 'rejected' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenRejectModal(a.id)}
-                                  className="btn btn-danger btn-sm"
-                                >
-                                  Reject
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'inline-flex', gap: 6 }}>
+                                {!isVerified && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleVerifyAchievement(a.id)}
+                                    className="btn btn-success btn-sm"
+                                  >
+                                    Approve
+                                  </button>
+                                )}
+                                {!isRejected && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenRejectModal(a.id)}
+                                    className="btn btn-danger btn-sm"
+                                  >
+                                    Reject
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })
                     )}
                   </tbody>
                 </table>
@@ -774,9 +916,24 @@ export default function StudentsPage() {
                   Total achievements approved for official inclusion in the NBA Self-Assessment Report.
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                  <StatCard label="Total Achievements" value={achievements.filter(a => a.status === 'approved').length} variant="primary" icon={Award} />
-                  <StatCard label="Technical Events" value={achievements.filter(a => a.status === 'approved' && a.activity_type === 'technical').length} variant="info" icon={Trophy} />
-                  <StatCard label="National Recognitions" value={achievements.filter(a => a.status === 'approved' && a.event_scope === 'national').length} variant="success" icon={Medal} />
+                  <StatCard
+                    label="Total Verified Achievements"
+                    value={achievements.filter(a => a.status === 'approved' || a.status === 'verified' || a.verification_status === 'verified').length}
+                    variant="primary"
+                    icon={Award}
+                  />
+                  <StatCard
+                    label="Technical Events"
+                    value={achievements.filter(a => (a.status === 'approved' || a.status === 'verified' || a.verification_status === 'verified') && a.activity_type === 'technical').length}
+                    variant="info"
+                    icon={Trophy}
+                  />
+                  <StatCard
+                    label="National Recognitions"
+                    value={achievements.filter(a => (a.status === 'approved' || a.status === 'verified' || a.verification_status === 'verified') && (a.event_scope === 'national' || a.event_scope === 'international')).length}
+                    variant="success"
+                    icon={Medal}
+                  />
                 </div>
               </div>
             )}

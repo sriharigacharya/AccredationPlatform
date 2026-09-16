@@ -333,7 +333,12 @@ export default function StudentProfilePage() {
         description={`Roll Number: ${student.student_id} · Semester ${student.semester} Section ${student.section} · ${student.email}`}
         badge={`SGPA: ${sgpa ? sgpa.toFixed(2) : 'Pending'}`}
         actions={
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {student.is_club_head && (
+              <Badge variant="primary" style={{ fontSize: '11px', padding: '3px 8px', fontWeight: 600 }}>
+                👑 Club Head ({student.lead_clubs?.map(c => c.name).join(', ')})
+              </Badge>
+            )}
             {riskLevel === 'High' ? (
               <Badge variant="danger" icon={AlertTriangle}>High Risk</Badge>
             ) : riskLevel === 'Medium' ? (
@@ -385,10 +390,22 @@ export default function StudentProfilePage() {
           />
           <StatCard
             label="Attendance Rate"
-            value={`${student.attendance_pct?.toFixed(1)}%`}
-            subtext={student.attendance_pct < 75 ? "Deficit below 75% threshold" : "Compliant with regulations"}
-            variant={student.attendance_pct < 75 ? "danger" : "success"}
-            isPositive={student.attendance_pct >= 75}
+            value={`${Number(student.attendance_pct ?? 75).toFixed(1)}%`}
+            subtext={
+              Number(student.attendance_pct ?? 75) < 75
+                ? "Critical deficit (<75% threshold)"
+                : Number(student.attendance_pct ?? 75) < 85
+                ? "Warning: Moderate (<85% threshold)"
+                : "Satisfactory compliance (≥85%)"
+            }
+            variant={
+              Number(student.attendance_pct ?? 75) < 75
+                ? "danger"
+                : Number(student.attendance_pct ?? 75) < 85
+                ? "warning"
+                : "success"
+            }
+            isPositive={Number(student.attendance_pct ?? 75) >= 85}
           />
           <StatCard
             label="Enrolled Credits"

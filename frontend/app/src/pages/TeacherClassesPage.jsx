@@ -765,19 +765,29 @@ export default function TeacherClassesPage() {
                               </td>
                               <td style={{ fontWeight: 500 }}>{s.name}</td>
                               <td className="tabular-nums">
-                                <span style={{
-                                  fontWeight: 600,
-                                  color: (s.attendance_pct ?? s.attendance_rate ?? 85) < 75 ? 'var(--danger)' : 'var(--text-secondary)'
-                                }}>
-                                  {s.attendance_pct ?? s.attendance_rate ?? 85}%
-                                </span>
+                                {(() => {
+                                  const attVal = Number(s.attendance_pct ?? s.attendance_rate ?? 85)
+                                  const attColor = attVal < 75 ? 'var(--danger)' : attVal < 85 ? 'var(--warning)' : 'var(--success)'
+                                  return (
+                                    <span style={{ fontWeight: 600, color: attColor }}>
+                                      {attVal.toFixed(1)}%
+                                    </span>
+                                  )
+                                })()}
                               </td>
                               <td>
-                                {s.is_at_risk ? (
-                                  <Badge variant="danger" icon={AlertTriangle}>At-Risk (&lt;75%)</Badge>
-                                ) : (
-                                  <Badge variant="success">Normal</Badge>
-                                )}
+                                {(() => {
+                                  const attVal = Number(s.attendance_pct ?? s.attendance_rate ?? 85)
+                                  if (attVal < 75) {
+                                    return <Badge variant="danger" icon={AlertTriangle}>Critical (&lt;75%)</Badge>
+                                  } else if (attVal < 85) {
+                                    return <Badge variant="warning" icon={AlertTriangle}>Warning (&lt;85%)</Badge>
+                                  } else if (s.is_at_risk) {
+                                    return <Badge variant="danger" icon={AlertTriangle}>Academic Risk</Badge>
+                                  } else {
+                                    return <Badge variant="success">Normal (≥85%)</Badge>
+                                  }
+                                })()}
                               </td>
                               <td style={{ textAlign: 'center' }}>
                                 <button
@@ -1016,18 +1026,34 @@ export default function TeacherClassesPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {atRiskStudents.map(s => (
-                          <tr key={s.student_id}>
-                            <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{s.student_id}</td>
-                            <td style={{ fontWeight: 500 }}>{s.name}</td>
-                            <td className="tabular-nums">
-                              <span style={{ color: 'var(--danger)', fontWeight: 700 }}>
-                                {s.attendance_pct ?? s.attendance_rate ?? 0}%
-                              </span>
-                            </td>
-                            <td>
-                              <Badge variant="danger" icon={AlertTriangle}>Low Attendance</Badge>
-                            </td>
+                        {atRiskStudents.map(s => {
+                          const attVal = Number(s.attendance_pct ?? s.attendance_rate ?? 0)
+                          const attColor = attVal < 75 ? 'var(--danger)' : attVal < 85 ? 'var(--warning)' : 'var(--success)'
+                          
+                          let riskBadge
+                          if (attVal < 75) {
+                            riskBadge = <Badge variant="danger" icon={AlertTriangle}>Low Attendance (&lt;75%)</Badge>
+                          } else if (attVal < 85) {
+                            riskBadge = <Badge variant="warning" icon={AlertTriangle}>Attendance Warning (&lt;85%)</Badge>
+                          } else {
+                            const riskReason = (s.risk_reasons && s.risk_reasons.length > 0)
+                              ? (s.risk_reasons.find(r => !r.toLowerCase().includes('attendance')) || s.risk_reasons[0])
+                              : 'Academic Risk (CIE/Backlogs)'
+                            riskBadge = <Badge variant="danger" icon={AlertTriangle}>Academic Risk (CIE / Backlogs)</Badge>
+                          }
+
+                          return (
+                            <tr key={s.student_id}>
+                              <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{s.student_id}</td>
+                              <td style={{ fontWeight: 500 }}>{s.name}</td>
+                              <td className="tabular-nums">
+                                <span style={{ color: attColor, fontWeight: 700 }}>
+                                  {attVal.toFixed(1)}%
+                                </span>
+                              </td>
+                              <td>
+                                {riskBadge}
+                              </td>
                             <td style={{ textAlign: 'right' }}>
                               <button
                                 type="button"
@@ -1039,7 +1065,8 @@ export default function TeacherClassesPage() {
                               </button>
                             </td>
                           </tr>
-                        ))}
+                        )
+                      })}
                       </tbody>
                     </table>
                   </div>

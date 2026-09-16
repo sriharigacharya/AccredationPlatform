@@ -258,6 +258,13 @@ export default function MyRecordPage() {
         title={student.name}
         description={`Roll Number: ${student.student_id} · Semester ${student.semester} Section ${student.section} · ${student.email}`}
         badge={`SGPA: ${sgpa ? sgpa.toFixed(2) : 'Pending'}`}
+        actions={
+          student.is_club_head ? (
+            <Badge variant="primary" style={{ fontSize: '11px', padding: '4px 10px', fontWeight: 600 }}>
+              👑 Club Head ({student.lead_clubs?.map(c => c.name).join(', ') || 'Active Lead'})
+            </Badge>
+          ) : null
+        }
       />
 
       <div className="page-body">
@@ -334,10 +341,22 @@ export default function MyRecordPage() {
           />
           <StatCard
             label="Attendance Compliance"
-            value={`${student.attendance_pct?.toFixed(1)}%`}
-            subtext={student.attendance_pct < 75 ? "Below 75% attendance threshold" : "Regulated minimum satisfied"}
-            variant={student.attendance_pct < 75 ? "danger" : "success"}
-            isPositive={student.attendance_pct >= 75}
+            value={`${Number(student.attendance_pct ?? 0).toFixed(1)}%`}
+            subtext={
+              Number(student.attendance_pct ?? 0) < 75
+                ? "Critical deficit (<75% threshold)"
+                : Number(student.attendance_pct ?? 0) < 85
+                ? "Warning: Moderate (<85% threshold)"
+                : "Regulated minimum satisfied (≥85%)"
+            }
+            variant={
+              Number(student.attendance_pct ?? 0) < 75
+                ? "danger"
+                : Number(student.attendance_pct ?? 0) < 85
+                ? "warning"
+                : "success"
+            }
+            isPositive={Number(student.attendance_pct ?? 0) >= 85}
           />
           <StatCard
             label="Enrolled Credits"
@@ -427,7 +446,11 @@ export default function MyRecordPage() {
                       <td className="tabular-nums">
                         <span style={{
                           fontWeight: 600,
-                          color: (c.attendance_pct || 80) < 75 ? 'var(--danger)' : 'var(--text-secondary)'
+                          color: (c.attendance_pct ?? 85) < 75
+                            ? 'var(--danger)'
+                            : (c.attendance_pct ?? 85) < 85
+                            ? '#f59e0b'
+                            : '#10b981'
                         }}>
                           {c.attendance_pct ?? 85}%
                         </span>

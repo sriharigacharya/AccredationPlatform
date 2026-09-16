@@ -851,6 +851,68 @@ def create_academic_performance_record():
     return jsonify({"message": "Academic performance record created", "record": rec.to_dict()}), 201
 
 
+@historical_data_bp.get("/academic-performance/verify-from-students")
+def verify_academic_performance_from_students():
+    """
+    Dynamically computes Academic Performance (API) directly from the live Student table
+    and verifies consistency against verified AcademicPerformanceRecord entries (Table 4.3 & 4.4).
+    """
+    from models import Student
+    # Year II is Semester 3
+    sem3_students = Student.query.filter_by(semester=3).all()
+    sem3_appeared = len(sem3_students)
+    sem3_pass_students = [s for s in sem3_students if s.final_result == "Pass"]
+    sem3_successful = len(sem3_pass_students)
+    sem3_cgpas = [s.previous_gpa for s in sem3_pass_students if s.previous_gpa is not None]
+    sem3_mean_cgpa = round(sum(sem3_cgpas) / len(sem3_cgpas), 2) if sem3_cgpas else 0.0
+    sem3_api = round(sem3_mean_cgpa * (sem3_successful / sem3_appeared), 2) if sem3_appeared > 0 else 0.0
+
+    # Year III is Semester 5
+    sem5_students = Student.query.filter_by(semester=5).all()
+    sem5_appeared = len(sem5_students)
+    sem5_pass_students = [s for s in sem5_students if s.final_result == "Pass"]
+    sem5_successful = len(sem5_pass_students)
+    sem5_cgpas = [s.previous_gpa for s in sem5_pass_students if s.previous_gpa is not None]
+    sem5_mean_cgpa = round(sum(sem5_cgpas) / len(sem5_cgpas), 2) if sem5_cgpas else 0.0
+    sem5_api = round(sem5_mean_cgpa * (sem5_successful / sem5_appeared), 2) if sem5_appeared > 0 else 0.0
+
+    # Compare against 2024-25 records in AcademicPerformanceRecord
+    rec_y2 = AcademicPerformanceRecord.query.filter_by(academic_year="2024-25", year_of_study="II").first()
+    rec_y3 = AcademicPerformanceRecord.query.filter_by(academic_year="2024-25", year_of_study="III").first()
+
+    y2_consistent = bool(rec_y2 and rec_y2.appeared_students_count == sem3_appeared and
+                         rec_y2.successful_students_count == sem3_successful and
+                         abs(rec_y2.mean_cgpa_or_percentage - sem3_mean_cgpa) < 0.05)
+    y3_consistent = bool(rec_y3 and rec_y3.appeared_students_count == sem5_appeared and
+                         rec_y3.successful_students_count == sem5_successful and
+                         abs(rec_y3.mean_cgpa_or_percentage - sem5_mean_cgpa) < 0.05)
+
+    return jsonify({
+        "status": "consistent" if (y2_consistent and y3_consistent) else "partial",
+        "verified_against_roster": True,
+        "year_II": {
+            "academic_year": "2024-25",
+            "year_of_study": "II",
+            "appeared": sem3_appeared,
+            "successful": sem3_successful,
+            "mean_cgpa": sem3_mean_cgpa,
+            "api": sem3_api,
+            "record_match": y2_consistent,
+        },
+        "year_III": {
+            "academic_year": "2024-25",
+            "year_of_study": "III",
+            "appeared": sem5_appeared,
+            "successful": sem5_successful,
+            "mean_cgpa": sem5_mean_cgpa,
+            "api": sem5_api,
+            "record_match": y3_consistent,
+        },
+        "total_active_students": Student.query.count(),
+        "final_year_cohort_N": Student.query.filter(Student.semester >= 7).count(),
+    })
+
+
 @historical_data_bp.get("/academic-performance")
 def list_academic_performance_records():
     """List academic performance records with filters."""

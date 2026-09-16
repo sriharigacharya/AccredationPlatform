@@ -22,9 +22,10 @@ def create_app():
     pg_port = os.getenv("POSTGRES_PORT", "5432")
     pg_db   = os.getenv("POSTGRES_DB", "academiq")
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = (
+    db_url = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URI") or (
         f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
     )
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["TWILIO_ENABLED"]           = os.getenv("TWILIO_ENABLED", "false").lower() == "true"
     app.config["TWILIO_ACCOUNT_SID"]       = os.getenv("TWILIO_ACCOUNT_SID", "")

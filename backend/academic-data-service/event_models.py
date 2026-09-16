@@ -62,6 +62,22 @@ class Club(db.Model):
             from models import Faculty
             fac = Faculty.query.filter_by(faculty_id=self.mentor_faculty_id).first()
             d["mentor"] = {"faculty_id": fac.faculty_id, "name": fac.name} if fac else None
+
+        # Resolve appointed Club Head
+        head_role = next((r for r in (self.student_roles or []) if r.role == "head"), None)
+        if head_role:
+            from models import Student
+            stu = Student.query.filter_by(student_id=head_role.student_id).first()
+            d["head"] = {
+                "student_id": head_role.student_id,
+                "name": stu.name if stu else head_role.student_id,
+                "email": stu.email if stu else None,
+            }
+            d["head_student_id"] = head_role.student_id
+        else:
+            d["head"] = None
+            d["head_student_id"] = None
+
         if include_roles:
             d["roles"] = [r.to_dict() for r in self.student_roles]
         return d

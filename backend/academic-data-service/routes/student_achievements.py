@@ -29,11 +29,21 @@ VALID_STATUSES = {"pending", "verified", "rejected"}
 
 def _get_user_context() -> dict:
     """Extract user context from headers injected by API gateway."""
+    raw_role = (request.headers.get("X-User-Role", "student") or "student").strip().lower()
+    if raw_role == "faculty":
+        raw_role = "teacher"
+
+    linked_id = (
+        request.headers.get("X-Linked-Id")
+        or request.headers.get("X-User-Linked-Id")
+        or ""
+    ).strip()
+
     return {
-        "user_id":   request.headers.get("X-User-Id", ""),
-        "role":      request.headers.get("X-User-Role", "student"),
-        "linked_id": request.headers.get("X-User-Linked-Id", ""),
-        "name":      request.headers.get("X-User-Name", ""),
+        "user_id":   request.headers.get("X-User-Id", "").strip(),
+        "role":      raw_role,
+        "linked_id": linked_id,
+        "name":      request.headers.get("X-User-Name", "").strip(),
     }
 
 
@@ -180,7 +190,9 @@ def submit_achievement():
     db.session.add(achievement)
     db.session.commit()
 
-    return jsonify(achievement.to_dict(include_students=True)), 201
+    d = achievement.to_dict(include_students=True)
+    d["achievement"] = dict(d)
+    return jsonify(d), 201
 
 
 # ── Listing & Query Endpoints ──────────────────────────────────────────────────
@@ -200,7 +212,9 @@ def list_achievements():
     ctx = _get_user_context()
     query = StudentAchievement.query
 
-    status = request.args.get("status")
+    status = request.args.get("status", "").strip().lower()
+    if status == "approved":
+        status = "verified"
     if status and status in VALID_STATUSES:
         query = query.filter_by(verification_status=status)
 
@@ -381,7 +395,9 @@ def verify_achievement(achievement_id):
     achievement.verified_at         = datetime.utcnow()
 
     db.session.commit()
-    return jsonify(achievement.to_dict(include_students=True))
+    d = achievement.to_dict(include_students=True)
+    d["achievement"] = dict(d)
+    return jsonify(d)
 
 
 @student_achievements_bp.patch("/student-achievements/<int:achievement_id>/reject")
@@ -404,7 +420,9 @@ def reject_achievement(achievement_id):
     achievement.verified_at         = datetime.utcnow()
 
     db.session.commit()
-    return jsonify(achievement.to_dict(include_students=True))
+    d = achievement.to_dict(include_students=True)
+    d["achievement"] = dict(d)
+    return jsonify(d)
 
 
 # ── Unified NBA Report Query (Criterion 4.6.3) ─────────────────────────────────

@@ -174,6 +174,7 @@ export default function EventsPage() {
     category: 'technical',
     description: '',
     mentor_faculty_id: '',
+    head_student_id: '',
   })
   const [editingClubId, setEditingClubId] = useState(null)
 
@@ -229,11 +230,32 @@ export default function EventsPage() {
     return map
   }, [studentRoles, user, role])
 
-  const isClubLeader = (clubId) => {
+  // Check if current user is the appointed Club Head of a specific club (or admin)
+  const isClubHead = (clubId) => {
     if (role === 'admin') return true
+    const club = clubs.find(c => String(c.id) === String(clubId))
+    if (club && (club.head_student_id === user?.linked_id || club.head?.student_id === user?.linked_id || club.my_role === 'head')) {
+      return true
+    }
     const r = userClubRoles[clubId]
-    return r === 'head' || r === 'council'
+    return r === 'head'
   }
+
+  // Alias for backward-compatible call sites
+  const isClubLeader = isClubHead
+
+  // Clubs that the user has leadership over (for proposing events)
+  const leadClubs = useMemo(() => {
+    if (role === 'admin') return clubs
+    if (role === 'teacher') {
+      return clubs.filter(c => c.is_mentor || c.mentor_faculty_id === user?.linked_id)
+    }
+    // Students can ONLY lead clubs where they are the appointed Club Head
+    return clubs.filter(c => isClubHead(c.id))
+  }, [clubs, role, user, userClubRoles])
+
+  // Only Club Heads (and Admin) can propose events
+  const canProposeEvents = (role === 'admin') || (role === 'student' && leadClubs.length > 0)
 
   const pendingReviewCount = useMemo(() => {
     return events.filter(e => e.status === 'pending').length
@@ -592,19 +614,21 @@ export default function EventsPage() {
         badge="Criterion 4.6 Compliant"
         actions={
           <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              onClick={() => setShowSubmitModal(true)}
-              className="btn btn-primary btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            >
-              <Calendar size={14} />
-              <span>Propose / Schedule Event</span>
-            </button>
+            {canProposeEvents && (
+              <button
+                onClick={() => setShowSubmitModal(true)}
+                className="btn btn-primary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Calendar size={14} />
+                <span>Propose / Schedule Event</span>
+              </button>
+            )}
             {role === 'admin' && (
               <button
                 onClick={() => {
                   setEditingClubId(null)
-                  setClubForm({ name: '', category: 'technical', description: '', mentor_faculty_id: '' })
+                  setClubForm({ name: '', category: 'technical', description: '', mentor_faculty_id: '', head_student_id: '' })
                   setShowClubModal(true)
                 }}
                 className="btn btn-secondary btn-sm"
@@ -942,35 +966,106 @@ export default function EventsPage() {
         {/* ── Tab 2: Clubs Directory ── */}
         {activeTab === 'clubs' && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-              {clubs.map(c => (
-                <div key={c.id} className="card">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                    <h4 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-                      {c.name}
-                    </h4>
-                    <Badge variant="primary">{c.category}</Badge>
-                  </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 14 }}>
+              {clubs.map(c => {
+                const headInfo = c.head || (c.head_student_id ? { student_id: c.head_student_id, name: c.head_name || c.head_student_id } : null)
+                return (
+                  <div key={c.id} className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                        <h4 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                          {c.name}
+                        </h4>
+                        <Badge variant="primary">{c.category}</Badge>
+                      </div>
 
-                  <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '8px 0 12px' }}>
-                    {c.description || 'Official student association chartered under the Department of Computer Science & Engineering.'}
-                  </p>
+                      <p style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.5, margin: '8px 0 14px' }}>
+                        {c.description || 'Official student association chartered under the Department of Computer Science & Engineering.'}
+                      </p>
+                    </div>
 
-                  <div style={{
-                    padding: '8px 10px',
-                    backgroundColor: 'var(--bg-subtle)',
-                    borderRadius: 'var(--radius-xs)',
-                    border: '1px solid var(--border-default)',
-                    fontSize: '11.5px',
-                    color: 'var(--text-muted)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                  }}>
-                    <span>Mentor: <strong style={{ color: 'var(--text-primary)' }}>{c.mentor_faculty_name || 'Assigned Faculty'}</strong></span>
-                    <span>{c.event_count || 0} Events</span>
+                    <div style={{
+                      padding: '10px 12px',
+                      backgroundColor: 'var(--bg-subtle)',
+                      borderRadius: 'var(--radius-xs)',
+                      border: '1px solid var(--border-default)',
+                      fontSize: '11.5px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 7,
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Faculty Mentor:</span>
+                        <strong style={{ color: 'var(--text-primary)' }}>
+                          {c.mentor?.name || c.mentor_faculty_name || c.mentor_faculty_id || 'Assigned Faculty'}
+                        </strong>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          👑 Appointed Club Head:
+                        </span>
+                        {headInfo ? (
+                          <span style={{
+                            fontWeight: 700,
+                            color: '#2563eb',
+                            backgroundColor: '#eff6ff',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            border: '1px solid #bfdbfe'
+                          }}>
+                            {headInfo.name} ({headInfo.student_id})
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Unassigned</span>
+                        )}
+                      </div>
+
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        paddingTop: 5,
+                        borderTop: '1px dashed var(--border-default)'
+                      }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Activity Count:</span>
+                        <span style={{ fontWeight: 600 }}>{c.event_count || 0} Events</span>
+                      </div>
+
+                      {role === 'admin' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingClubId(c.id)
+                            setClubForm({
+                              name: c.name || '',
+                              category: c.category || 'technical',
+                              description: c.description || '',
+                              mentor_faculty_id: c.mentor_faculty_id || '',
+                              head_student_id: c.head_student_id || (c.head ? c.head.student_id : '')
+                            })
+                            setShowClubModal(true)
+                          }}
+                          className="btn btn-secondary btn-sm"
+                          style={{
+                            width: '100%',
+                            marginTop: 4,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 6,
+                            fontSize: '11px'
+                          }}
+                        >
+                          <Edit size={12} />
+                          <span>Edit Club & Leadership</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -1066,8 +1161,10 @@ export default function EventsPage() {
                   onChange={e => setEventForm({ ...eventForm, club_id: e.target.value })}
                 >
                   <option value="">Select Club</option>
-                  {clubs.map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
+                  {leadClubs.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {role === 'student' ? '(👑 Club Head)' : ''}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -2067,12 +2164,15 @@ export default function EventsPage() {
           )}
         </Modal>
 
-        {/* ── Modal 7: Club Creation ── */}
+        {/* ── Modal 7: Club Creation & Leadership Edit ── */}
         <Modal
           isOpen={showClubModal}
-          onClose={() => setShowClubModal(false)}
-          title="Register Student Club / Chapter"
-          maxWidth={500}
+          onClose={() => {
+            setShowClubModal(false)
+            setEditingClubId(null)
+          }}
+          title={editingClubId ? "Edit Student Club & Leadership" : "Register Student Club / Chapter"}
+          maxWidth={520}
         >
           <form onSubmit={handleClubSubmit}>
             <div className="form-group">
@@ -2102,18 +2202,40 @@ export default function EventsPage() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Faculty Mentor</label>
+                <label className="form-label">Faculty Mentor *</label>
                 <select
                   className="form-select"
+                  required
                   value={clubForm.mentor_faculty_id}
                   onChange={e => setClubForm({ ...clubForm, mentor_faculty_id: e.target.value })}
                 >
-                  <option value="">Select Faculty</option>
+                  <option value="">Select Faculty Mentor</option>
                   {facultyList.map(f => (
-                    <option key={f.id} value={f.id}>{f.name}</option>
+                    <option key={f.faculty_id || f.id} value={f.faculty_id || f.id}>
+                      {f.name} ({f.faculty_id || f.id})
+                    </option>
                   ))}
                 </select>
               </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">👑 Appointed Club Head (Student)</label>
+              <select
+                className="form-select"
+                value={clubForm.head_student_id}
+                onChange={e => setClubForm({ ...clubForm, head_student_id: e.target.value })}
+              >
+                <option value="">-- No Appointed Club Head --</option>
+                {studentsList.map(s => (
+                  <option key={s.student_id} value={s.student_id}>
+                    {s.name} ({s.student_id} · Sem {s.semester || '4'})
+                  </option>
+                ))}
+              </select>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                Only appointed Club Heads (and Admins) hold the privilege to propose events and mark day-of attendance.
+              </span>
             </div>
 
             <div className="form-group">
@@ -2127,11 +2249,18 @@ export default function EventsPage() {
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>
-              <button type="button" onClick={() => setShowClubModal(false)} className="btn btn-secondary btn-sm">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowClubModal(false)
+                  setEditingClubId(null)
+                }}
+                className="btn btn-secondary btn-sm"
+              >
                 Cancel
               </button>
               <button type="submit" className="btn btn-primary btn-sm">
-                Register Club
+                {editingClubId ? 'Save Leadership Updates' : 'Register Club'}
               </button>
             </div>
           </form>

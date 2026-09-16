@@ -102,6 +102,22 @@ def create_club():
         mentor_faculty_id=mentor_fid,
     )
     db.session.add(club)
+    db.session.flush()
+
+    head_sid = data.get("head_student_id", "").strip().upper()
+    if head_sid:
+        from models import Student
+        stu = Student.query.filter_by(student_id=head_sid).first()
+        if not stu:
+            return jsonify({"error": f"Student '{head_sid}' not found"}), 404
+        head_role = StudentRole(
+            club_id=club.id,
+            student_id=head_sid,
+            role="head",
+            assigned_by=ctx["user_id"] or "admin"
+        )
+        db.session.add(head_role)
+
     db.session.commit()
 
     return jsonify(club.to_dict(include_mentor=True)), 201
@@ -111,7 +127,7 @@ def create_club():
 def update_club(club_id):
     """
     PATCH /clubs/:id — Admin only.
-    Updatable: name, category, description, mentor_faculty_id.
+    Updatable: name, category, description, mentor_faculty_id, head_student_id.
     """
     ctx = _get_user_context()
     if ctx["role"] != "admin":
@@ -143,6 +159,39 @@ def update_club(club_id):
             if not fac:
                 return jsonify({"error": f"Faculty '{mentor_fid}' not found"}), 404
             club.mentor_faculty_id = mentor_fid
+
+    if "head_student_id" in data:
+        head_sid = (data["head_student_id"] or "").strip().upper()
+        if head_sid:
+            from models import Student
+            stu = Student.query.filter_by(student_id=head_sid).first()
+            if not stu:
+                return jsonify({"error": f"Student '{head_sid}' not found"}), 404
+
+            # Demote any current head of this club to member
+            current_heads = StudentRole.query.filter_by(club_id=club.id, role="head").all()
+            for ch in current_heads:
+                if ch.student_id != head_sid:
+                    ch.role = "member"
+
+            # Appoint the new head
+            target_role = StudentRole.query.filter_by(club_id=club.id, student_id=head_sid).first()
+            if target_role:
+                target_role.role = "head"
+                target_role.assigned_by = ctx["user_id"] or "admin"
+            else:
+                new_role = StudentRole(
+                    club_id=club.id,
+                    student_id=head_sid,
+                    role="head",
+                    assigned_by=ctx["user_id"] or "admin"
+                )
+                db.session.add(new_role)
+        else:
+            # Clear current head if empty provided
+            current_heads = StudentRole.query.filter_by(club_id=club.id, role="head").all()
+            for ch in current_heads:
+                ch.role = "member"
 
     db.session.commit()
     return jsonify(club.to_dict(include_mentor=True))

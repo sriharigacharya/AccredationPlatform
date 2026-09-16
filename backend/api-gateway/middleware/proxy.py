@@ -29,6 +29,7 @@ _STAFF          = {"admin", "teacher"}          # no student, no worker
 _ALL_AUTH       = {"admin", "teacher", "student", "worker"}
 _NO_WORKER      = {"admin", "teacher", "student"}
 _WORKER_ONLY    = {"worker", "admin"}           # admin can always access everything
+_CRITERIA_ROLES = {"admin", "teacher", "worker"}
 
 # ── Route table ───────────────────────────────────────────────────────────────
 # (path_prefix, service_config_key, requires_auth, allowed_roles_set | None)
@@ -118,9 +119,9 @@ ROUTE_TABLE = [
     ("/predict",        "PREDICTION_SERVICE_URL",     True, _NO_WORKER),
 
     # ── Reports ───────────────────────────────────────────────
-    # Criteria discovery: accessible to staff
-    ("/criteria",         "REPORT_SERVICE_URL",          True, _STAFF),
-    ("/reports/criteria", "REPORT_SERVICE_URL",          True, _STAFF),
+    # Criteria discovery: accessible to staff and data worker
+    ("/criteria",         "REPORT_SERVICE_URL",          True, _CRITERIA_ROLES),
+    ("/reports/criteria", "REPORT_SERVICE_URL",          True, _CRITERIA_ROLES),
     # NBA generation: admin and teacher only
     ("/reports/nba",      "REPORT_SERVICE_URL",          True, _ADMIN_TEACHER),
     # Reports generation & history: staff only (admin, teacher)

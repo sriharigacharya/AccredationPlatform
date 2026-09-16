@@ -410,7 +410,46 @@ def placement_summary():
             if is_provisional else None
         )
 
+    # Cohort-specific metrics for stat grid cards (defaulting to CAY 2026 or requested cohort_year)
+    selected_cohort_year = request.args.get("cohort_year", type=int) or 2026
+    cohort_placements = StudentPlacement.query.filter_by(final_year_cohort_year=selected_cohort_year).all()
+    if not cohort_placements and target_years:
+        # Fallback to first available target year if requested has no records
+        cohort_placements = StudentPlacement.query.filter_by(final_year_cohort_year=target_years[0]).all()
+
+    placed_c   = sum(1 for p in cohort_placements if p.status == "placed")
+    higher_c   = sum(1 for p in cohort_placements if p.status == "higher_studies")
+    ent_c      = sum(1 for p in cohort_placements if p.status == "entrepreneur")
+    verified_c = sum(1 for p in cohort_placements if p.verified_by_admin)
+    total_c    = len(cohort_placements)
+    ver_ratio  = round((verified_c / total_c) * 100) if total_c > 0 else 0
+
+    import re
+    ctc_vals = []
+    for p in cohort_placements:
+        if p.status == "placed" and p.ctc_or_stipend:
+            m = re.search(r"(\d+(?:\.\d+)?)", p.ctc_or_stipend)
+            if m:
+                try:
+                    ctc_vals.append(float(m.group(1)))
+                except ValueError:
+                    pass
+    if ctc_vals:
+        ctc_vals.sort()
+        mid = len(ctc_vals) // 2
+        median_ctc = ctc_vals[mid] if len(ctc_vals) % 2 != 0 else round((ctc_vals[mid - 1] + ctc_vals[mid]) / 2.0, 2)
+    else:
+        median_ctc = None
+
     return jsonify({
+        "selected_cohort_year": selected_cohort_year,
+        "placed_count": placed_c,
+        "higher_studies_count": higher_c,
+        "entrepreneur_count": ent_c,
+        "verified_count": verified_c,
+        "total_records": total_c,
+        "verified_ratio": ver_ratio,
+        "median_ctc": median_ctc,
         "years": years_data,
         "years_count": len(target_years),
         "years_available": k,

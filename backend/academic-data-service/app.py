@@ -101,6 +101,7 @@ def create_app():
         _seed_demo_historical_data()
         _auto_seed_timetable()
         _seed_mock_completed_event()
+        _ensure_criterion4_student_roster()
 
     try:
         with app.app_context():
@@ -246,6 +247,19 @@ def _seed_mock_completed_event():
             seed_completed_event()
     except Exception as e:
         print(f"[*] Note: Mock completed event seeding check: {e}")
+
+
+def _ensure_criterion4_student_roster():
+    """Ensure student database has the full 397 students matching Criteria 4.3 & 4.4."""
+    from models import Student
+    try:
+        current_count = Student.query.count()
+        if current_count < 397:
+            print(f"[*] Student count is {current_count} (<397) — expanding student roster for NBA Criterion 4...")
+            from scripts.seed_criterion4_students import seed_criterion4_student_records
+            seed_criterion4_student_records()
+    except Exception as e:
+        print(f"[*] Note: Criterion 4 student roster expansion check: {e}")
 
 
 def _seed_demo_data():

@@ -389,6 +389,24 @@ class Student(db.Model):
             "sgpa":                  sgpa,
             "created_at":            self.created_at.isoformat(),
         }
+
+        # Check if student is appointed as Club Head
+        try:
+            from event_models import StudentRole, Club
+            head_roles = StudentRole.query.filter_by(student_id=self.student_id, role="head").all()
+            lead_clubs = []
+            for hr in head_roles:
+                cl = Club.query.get(hr.club_id)
+                if cl:
+                    lead_clubs.append({"club_id": cl.id, "name": cl.name, "category": cl.category})
+            d["is_club_head"] = len(lead_clubs) > 0
+            d["lead_clubs"] = lead_clubs
+            d["club_head_title"] = f"Club Head ({lead_clubs[0]['name']})" if lead_clubs else None
+        except Exception:
+            d["is_club_head"] = False
+            d["lead_clubs"] = []
+            d["club_head_title"] = None
+
         if include_dept and self.department:
             d["department"] = {"code": self.department.code, "name": self.department.name}
         return d

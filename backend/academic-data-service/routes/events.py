@@ -144,10 +144,11 @@ def create_event(club_id=None):
         sr = StudentRole.query.filter_by(
             club_id=club_id, student_id=student_id
         ).first()
-        if sr and sr.role in ("head", "council"):
-            submitted_via = "club_head"
-        else:
-            submitted_via = "student"
+        if not sr or sr.role != "head":
+            return jsonify({
+                "error": "Only the appointed Club Head is authorized to propose events for this club."
+            }), 403
+        submitted_via = "club_head"
         organized_by = student_id
     elif ctx["role"] == "worker":
         submitted_via = "worker"
@@ -888,8 +889,8 @@ def mark_event_attendance(event_id):
         sr = StudentRole.query.filter_by(
             club_id=event.club_id, student_id=ctx["linked_id"]
         ).first()
-        if not sr or sr.role not in ("head", "council"):
-            return jsonify({"error": "Only Club Head or Council can mark attendance"}), 403
+        if not sr or sr.role != "head":
+            return jsonify({"error": "Only the appointed Club Head can mark attendance"}), 403
     elif ctx["role"] not in ("admin", "teacher"):
         return jsonify({"error": "Access denied"}), 403
 
@@ -975,8 +976,8 @@ def post_event_report(event_id):
         sr = StudentRole.query.filter_by(
             club_id=event.club_id, student_id=ctx["linked_id"]
         ).first()
-        if not sr or sr.role not in ("head", "council"):
-            return jsonify({"error": "Only Club Head or Council can submit post-event report"}), 403
+        if not sr or sr.role != "head":
+            return jsonify({"error": "Only the appointed Club Head can submit post-event report"}), 403
     elif ctx["role"] not in ("admin", "teacher"):
         return jsonify({"error": "Access denied"}), 403
 
