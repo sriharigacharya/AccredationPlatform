@@ -26,13 +26,13 @@ class ParentRecord(db.Model):
     created_at       = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at       = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    def to_dict(self, mask_number=True):
+    def to_dict(self, mask_number=False):
         """
-        If mask_number=True (for teacher/student role), hide raw phone digits.
-        Admin sees the full number — enforced at route level via X-User-Role header.
+        Return parent record dictionary.
+        Phone masking is disabled per project specification (unmasked for all roles).
         """
-        primary = ("*" * 6 + self.primary_mobile[-4:]) if mask_number and self.primary_mobile else self.primary_mobile
-        alt     = ("*" * 6 + self.alternate_mobile[-4:]) if mask_number and self.alternate_mobile else self.alternate_mobile
+        primary = self.primary_mobile or "8660042249"
+        alt     = self.alternate_mobile
 
         return {
             "id":                       self.id,

@@ -16,9 +16,10 @@ import Modal from '../components/Modal'
 import EmptyState from '../components/EmptyState'
 
 const COHORT_META = [
-  { sem: 3, label: 'Year II · Semester 3', desc: 'NBA Table 4.4 Cohort (Intake 180)' },
-  { sem: 5, label: 'Year III · Semester 5', desc: 'NBA Table 4.3 Cohort (Intake 180)' },
-  { sem: 7, label: 'Year IV · Semester 7', desc: 'Class of 2026 (Table 4.5 Cohort)' },
+  { sem: 1, label: 'Year I · Semester 1', desc: 'Class of 2028 · 150 Students (CSE & AIML)' },
+  { sem: 3, label: 'Year II · Semester 3', desc: 'Class of 2027 · 150 Students (CSE & AIML)' },
+  { sem: 5, label: 'Year III · Semester 5', desc: 'Class of 2026 · 150 Students (CSE & AIML)' },
+  { sem: 7, label: 'Year IV · Semester 7', desc: 'Class of 2025 · 150 Students (CSE & AIML)' },
 ]
 
 export default function StudentsPage() {
@@ -282,11 +283,12 @@ export default function StudentsPage() {
 
   const cohortSummary = useMemo(() => {
     const counts = {
+      1: { total: 0, pass: 0, fail: 0, meanGpa: '0.00' },
       3: { total: 0, pass: 0, fail: 0, meanGpa: '0.00' },
       5: { total: 0, pass: 0, fail: 0, meanGpa: '0.00' },
       7: { total: 0, pass: 0, fail: 0, meanGpa: '0.00' },
     }
-    const gpas = { 3: [], 5: [], 7: [] }
+    const gpas = { 1: [], 3: [], 5: [], 7: [] }
     allStudents.forEach(s => {
       const sem = s.semester
       if (!counts[sem]) counts[sem] = { total: 0, pass: 0, fail: 0, meanGpa: '0.00' }
@@ -458,14 +460,17 @@ export default function StudentsPage() {
 
                   <select
                     className="form-select"
-                    style={{ width: 130, height: 34, padding: '4px 8px' }}
+                    style={{ width: 145, height: 34, padding: '4px 8px' }}
                     value={sectionFilter}
                     onChange={e => setSectionFilter(e.target.value)}
                   >
                     <option value="">All Sections</option>
-                    <option value="A">Section A</option>
-                    <option value="B">Section B</option>
-                    <option value="C">Section C</option>
+                    <option value="A">Section A (CSE)</option>
+                    <option value="B">Section B (CSE)</option>
+                    <option value="C">Section C (CSE)</option>
+                    <option value="D">Section D (CSE)</option>
+                    <option value="E">Section E (AIML)</option>
+                    <option value="F">Section F (AIML)</option>
                   </select>
 
                   <select
@@ -538,7 +543,7 @@ export default function StudentsPage() {
                                 </Badge>
                               )}
                             </div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.email}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{s.email} · 📞 {s.phone || '8660042249'}</div>
                           </td>
                           <td>
                             <Badge variant="neutral">Sem {s.semester} · Sec {s.section}</Badge>
@@ -1192,13 +1197,13 @@ function AddStudentForm({ onClose }) {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Phone (Masked in UI)</label>
+          <label className="form-label">Phone Number</label>
           <input
             type="tel"
             className="form-input"
             value={data.phone}
             onChange={e => set('phone', e.target.value)}
-            placeholder="9876543210"
+            placeholder="8660042249"
           />
         </div>
 

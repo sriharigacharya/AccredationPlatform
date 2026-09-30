@@ -81,7 +81,7 @@ def _seed_demo_narratives():
                 "1. MANTHANA, Yearly College Magazine: 'MANTHANA', the flagship college magazine, is published annually during the inauguration of the academic session. It features high-quality technical articles, innovations, and retrospective reports on academic, co-curricular, and extra-curricular milestones achieved during the previous academic year. It serves as an open publication platform for both undergraduate students and faculty researchers.\n\n"
                 "2. THE EDIFICE, Biannual Departmental Newsletter: 'THE EDIFICE', the Department of Computer Science & Engineering biannual newsletter, documents department-level symposiums, hackathons, guest lectures, student club initiatives, and competitive milestones.\n\n"
                 "3. TECHPULSE NEWSLETTER: Released quarterly under the guidance of the student editorial committee and department faculty advisors.\n"
-                "Editorial Board: Dr. Meena Iyer (Chief Editor), Prof. Ravi Shankar (Associate Editor), along with 6 student editors elected from 3rd and 4th year batches.\n"
+                "Editorial Board: Dr. C VIDYARAJ (Chief Editor), Dr. ANNAPURNA V K (Associate Editor), along with 6 student editors elected from 3rd and 4th year batches.\n"
                 "During academic year 2025-26, more than 38 student technical articles, 15 competitive coding solutions, and 8 patent summaries were authored and published across department releases."
             )
             for dept in ["CSE", "ISE", "ECE"]:

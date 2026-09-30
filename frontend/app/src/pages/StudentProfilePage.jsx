@@ -330,7 +330,7 @@ export default function StudentProfilePage() {
       <PageHeader
         category="Student Dossier"
         title={student.name}
-        description={`Roll Number: ${student.student_id} · Semester ${student.semester} Section ${student.section} · ${student.email}`}
+        description={`Roll Number: ${student.student_id} · Semester ${student.semester} Section ${student.section} · ${student.email} · 📞 ${student.phone || '8660042249'}`}
         badge={`SGPA: ${sgpa ? sgpa.toFixed(2) : 'Pending'}`}
         actions={
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -652,8 +652,8 @@ export default function StudentProfilePage() {
                     <div style={{ fontWeight: 600 }}>{parent.relationship}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Protected Contact</div>
-                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{parent.primary_mobile || '*****3210'}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Contact Phone</div>
+                    <div style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{parent.primary_mobile || '8660042249'}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Channel</div>
@@ -850,10 +850,10 @@ export default function StudentProfilePage() {
                 fontSize: '12px', color: 'var(--text-secondary)', marginBottom: 20
               }}>
                 <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>
-                  🛡️ DPDP Privacy-Preserving Proxy Active
+                  📞 Telecom Proxy Bridge Active
                 </div>
                 <div>
-                  Virtual telecom bridge active. Faculty personal phone number and parent phone numbers remain masked under DPDP Act 2023 regulations.
+                  Virtual telecom bridge active. Connected to verified contact number <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{activeCall.phone || '8660042249'}</span>.
                 </div>
               </div>
 

@@ -1282,7 +1282,7 @@ export default function TeacherClassesPage() {
                   placeholder="Enter message to student's guardian..."
                 />
                 <p className="form-hint">
-                  Dispatched via DPDP Act compliant Twilio proxy bridge. Personal phone numbers remain masked.
+                  Dispatched via Twilio proxy bridge to verified contact numbers.
                 </p>
               </div>
             </div>

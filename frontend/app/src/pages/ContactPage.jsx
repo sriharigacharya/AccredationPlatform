@@ -239,7 +239,7 @@ export default function ContactPage() {
                       {parent.parent_name}
                     </div>
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                      {parent.relationship} · Masked: <span style={{ fontFamily: 'var(--font-mono)' }}>{parent.primary_mobile || '*****9876'}</span>
+                      {parent.relationship} · Phone: <span style={{ fontFamily: 'var(--font-mono)' }}>{parent.primary_mobile || '8660042249'}</span>
                     </div>
                   </div>
 
@@ -355,7 +355,7 @@ export default function ContactPage() {
               borderRadius: 'var(--radius-xs)',
               border: '1px solid var(--border-subtle)',
             }}>
-              <strong>Privacy Protocol:</strong> Personal phone numbers remain strictly masked. Voice calls and SMS dispatches are routed through an institutional proxy server.
+              <strong>Privacy Protocol:</strong> Voice calls and SMS dispatches are routed through an institutional proxy server to verified contact numbers.
             </div>
           </div>
 
@@ -554,10 +554,10 @@ export default function ContactPage() {
                 fontSize: '12px', color: 'var(--text-secondary)', marginBottom: 20
               }}>
                 <div style={{ fontWeight: 600, marginBottom: 4, color: 'var(--text-primary)' }}>
-                  🛡️ DPDP Privacy-Preserving Proxy Active
+                  📞 Telecom Proxy Bridge Active
                 </div>
                 <div>
-                  Virtual telecom bridge active. Faculty personal phone number and parent phone numbers remain masked under DPDP Act 2023 regulations.
+                  Virtual telecom bridge active. Connected to verified contact number <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{activeCall.phone || '8660042249'}</span>.
                 </div>
               </div>
 

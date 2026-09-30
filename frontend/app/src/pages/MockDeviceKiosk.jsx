@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { attendanceAPI, timetableAPI } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
 import {
   Fingerprint, Clock, Radio, Search, CheckCircle2,
   AlertTriangle, ArrowLeft, RefreshCw, LogIn, LogOut,
-  Sliders, ShieldCheck, UserCheck, Activity, Cpu, Sparkles
+  Sliders, ShieldCheck, UserCheck, Activity, Cpu, Sparkles, ShieldAlert
 } from 'lucide-react'
 
 export default function MockDeviceKiosk() {
+  const { user } = useAuth()
   const [facultyList, setFacultyList] = useState([])
   const [selectedFacultyId, setSelectedFacultyId] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
@@ -150,6 +152,69 @@ export default function MockDeviceKiosk() {
     } catch (err) {
       toast.error('Reset failed')
     }
+  }
+
+  // Student Access Restriction Guard
+  if (user?.role === 'student') {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'radial-gradient(ellipse at 50% 0%, #152238 0%, #070c16 70%, #03060a 100%)',
+        color: '#e2e8f0',
+        fontFamily: 'Inter, system-ui, -apple-system, sans-serif',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+      }}>
+        <div style={{
+          background: 'rgba(15, 23, 42, 0.85)',
+          border: '1px solid rgba(239, 68, 68, 0.4)',
+          borderRadius: '16px',
+          padding: '40px',
+          maxWidth: '520px',
+          textAlign: 'center',
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(16px)',
+        }}>
+          <div style={{
+            width: '64px',
+            height: '64px',
+            borderRadius: '50%',
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            color: '#f87171',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: '0 auto 20px',
+          }}>
+            <ShieldAlert size={32} />
+          </div>
+          <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#f87171', marginBottom: '10px' }}>
+            Biometric Terminal Access Restricted
+          </h2>
+          <p style={{ fontSize: '13.5px', color: '#94a3b8', lineHeight: 1.6, marginBottom: '24px' }}>
+            The physical attendance kiosk terminal is strictly restricted to authorized College Faculty and Staff. Students log their class attendance through lecture sessions or event check-ins.
+          </p>
+          <Link
+            to="/timetable"
+            className="btn btn-primary"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 20px',
+              textDecoration: 'none',
+              borderRadius: '8px',
+              fontWeight: 600,
+            }}
+          >
+            <ArrowLeft size={16} /> Return to Timetable
+          </Link>
+        </div>
+      </div>
+    )
   }
 
   return (

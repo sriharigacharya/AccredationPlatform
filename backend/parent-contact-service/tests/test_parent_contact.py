@@ -29,14 +29,13 @@ def client():
         yield app.test_client()
 
 
-def test_get_parent_masked_for_teacher(client):
-    """Teacher sees masked mobile numbers."""
+def test_get_parent_unmasked_for_teacher(client):
+    """Teacher sees unmasked mobile numbers per policy."""
     resp = client.get("/parents/STU001", headers={"X-User-Role": "teacher"})
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["student_id"] == "STU001"
-    assert data["primary_mobile"] == "******3210"
-    assert data["alternate_mobile"] == "******6780"
+    assert data["primary_mobile"] == "8660042249"
 
 
 def test_get_parent_unmasked_for_admin(client):
@@ -45,8 +44,7 @@ def test_get_parent_unmasked_for_admin(client):
     assert resp.status_code == 200
     data = resp.get_json()
     assert data["student_id"] == "STU001"
-    assert data["primary_mobile"] == "9876543210"
-    assert data["alternate_mobile"] == "9123456780"
+    assert data["primary_mobile"] == "8660042249"
 
 
 def test_get_parent_not_found(client):

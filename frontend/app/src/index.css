@@ -479,6 +479,11 @@ html, body {
   font-size: var(--text-xs);
 }
 
+.btn-xs {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+
 .btn-lg {
   padding: 10px 20px;
   font-size: var(--text-base);

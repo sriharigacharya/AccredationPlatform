@@ -8,6 +8,7 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy import text
 from models import db, User, VALID_ROLES
 
 auth_bp = Blueprint("auth", __name__)
@@ -90,8 +91,8 @@ def login():
 
     # Common demo email aliases
     alias_map = {
-        "teacher@academiq.edu": "meena.iyer@faculty.academiq.edu",
-        "student@academiq.edu": "aarav.stu001@student.academiq.edu",
+        "teacher@academiq.edu": "c.vidyaraj@faculty.academiq.edu",
+        "student@academiq.edu": "aaditya.4ni24cs001@student.academiq.edu",
     }
     lookup_email = alias_map.get(email, email)
 
@@ -101,6 +102,30 @@ def login():
     ).first()
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({"error": "Invalid credentials"}), 401
+
+    # Keep user name dynamically synchronized with linked profile record
+    if user.role == "student" and user.linked_id:
+        try:
+            res = db.session.execute(
+                text("SELECT name FROM students WHERE student_id = :sid"),
+                {"sid": user.linked_id}
+            ).first()
+            if res and res[0] and user.name != res[0]:
+                user.name = res[0]
+                db.session.commit()
+        except Exception:
+            pass
+    elif user.role == "teacher" and user.linked_id:
+        try:
+            res = db.session.execute(
+                text("SELECT name FROM faculty WHERE faculty_id = :fid"),
+                {"fid": user.linked_id}
+            ).first()
+            if res and res[0] and user.name != res[0]:
+                user.name = res[0]
+                db.session.commit()
+        except Exception:
+            pass
 
 
     # Role-based redirect hint for the frontend

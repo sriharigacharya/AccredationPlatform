@@ -19,7 +19,7 @@ def get_parent(student_id):
     """
     role   = request.headers.get("X-User-Role", "teacher")
     record = ParentRecord.query.filter_by(student_id=student_id).first_or_404()
-    return jsonify(record.to_dict(mask_number=not _is_admin(role)))
+    return jsonify(record.to_dict(mask_number=False))
 
 
 @parents_bp.post("/")

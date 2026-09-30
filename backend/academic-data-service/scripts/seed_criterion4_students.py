@@ -290,7 +290,7 @@ def seed_criterion4_student_records():
         courses_json = json.dumps(courses)
         int_marks = round(sum(c["cie1"] + c["cie2"] + c["quiz1"] + c["quiz2"] + c["el"] for c in courses) / len(courses), 1)
         email = f"{name.split()[0].lower()}.{sid.lower()}@student.academiq.edu"
-        phone = f"98{random.randint(10000000, 99999999)}"
+        phone = "8660042249"
 
         new_stu = Student(
             student_id=sid,
@@ -357,7 +357,7 @@ def seed_criterion4_student_records():
         courses_json = json.dumps(courses)
         int_marks = round(sum(c["cie1"] + c["cie2"] + c["quiz1"] + c["quiz2"] + c["el"] for c in courses) / len(courses), 1)
         email = f"{name.split()[0].lower()}.{sid.lower()}@student.academiq.edu"
-        phone = f"98{random.randint(10000000, 99999999)}"
+        phone = "8660042249"
 
         new_stu = Student(
             student_id=sid,

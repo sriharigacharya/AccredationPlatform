@@ -66,7 +66,7 @@ class Student(db.Model):
     student_id   = db.Column(db.String(50), unique=True, nullable=False, index=True)
     name         = db.Column(db.String(200), nullable=False)
     email        = db.Column(db.String(255))
-    phone        = db.Column(db.String(20))
+    phone        = db.Column(db.String(20), default="8660042249")
     department_id= db.Column(db.Integer, db.ForeignKey("departments.id"))
 
     # Academic metrics (kept for backward compat with prediction service)
@@ -371,7 +371,7 @@ class Student(db.Model):
             "student_id":            self.student_id,
             "name":                  self.name,
             "email":                 self.email,
-            "phone":                 self.phone,
+            "phone":                 self.phone or "8660042249",
             "department_id":         self.department_id,
             "semester":              self.semester,
             "section":               self.section,

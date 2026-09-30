@@ -12,46 +12,47 @@ const NAV_SECTIONS = [
   {
     label: 'Core',
     items: [
-      { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard',   roles: ['admin', 'teacher'] },
-      { to: '/my-record',  icon: User,            label: 'My Record',   roles: ['student'] },
-      { to: '/timetable',  icon: Clock,           label: 'Timetable',   roles: ['admin', 'teacher', 'student'] },
-      { to: '/documents',  icon: FileText,        label: 'Documents',   roles: ['admin', 'teacher', 'worker'] },
+      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'teacher'] },
+      { to: '/my-record', icon: User, label: 'My Record', roles: ['student'] },
+      { to: '/timetable', icon: Clock, label: 'Timetable', roles: ['admin', 'teacher', 'student'] },
+      // { to: '/documents', icon: FileText, label: 'Documents', roles: ['admin', 'teacher', 'worker'] },
     ],
   },
   {
     label: 'Academic Operations',
     items: [
-      { to: '/faculty-attendance', icon: Fingerprint,   label: 'Faculty Attendance', roles: ['admin', 'teacher'] },
-      { to: '/classes',            icon: ClipboardCheck, label: 'Classes & Marks',    roles: ['admin', 'teacher'] },
-      { to: '/students',           icon: Users,          label: 'Students',           roles: ['admin', 'teacher'] },
-      { to: '/faculty',            icon: GraduationCap,  label: 'Faculty',            roles: ['admin', 'teacher'] },
-      { to: '/assignments',        icon: BookOpen,       label: 'Assignments',        roles: ['admin', 'teacher', 'student'] },
-      { to: '/events',             icon: Calendar,       label: 'Events & Clubs',     roles: ['admin', 'teacher', 'student', 'worker'] },
-      { to: '/historical-data',    icon: Upload,         label: 'Historical Data',    roles: ['admin', 'teacher', 'worker'] },
+      { to: '/faculty-attendance', icon: Fingerprint, label: 'Faculty Attendance', roles: ['admin', 'teacher'] },
+      { to: '/classes', icon: ClipboardCheck, label: 'Classes & Marks', roles: ['admin', 'teacher'] },
+      { to: '/students', icon: Users, label: 'Students', roles: ['admin', 'teacher'] },
+      { to: '/faculty', icon: GraduationCap, label: 'Faculty', roles: ['admin', 'teacher'] },
+      { to: '/assignments', icon: BookOpen, label: 'Assignments', roles: ['admin', 'teacher', 'student'] },
+      { to: '/events', icon: Calendar, label: 'Events & Clubs', roles: ['admin', 'teacher', 'student', 'worker'] },
+      { to: '/historical-data', icon: Upload, label: 'Historical Data', roles: ['admin', 'teacher', 'worker'] },
     ],
   },
 
   {
     label: 'Intelligence & Reports',
     items: [
-      { to: '/chat',    icon: MessageSquare, label: 'AI Document Q&A', roles: ['admin', 'teacher'] },
+      // { to: '/chat',    icon: MessageSquare, label: 'AI Document Q&A', roles: ['admin', 'teacher'] },
       { to: '/reports', icon: ClipboardList, label: 'Accreditation Reports', roles: ['admin', 'teacher'] },
-      { to: '/contact', icon: Phone,         label: 'Parent Contact',  roles: ['admin', 'teacher'] },
+      { to: '/contact', icon: Phone, label: 'Parent Contact', roles: ['admin', 'teacher'] },
     ],
   },
   {
     label: 'Administration',
     items: [
-      { to: '/settings', icon: Settings, label: 'System Settings', roles: ['admin'] },
+      { to: '/settings', icon: Settings, label: 'ML & System Settings', roles: ['admin'] },
+      { to: '/users', icon: Users, label: 'User Management', roles: ['admin'] },
     ],
   },
 ]
 
 const ROLE_STYLE = {
-  admin:   { bg: 'var(--danger-subtle)',  border: 'var(--danger-border)',  color: 'var(--danger)',  label: 'Admin' },
+  admin: { bg: 'var(--danger-subtle)', border: 'var(--danger-border)', color: 'var(--danger)', label: 'Admin' },
   teacher: { bg: 'var(--primary-subtle)', border: 'var(--primary-border)', color: 'var(--primary)', label: 'Faculty' },
   student: { bg: 'var(--success-subtle)', border: 'var(--success-border)', color: 'var(--success)', label: 'Student' },
-  worker:  { bg: 'var(--warning-subtle)', border: 'var(--warning-border)', color: 'var(--warning)', label: 'Staff' },
+  worker: { bg: 'var(--warning-subtle)', border: 'var(--warning-border)', color: 'var(--warning)', label: 'Staff' },
 }
 
 export default function Sidebar({ isOpen, onClose }) {

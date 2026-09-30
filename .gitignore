@@ -40,3 +40,33 @@ services/document-service/uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+# ── Generated reference & documentation files ──────────────────────────────
+# Root-level HTML/PDF exports (generated for reference / interview prep)
+AcademiQ_*.html
+AcademiQ_*.pdf
+Sections_and_Students_Directory.html
+Sections_and_Students_Directory.pdf
+Student_Data_Attributes_Specification.html
+Student_Data_Attributes_Specification.pdf
+
+# PDF/report generator scripts (one-off generation scripts, not platform code)
+generate_*.py
+
+# Scratch files & raw data dumps
+scratch_docx_dump.txt
+Student_Master_Data.xlsx
+
+# Generated output directories
+generated_reports/
+screenshots/
+scratch/
+docs/
+models/
+
+# Uploaded proof files (runtime-generated, not source code)
+backend/academic-data-service/attendance_proofs/
+backend/academic-data-service/tests/achievement_uploads/
+
+# New feature scratch HTML
+New feature/

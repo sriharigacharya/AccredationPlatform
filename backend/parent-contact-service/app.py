@@ -52,6 +52,14 @@ def create_app():
 
 def _seed_demo():
     from models import ParentRecord
+    try:
+        ParentRecord.query.filter(
+            (ParentRecord.primary_mobile == None) | (ParentRecord.primary_mobile != "8660042249")
+        ).update({"primary_mobile": "8660042249"}, synchronize_session=False)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
     if ParentRecord.query.count() > 0:
         return
 
@@ -168,7 +176,7 @@ def _seed_demo():
     for sid, name, rel, primary, alt, method, consent in demo:
         p = ParentRecord(
             student_id=sid, parent_name=name, relationship=rel,
-            primary_mobile=primary, alternate_mobile=alt or None,
+            primary_mobile="8660042249", alternate_mobile=alt or None,
             preferred_contact_method=method, consent_to_contact=consent,
         )
         db.session.add(p)

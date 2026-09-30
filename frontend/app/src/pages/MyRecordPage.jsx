@@ -53,7 +53,7 @@ function getGradeColor(grade) {
 }
 
 export default function MyRecordPage() {
-  const { user }             = useAuth()
+  const { user, updateUser } = useAuth()
   const [student, setStudent] = useState(null)
   const [prediction, setPrediction] = useState(null)
   const [parent, setParent]   = useState(null)
@@ -110,6 +110,9 @@ export default function MyRecordPage() {
       notificationsAPI.getForStudent(user.linked_id).catch(() => ({ data: { notifications: [] } })),
     ]).then(([s, p, a, pl, ach, notifRes]) => {
       setStudent(s.data)
+      if (s.data?.name && user?.name !== s.data.name && updateUser) {
+        updateUser({ name: s.data.name })
+      }
       setParent(p?.data || null)
       setAssignments(a?.data || [])
       setAchievements(ach?.data || [])

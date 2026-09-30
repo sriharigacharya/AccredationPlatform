@@ -191,12 +191,8 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* RAG Chat — admin + teacher (no students, no worker) */}
-      <Route path="/chat" element={
-        <ProtectedRoute roles={['admin', 'teacher']}>
-          <AppLayout><RAGChatPage /></AppLayout>
-        </ProtectedRoute>
-      } />
+      {/* RAG Chat — hidden for presentation */}
+      <Route path="/chat" element={<Navigate to="/dashboard" replace />} />
 
       {/* Parent contact — admin + teacher only */}
       <Route path="/contact" element={
@@ -205,10 +201,15 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* Admin-only settings */}
+      {/* Admin-only settings & ML engine */}
       <Route path="/settings" element={
         <ProtectedRoute roles={['admin']}>
-          <AppLayout><SettingsPage /></AppLayout>
+          <AppLayout><SettingsPage defaultTab="ml" /></AppLayout>
+        </ProtectedRoute>
+      } />
+      <Route path="/users" element={
+        <ProtectedRoute roles={['admin']}>
+          <AppLayout><SettingsPage defaultTab="users" /></AppLayout>
         </ProtectedRoute>
       } />
 

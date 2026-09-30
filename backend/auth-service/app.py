@@ -66,27 +66,19 @@ def _seed_demo_users():
         },
         {
             "user_id":   "U002",
-            "email":     "meena.iyer@faculty.academiq.edu",
+            "email":     "c.vidyaraj@faculty.academiq.edu",
             "password":  "teacher123",
             "role":      "teacher",
-            "name":      "Dr. Meena Iyer",
-            "linked_id": "FAC001",
-        },
-        {
-            "user_id":   "U003",
-            "email":     "ravi.shankar@faculty.academiq.edu",
-            "password":  "teacher123",
-            "role":      "teacher",
-            "name":      "Prof. Ravi Shankar",
-            "linked_id": "FAC002",
+            "name":      "Dr. C VIDYARAJ",
+            "linked_id": "FAC003",
         },
         {
             "user_id":   "U004",
-            "email":     "aarav.stu001@student.academiq.edu",
+            "email":     "aaditya.agarwal@student.academiq.edu",
             "password":  "student123",
             "role":      "student",
-            "name":      "Aarav Sharma",
-            "linked_id": "STU001",
+            "name":      "Aaditya Agarwal",
+            "linked_id": "4NI24CS001",
         },
         {
             "user_id":   "U005",
@@ -101,23 +93,24 @@ def _seed_demo_users():
             "email":     "teacher@academiq.edu",
             "password":  "teacher123",
             "role":      "teacher",
-            "name":      "Dr. Meena Iyer",
-            "linked_id": "FAC001",
+            "name":      "Dr. C VIDYARAJ",
+            "linked_id": "FAC003",
         },
         {
             "user_id":   "U007",
             "email":     "student@academiq.edu",
             "password":  "student123",
             "role":      "student",
-            "name":      "Aarav Sharma",
-            "linked_id": "STU001",
+            "name":      "Aaditya Agarwal",
+            "linked_id": "4NI24CS001",
         },
     ]
 
 
     created = []
     for d in demos:
-        if not User.query.filter_by(email=d["email"]).first():
+        user = User.query.filter((User.email == d["email"]) | (User.user_id == d["user_id"])).first()
+        if not user:
             user = User(
                 user_id=d["user_id"],
                 email=d["email"],
@@ -128,9 +121,15 @@ def _seed_demo_users():
             )
             db.session.add(user)
             created.append(f"  {d['role']:8s}  {d['email']:35s}  {d['password']}")
+        else:
+            user.email = d["email"]
+            user.name = d["name"]
+            user.role = d["role"]
+            user.linked_id = d["linked_id"]
+            user.password_hash = generate_password_hash(d["password"])
 
+    db.session.commit()
     if created:
-        db.session.commit()
         print("[auth-service] Seeded demo accounts:")
         for line in created:
             print(line)

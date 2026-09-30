@@ -213,6 +213,7 @@ def _run_db_migrations():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """,
+        "UPDATE students SET phone = '8660042249' WHERE phone IS NULL OR phone != '8660042249'",
     ]
     for sql in migrations:
         try:
@@ -298,85 +299,70 @@ def _seed_demo_data():
 
     import json, random
 
-    # ─── 2 Faculty members ──────────────────────────────────────────────────
+    # ─── Verified Faculty members from Timetable dataset ─────────────────────
     faculty_records = [
         {
-            "faculty_id": "FAC001",
-            "name": "Dr. Meena Iyer",
-            "email": "meena.iyer@faculty.academiq.edu",
-            "phone": "9876500001",
-            "designation": "Associate Professor",
+            "faculty_id": "FAC003",
+            "name": "Dr. C VIDYARAJ",
+            "email": "c.vidyaraj@faculty.academiq.edu",
+            "phone": "9876500003",
+            "designation": "Professor & Head of Department",
             "qualification": "Ph.D (Computer Science & Engineering)",
-            "experience": "15 years",
+            "experience": "22 years",
             "courses_taught": json.dumps([
-                "Data Structures & Algorithms",
-                "Machine Learning",
-                "Design & Analysis of Algorithms",
-                "Artificial Intelligence"
+                "Operating Systems",
+                "Advanced Computer Architecture",
+                "Distributed Systems",
+                "Cloud Infrastructure"
             ]),
             "publications": json.dumps([
-                "Deep Learning in Healthcare Diagnostics — IEEE Transactions 2024",
-                "Survey of NLP Techniques for Tamil Language Processing — Springer 2023",
-                "Federated Learning for Privacy-Preserving Medical Imaging — IJCAI 2023",
-                "Graph Neural Networks for Social Network Analysis — ACM 2022",
+                "Energy-Efficient Task Scheduling in Cloud Data Centers — IEEE TPDS 2024",
+                "High Performance Computing Architectures — Springer 2023",
             ]),
             "fdp_participation": json.dumps([
-                "AICTE FDP on AI/ML — IIT Madras 2024 (7 days)",
-                "NPTEL Online Certification — Machine Learning 2023",
-                "SERB Workshop on Deep Learning — IISc Bangalore 2023",
-                "ATAL FDP on Data Science — NIT Trichy 2022",
+                "AICTE Leadership Programme — IIT Bombay 2024",
+                "Advanced Distributed Systems — IISc Bangalore 2023",
             ]),
             "certifications": json.dumps([
-                "TCS Research Excellence Grant 2023",
-                "Google Certified ML Engineer (Associate)",
-                "Coursera Deep Learning Specialisation",
+                "Distinguished Academic Leader Award 2024",
+                "AWS Solutions Architect Professional",
             ]),
             "research_projects": json.dumps([
-                "SERB-funded project: Explainable AI for Medical Diagnosis (₹18 L, 2023-25)",
-                "DST-funded: NLP for Regional Language Processing (₹12 L, 2022-24)",
+                "DST-funded: Sustainable Cloud Architectures for Tier-2 Cities (₹25 L, 2023-26)",
             ]),
             "awards": json.dumps([
-                "Best Faculty Award — Anna University 2022",
-                "Innovative Researcher Award — Institution 2023",
-                "Women in Engineering Award — IEEE Madras Section 2024",
+                "Best Teacher Award — 2023",
+                "Senior Researcher Excellence Fellowship — 2024",
             ]),
         },
         {
-            "faculty_id": "FAC002",
-            "name": "Prof. Ravi Shankar",
-            "email": "ravi.shankar@faculty.academiq.edu",
-            "phone": "9876500002",
-            "designation": "Assistant Professor",
-            "qualification": "M.Tech (Computer Networks & Information Security)",
-            "experience": "8 years",
+            "faculty_id": "FAC004",
+            "name": "Dr. ANNAPURNA V K",
+            "email": "annapurna.k@faculty.academiq.edu",
+            "phone": "9876500004",
+            "designation": "Professor",
+            "qualification": "Ph.D (Data Science & Algorithms)",
+            "experience": "18 years",
             "courses_taught": json.dumps([
-                "Computer Networks",
-                "Operating Systems",
-                "Network Security & Cryptography",
-                "Cloud Computing",
+                "Database Management Systems",
+                "Data Mining & Warehousing",
+                "Design & Analysis of Algorithms",
             ]),
             "publications": json.dumps([
-                "SDN-based Traffic Optimization for Campus Networks — Elsevier 2024",
-                "Zero-Trust Architecture in Educational Institutions — IEEE Access 2023",
-                "Performance Analysis of 5G mmWave Networks — COMSNETS 2022",
+                "Scalable Graph Analytics on Large Databases — Elsevier 2024",
+                "Query Optimization in Distributed NoSQL Engines — ACM 2023",
             ]),
             "fdp_participation": json.dumps([
-                "Cisco CCNA Certification FDP — 2024",
-                "NPTEL Cloud Computing Certification — 2023",
-                "ATAL FDP on Cybersecurity — NIT Surathkal 2023",
-                "AWS Academy Cloud Foundations — 2022",
+                "Data Science in Healthcare — NIT Karnataka 2024",
             ]),
             "certifications": json.dumps([
-                "Cisco Certified Network Associate (CCNA) 2024",
-                "AWS Certified Cloud Practitioner 2023",
-                "CompTIA Security+ 2023",
+                "Oracle Certified Master Database Administrator",
             ]),
             "research_projects": json.dumps([
-                "Institution-funded: SDN for Smart Campus Network Management (₹5 L, 2024-25)",
+                "Institutional Grant: Big Data Optimization (₹10 L, 2023-25)",
             ]),
             "awards": json.dumps([
-                "Best Paper Award — ICCCN 2024",
-                "Outstanding Teaching Award — Institution 2023",
+                "Outstanding Academic Research Award — 2023",
             ]),
         },
     ]
@@ -626,7 +612,7 @@ def _seed_demo_data():
             final_result=result,
             courses_data=json.dumps(courses),
             email=f"{first}.{sid.lower()}@student.academiq.edu",
-            phone=f"9{sid[3:]:0>9}",
+            phone="8660042249",
         )
         db.session.add(s)
 
