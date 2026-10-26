@@ -9,7 +9,7 @@ from models import db
 
 
 VALID_CLUB_CATEGORIES = ("technical", "cultural", "sports", "social", "literary", "other")
-VALID_STUDENT_ROLES   = ("head", "council", "member")
+VALID_STUDENT_ROLES   = ("head", "treasurer", "council", "member")
 VALID_EVENT_TYPES     = ("hackathon", "workshop", "seminar", "webinar", "competition",
                          "conference", "guest_lecture", "cultural_fest", "sports_meet",
                          "social_outreach", "other")

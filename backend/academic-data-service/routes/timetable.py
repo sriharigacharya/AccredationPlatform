@@ -256,3 +256,162 @@ def get_room_matrix():
         "periods": PERIOD_MAP,
         "room_matrix": room_matrix,
     })
+
+
+# ── Slot CRUD (Admin only) ─────────────────────────────────────────────────────
+
+@timetable_bp.post("/slots")
+def create_slot():
+    """
+    POST /timetable/slots — Admin only.
+    Body: {
+      "faculty_id": "FAC001",
+      "subject_id": 12,           (optional)
+      "section_id": 3,
+      "day_of_week": "Mon",
+      "period_index": 2,          (1–6)
+      "room": "CSE-B2",           (optional)
+      "is_lab": false,
+      "co_faculty_id": "FAC007",  (optional)
+      "academic_term": "2024-25-EVEN"
+    }
+    """
+    role = request.headers.get("X-User-Role", "")
+    if role != "admin":
+        return jsonify({"error": "Admin access required"}), 403
+
+    data = request.get_json(force=True) or {}
+
+    # ── Required fields ────────────────────────────────────────────────────────
+    faculty_id = (data.get("faculty_id") or "").strip()
+    if not faculty_id:
+        return jsonify({"error": "faculty_id is required"}), 400
+
+    raw_sec = data.get("section_id")
+    if not raw_sec:
+        return jsonify({"error": "section_id is required"}), 400
+    try:
+        section_id = int(raw_sec)
+    except (TypeError, ValueError):
+        return jsonify({"error": "section_id must be an integer"}), 400
+
+    day = (data.get("day_of_week") or "").strip()
+    if day not in DAYS_ORDER:
+        return jsonify({"error": f"day_of_week must be one of: {', '.join(DAYS_ORDER)}"}), 400
+
+    raw_period = data.get("period_index")
+    if raw_period is None:
+        return jsonify({"error": "period_index is required"}), 400
+    try:
+        period = int(raw_period)
+    except (TypeError, ValueError):
+        return jsonify({"error": "period_index must be an integer"}), 400
+
+    pinfo = PERIOD_MAP.get(period)
+    if not pinfo:
+        return jsonify({"error": "period_index must be between 1 and 6"}), 400
+
+    term = data.get("academic_term", "2024-25-EVEN")
+
+    # ── Validate faculty exists (C-1) ──────────────────────────────────────────
+    fac = Faculty.query.filter_by(faculty_id=faculty_id).first()
+    if not fac:
+        return jsonify({"error": f"Faculty '{faculty_id}' not found"}), 404
+
+    # ── Validate section exists ────────────────────────────────────────────────
+    from timetable_models import Section
+    sec = Section.query.get(section_id)
+    if not sec:
+        return jsonify({"error": f"Section {section_id} not found"}), 404
+
+    # ── Validate subject if provided ───────────────────────────────────────────
+    subject_id = data.get("subject_id")
+    if subject_id is not None:
+        try:
+            subject_id = int(subject_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "subject_id must be an integer"}), 400
+        from timetable_models import Subject
+        if not Subject.query.get(subject_id):
+            return jsonify({"error": f"Subject {subject_id} not found"}), 404
+
+    # ── Section clash check ────────────────────────────────────────────────────
+    section_clash = TimetableSlot.query.filter_by(
+        section_id=section_id,
+        day_of_week=day,
+        period_index=period,
+        academic_term=term,
+    ).first()
+    if section_clash:
+        existing_sub = section_clash.subject.name if section_clash.subject else (section_clash.raw_text or "another subject")
+        return jsonify({
+            "error": f"Section '{sec.semester}-{sec.section_label}' is already scheduled for '{existing_sub}' at {day} Period {period}."
+        }), 409
+
+    # ── Faculty clash check (H-1) ──────────────────────────────────────────────
+    faculty_clash = TimetableSlot.query.filter_by(
+        faculty_id=faculty_id,
+        day_of_week=day,
+        period_index=period,
+        academic_term=term,
+    ).first()
+    if faculty_clash:
+        clashing_sub = faculty_clash.subject.name if faculty_clash.subject else (faculty_clash.raw_text or "another class")
+        return jsonify({
+            "error": f"Faculty '{fac.name}' is already teaching '{clashing_sub}' at {day} Period {period}."
+        }), 409
+
+    # ── Room clash check (optional — warn, don't block) ─────────────────────
+    room = (data.get("room") or "").strip()
+    room_warning = None
+    if room:
+        room_clash = TimetableSlot.query.filter_by(
+            room=room,
+            day_of_week=day,
+            period_index=period,
+            academic_term=term,
+        ).first()
+        if room_clash:
+            room_warning = f"Warning: Room '{room}' is already booked at {day} Period {period}."
+
+    # ── Validate optional co_faculty_id ───────────────────────────────────────
+    co_faculty_id = (data.get("co_faculty_id") or "").strip() or None
+    if co_faculty_id:
+        co_fac = Faculty.query.filter_by(faculty_id=co_faculty_id).first()
+        if not co_fac:
+            return jsonify({"error": f"Co-faculty '{co_faculty_id}' not found"}), 404
+
+    slot = TimetableSlot(
+        faculty_id    = faculty_id,
+        subject_id    = subject_id,
+        section_id    = section_id,
+        day_of_week   = day,
+        period_index  = period,
+        start_time    = pinfo["start"],
+        end_time      = pinfo["end"],
+        room          = room,
+        is_lab        = bool(data.get("is_lab", False)),
+        co_faculty_id = co_faculty_id,
+        academic_term = term,
+    )
+    db.session.add(slot)
+    db.session.commit()
+
+    fm = _build_faculty_map()
+    response = slot.to_dict(fm)
+    if room_warning:
+        response["warning"] = room_warning
+    return jsonify(response), 201
+
+
+@timetable_bp.delete("/slots/<int:slot_id>")
+def delete_slot(slot_id):
+    """DELETE /timetable/slots/:id — Admin only."""
+    role = request.headers.get("X-User-Role", "")
+    if role != "admin":
+        return jsonify({"error": "Admin access required"}), 403
+
+    slot = TimetableSlot.query.get_or_404(slot_id)
+    db.session.delete(slot)
+    db.session.commit()
+    return jsonify({"deleted": True, "id": slot_id})

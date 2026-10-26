@@ -7,6 +7,6 @@ celery==5.4.0
 redis==5.0.8
 requests==2.32.3
 gunicorn==22.0.0
-torch==2.4.1+cpu
+torch==2.6.0+cpu
 # torch CPU-only build keeps the Docker image manageable (~1.5 GB instead of 5+ GB)
-# If you have a GPU available: replace with torch==2.4.1 (CUDA) in Dockerfile
+# If you have a GPU available: replace with torch==2.6.0 (CUDA) in Dockerfile

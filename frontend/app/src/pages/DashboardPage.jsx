@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { studentsAPI, facultyAPI, ragAPI, predictAPI, classesAPI } from '../api/client'
+import { studentsAPI, facultyAPI, predictAPI, classesAPI } from '../api/client'
 import {
   BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell
@@ -45,30 +45,39 @@ export default function DashboardPage() {
   const { user }               = useAuth()
   const [stats, setStats]      = useState(null)
   const [facStats, setFacStats]= useState(null)
-  const [ragStats, setRagStats]= useState(null)
-  const [atRisk, setAtRisk]    = useState([])
+  const [atRisk, setAtRisk]    = useState([])      // medium + high (for table)
+  const [highRiskCount, setHighRiskCount] = useState(0)  // high only (for badge)
   const [allStudents, setAllStudents] = useState([])
   const [teacherClasses, setTeacherClasses] = useState([])
   const [loading, setLoading]  = useState(true)
 
   useEffect(() => {
+    // Phase 1 — fast: stats + classes (renders dashboard immediately)
     Promise.all([
       studentsAPI.stats().catch(() => null),
       facultyAPI.stats().catch(() => null),
-      ragAPI.stats().catch(() => null),
-      predictAPI.atRisk(0.6).catch(() => ({ data: { at_risk: [] } })),
-      studentsAPI.list({}).catch(() => ({ data: [] })),
       classesAPI.myClasses().catch(() => ({ data: [] })),
-    ]).then(([s, f, r, ar, stu, cls]) => {
+    ]).then(([s, f, cls]) => {
       setStats(s?.data)
       setFacStats(f?.data)
-      setRagStats(r?.data)
-      setAtRisk(ar?.data?.at_risk || [])
-      setAllStudents(stu?.data || [])
       setTeacherClasses(cls?.data || [])
       setLoading(false)
     })
+
+    // Phase 2 — at-risk list (medium+high threshold=0.35, for the table)
+    predictAPI.atRisk(0.35).catch(() => ({ data: { at_risk: [] } })).then(ar => {
+      const list = ar?.data?.at_risk || []
+      setAtRisk(list)
+      // High-risk count = only students the model actually labelled 'High'
+      setHighRiskCount(list.filter(s => s.risk_level === 'High').length)
+    })
+
+    // Phase 3 — full student list for charts
+    studentsAPI.list({}).catch(() => ({ data: [] })).then(stu => {
+      setAllStudents(stu?.data || [])
+    })
   }, [])
+
 
   const teacherAtRiskCount = useMemo(() => {
     return teacherClasses.reduce((sum, c) => sum + (c.at_risk_count || 0), 0)
@@ -196,7 +205,7 @@ export default function DashboardPage() {
           <StatCard
             label="Enrolled Students"
             value={stats?.total_students ?? allStudents.length}
-            subtext="3 Active Sections (A, B, C)"
+            subtext="Active Cohorts across all Sections"
             icon={Users}
             variant="primary"
           />
@@ -208,20 +217,20 @@ export default function DashboardPage() {
             variant="default"
           />
           <StatCard
-            label="Document Intelligence"
-            value={ragStats?.total_documents ?? 8}
-            subtext={`${ragStats?.total_chunks ?? 142} Vector Chunks in Qdrant`}
-            icon={FileText}
-            variant="info"
+            label="Academic Pass Rate"
+            value={stats?.pass_rate_pct != null ? `${stats.pass_rate_pct}%` : (allStudents.length > 0 ? `${Math.round(allStudents.filter(s => s.final_result === 'Pass').length / allStudents.length * 100)}%` : '—')}
+            subtext="CIE + SEE Evaluation Basis"
+            icon={TrendingUp}
+            variant="success"
           />
           <StatCard
-            label="At-Risk Alerts (ML)"
-            value={atRisk.length}
-            subtext="Predicted by Random Forest & XGBoost"
+            label="High-Risk Students (ML)"
+            value={highRiskCount}
+            subtext="RF model tier ≥ High (P(Fail) ≥ 65%)"
             icon={AlertTriangle}
-            variant={atRisk.length > 0 ? "danger" : "success"}
-            change={atRisk.length > 0 ? `${atRisk.length} flagged` : "None"}
-            isPositive={atRisk.length === 0}
+            variant={highRiskCount > 0 ? "danger" : "success"}
+            change={highRiskCount > 0 ? `${highRiskCount} flagged` : "None"}
+            isPositive={highRiskCount === 0}
           />
         </div>
 
@@ -310,7 +319,7 @@ export default function DashboardPage() {
             <div>
               <h3 className="card-title">Students Requiring Academic Mentoring</h3>
               <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: 2 }}>
-                High-risk predictions surfaced by predictive microservice threshold (&gt; 0.60)
+                High-risk students surfaced by calibrated RF model (tier ≥ Medium) and/or statutory policy flags (detention, backlog)
               </p>
             </div>
             <Link to="/students" className="btn btn-secondary btn-sm">
@@ -345,6 +354,8 @@ export default function DashboardPage() {
                 <tbody>
                   {atRisk.slice(0, 5).map(s => {
                     const probPercent = Math.round((s.risk_score || s.probability || 0.65) * 100)
+                    const riskLevel   = s.risk_level || 'High'
+                    const flagCodes   = (s.flags || []).map(f => f.code)
                     return (
                       <tr key={s.id || s.student_id}>
                         <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
@@ -366,10 +377,10 @@ export default function DashboardPage() {
                           {s.backlogs ?? 1}
                         </td>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                             <div style={{
                               flex: 1,
-                              maxWidth: 100,
+                              maxWidth: 80,
                               height: 6,
                               borderRadius: 3,
                               background: 'var(--bg-subtle)',
@@ -378,13 +389,19 @@ export default function DashboardPage() {
                               <div style={{
                                 width: `${probPercent}%`,
                                 height: '100%',
-                                background: 'var(--danger)',
+                                background: riskLevel === 'High' ? 'var(--danger)' : 'var(--warning)',
                                 borderRadius: 3
                               }} />
                             </div>
-                            <span className="tabular-nums" style={{ fontSize: '12px', color: 'var(--danger)', fontWeight: 600 }}>
+                            <span className="tabular-nums" style={{ fontSize: '12px', color: riskLevel === 'High' ? 'var(--danger)' : 'var(--warning)', fontWeight: 600 }}>
                               {probPercent}%
                             </span>
+                            {flagCodes.includes('DETENTION_RISK') && (
+                              <span title="Attendance below 75% — detention risk" style={{ fontSize: '10px', background: 'var(--danger-subtle)', color: 'var(--danger)', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>DET</span>
+                            )}
+                            {flagCodes.includes('ACTIVE_BACKLOG') && (
+                              <span title="Active subject backlogs" style={{ fontSize: '10px', background: 'var(--warning-subtle)', color: 'var(--warning)', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>BKL</span>
+                            )}
                           </div>
                         </td>
                         <td style={{ textAlign: 'right' }}>
@@ -410,3 +427,4 @@ export default function DashboardPage() {
     </div>
   )
 }
+

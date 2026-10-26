@@ -178,6 +178,11 @@ export default function EventsPage() {
   })
   const [editingClubId, setEditingClubId] = useState(null)
 
+  // Secondary Club Roles State (Feature 5)
+  const [newRoleType, setNewRoleType]           = useState('treasurer')
+  const [newRoleStudentId, setNewRoleStudentId] = useState('')
+  const [addingRole, setAddingRole]             = useState(false)
+
   const loadInitialData = async () => {
     setLoading(true)
     try {
@@ -229,6 +234,46 @@ export default function EventsPage() {
     })
     return map
   }, [studentRoles, user, role])
+
+  // Roster of secondary roles for current editing club
+  const clubRoster = useMemo(() => {
+    if (!editingClubId) return []
+    return studentRoles.filter(r => String(r.club_id) === String(editingClubId) && r.role !== 'head')
+  }, [editingClubId, studentRoles])
+
+  const handleAddClubRole = async () => {
+    if (!newRoleStudentId.trim() || !editingClubId) {
+      toast.error('Please select a student')
+      return
+    }
+    setAddingRole(true)
+    try {
+      await studentRolesAPI.create({
+        club_id: editingClubId,
+        student_id: newRoleStudentId.trim().toUpperCase(),
+        role: newRoleType,
+      })
+      toast.success(`Assigned role '${newRoleType}'`)
+      setNewRoleStudentId('')
+      const rolesRes = await studentRolesAPI.list()
+      setStudentRoles(rolesRes.data || [])
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to assign role')
+    } finally {
+      setAddingRole(false)
+    }
+  }
+
+  const handleRemoveClubRole = async (roleId) => {
+    try {
+      await studentRolesAPI.delete(roleId)
+      toast.success('Role removed')
+      const rolesRes = await studentRolesAPI.list()
+      setStudentRoles(rolesRes.data || [])
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to remove role')
+    }
+  }
 
   // Check if current user is the appointed Club Head of a specific club (or admin)
   const isClubHead = (clubId) => {
@@ -2237,6 +2282,106 @@ export default function EventsPage() {
                 Only appointed Club Heads (and Admins) hold the privilege to propose events and mark day-of attendance.
               </span>
             </div>
+
+            {/* ── Club Roster & Secondary Roles Section (Feature 5) ── */}
+            {editingClubId && (
+              <div style={{
+                marginBottom: 16,
+                padding: '12px 14px',
+                backgroundColor: 'var(--bg-subtle)',
+                borderRadius: 'var(--radius-sm)',
+                border: '1px solid var(--border-subtle)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <label style={{ fontSize: '12.5px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                    👥 Club Roster & Secondary Roles ({clubRoster.length})
+                  </label>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Treasurer, Council & Members</span>
+                </div>
+
+                {/* Existing Roles List */}
+                {clubRoster.length === 0 ? (
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: 10 }}>
+                    No secondary roles assigned yet. Add members below.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12, maxHeight: 150, overflowY: 'auto' }}>
+                    {clubRoster.map(r => (
+                      <div
+                        key={r.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '6px 10px',
+                          backgroundColor: 'var(--bg-elevated)',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: '12px',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Badge variant={r.role === 'treasurer' ? 'purple' : r.role === 'council' ? 'info' : 'neutral'}>
+                            {r.role === 'treasurer' ? '💰 Treasurer' : r.role === 'council' ? '🏛️ Council' : '👤 Member'}
+                          </Badge>
+                          <strong style={{ color: 'var(--text-primary)' }}>{r.student_name || r.student_id}</strong>
+                          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({r.student_id})</span>
+                        </div>
+                        {role === 'admin' && (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: 'var(--danger)', padding: '2px 6px' }}
+                            onClick={() => handleRemoveClubRole(r.id)}
+                            title="Remove role"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add Role Row */}
+                {role === 'admin' && (
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--border-subtle)', paddingTop: 10 }}>
+                    <select
+                      className="form-select"
+                      style={{ width: 140, fontSize: '12px' }}
+                      value={newRoleType}
+                      onChange={e => setNewRoleType(e.target.value)}
+                    >
+                      <option value="treasurer">Treasurer</option>
+                      <option value="council">Council Member</option>
+                      <option value="member">Member</option>
+                    </select>
+
+                    <select
+                      className="form-select"
+                      style={{ flex: 1, minWidth: 160, fontSize: '12px' }}
+                      value={newRoleStudentId}
+                      onChange={e => setNewRoleStudentId(e.target.value)}
+                    >
+                      <option value="">Select Student…</option>
+                      {studentsList.map(s => (
+                        <option key={s.student_id} value={s.student_id}>
+                          {s.name} ({s.student_id})
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={!newRoleStudentId || addingRole}
+                      onClick={handleAddClubRole}
+                    >
+                      {addingRole ? 'Adding…' : '+ Add Role'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="form-group">
               <label className="form-label">Club Purpose & Mission</label>

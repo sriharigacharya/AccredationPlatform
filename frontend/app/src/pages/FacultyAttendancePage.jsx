@@ -340,6 +340,22 @@ export default function FacultyAttendancePage() {
               </div>
             </div>
 
+            {/* Auto Checkout Policy Note */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              fontSize: '11.5px',
+              color: 'var(--text-muted)',
+              marginBottom: 'var(--space-2)',
+              padding: '0 4px',
+            }}>
+              <Clock size={12} color="var(--primary)" />
+              <span>
+                <strong>Institutional Policy:</strong> Faculty who punch IN but forget to punch OUT are automatically checked out at <strong>05:00 PM</strong> in the evening.
+              </span>
+            </div>
+
             {/* Roster Table */}
             <div className="table-wrapper" style={{ marginBottom: 'var(--space-6)' }}>
               <table className="data-table">

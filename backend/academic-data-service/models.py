@@ -87,6 +87,14 @@ class Student(db.Model):
     #   "see": 72, "attendance_pct": 88, "credits": 4 }
     courses_data         = db.Column(db.Text)   # JSON array
 
+    # ── Pre-computed ML Risk Results (written by prediction-service batch job) ──
+    # Updated on startup, daily at 02:00, or manually via Settings → Run Now.
+    ml_risk_score       = db.Column(db.Float)          # P(Fail) from RF model
+    ml_risk_level       = db.Column(db.String(20))     # High | Medium | Low
+    ml_risk_flags       = db.Column(db.Text)           # JSON array of flag dicts
+    ml_risk_computed_at = db.Column(db.DateTime)       # when last computed (UTC)
+    ml_low_confidence   = db.Column(db.Boolean, default=False)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -388,6 +396,13 @@ class Student(db.Model):
             "courses":               courses,
             "sgpa":                  sgpa,
             "created_at":            self.created_at.isoformat(),
+
+            # ── Pre-computed ML risk results (written by prediction-service batch) ──
+            "ml_risk_score":       self.ml_risk_score,
+            "ml_risk_level":       self.ml_risk_level,
+            "ml_risk_flags":       self.ml_risk_flags,     # JSON string — parse on client
+            "ml_risk_computed_at": self.ml_risk_computed_at.isoformat() if self.ml_risk_computed_at else None,
+            "ml_low_confidence":   self.ml_low_confidence or False,
         }
 
         # Check if student is appointed as Club Head
@@ -755,6 +770,7 @@ from timetable_models import (  # noqa: E402, F401
     LeaveNotice,
     ScheduleNotification,
     IngestionWarning,
+    SystemConfig,
 )
 
 

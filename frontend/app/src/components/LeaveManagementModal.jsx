@@ -32,6 +32,16 @@ export default function LeaveManagementModal({ isOpen, onClose, onLeaveSubmitted
   const [substituteModalLeave, setSubstituteModalLeave] = useState(null)
   const [selectedSubstituteId, setSelectedSubstituteId] = useState('')
 
+  // Leave quota tracking
+  const [quotaData, setQuotaData] = useState(null)
+
+  const loadQuota = () => {
+    if (!targetFacultyId) return
+    leaveAPI.getQuota(targetFacultyId)
+      .then(res => setQuotaData(res.data))
+      .catch(() => setQuotaData(null))
+  }
+
   // Load faculty list for dropdowns
   useEffect(() => {
     timetableAPI.getMeta().then(res => {
@@ -47,6 +57,13 @@ export default function LeaveManagementModal({ isOpen, onClose, onLeaveSubmitted
   useEffect(() => {
     if (defaultFacultyId) setTargetFacultyId(defaultFacultyId)
   }, [defaultFacultyId])
+
+  // Fetch quota whenever modal opens or targetFacultyId changes
+  useEffect(() => {
+    if (isOpen && targetFacultyId) {
+      loadQuota()
+    }
+  }, [isOpen, targetFacultyId])
 
   // Fetch live preview whenever faculty, date, or time window changes
   useEffect(() => {
@@ -117,6 +134,7 @@ export default function LeaveManagementModal({ isOpen, onClose, onLeaveSubmitted
       toast.success(res.data?.message || 'Leave notice submitted successfully!')
       if (onLeaveSubmitted) onLeaveSubmitted()
       loadLeaves()
+      loadQuota()
       setActiveTab('history')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to submit leave notice')
@@ -130,6 +148,7 @@ export default function LeaveManagementModal({ isOpen, onClose, onLeaveSubmitted
       const res = await leaveAPI.cancel(leaveId)
       toast.success(res.data?.message || 'Leave cancelled and students alerted')
       loadLeaves()
+      loadQuota()
       if (onLeaveSubmitted) onLeaveSubmitted()
     } catch (err) {
       toast.error('Failed to cancel leave notice')
@@ -421,6 +440,78 @@ export default function LeaveManagementModal({ isOpen, onClose, onLeaveSubmitted
               />
             </div>
 
+            {/* Annual Leave Quota Banner */}
+            {quotaData && (
+              <div style={{
+                marginBottom: '20px',
+                padding: '14px 16px',
+                borderRadius: '10px',
+                border: `1px solid ${quotaData.lop_warning ? 'var(--danger-border, #fca5a5)' : 'var(--success-border, #86efac)'}`,
+                background: quotaData.lop_warning ? 'var(--danger-subtle, rgba(239,68,68,0.08))' : 'var(--success-subtle, rgba(34,197,94,0.08))',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {quotaData.lop_warning ? (
+                      <ShieldAlert size={16} color="var(--danger, #ef4444)" />
+                    ) : (
+                      <CheckCircle2 size={16} color="var(--success, #22c55e)" />
+                    )}
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      Annual Leave Balance ({quotaData.year})
+                    </span>
+                  </div>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    background: quotaData.lop_warning ? 'var(--danger, #ef4444)' : 'var(--success, #22c55e)',
+                    color: '#fff',
+                    letterSpacing: '0.04em',
+                  }}>
+                    {quotaData.lop_warning ? 'LOP APPLIES' : `${quotaData.remaining} REMAINING`}
+                  </span>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  gap: '20px',
+                  marginTop: '10px',
+                  paddingTop: '8px',
+                  borderTop: '1px solid var(--border-subtle, rgba(255,255,255,0.06))',
+                  fontSize: '12px',
+                  color: 'var(--text-secondary)',
+                }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Quota: </span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{quotaData.quota} days/yr</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Used: </span>
+                    <strong style={{ color: 'var(--text-primary)' }}>{quotaData.used} days</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Remaining: </span>
+                    <strong style={{ color: quotaData.lop_warning ? 'var(--danger, #ef4444)' : 'var(--success, #22c55e)' }}>
+                      {quotaData.remaining} days
+                    </strong>
+                  </div>
+                </div>
+
+                {quotaData.lop_warning && (
+                  <div style={{
+                    marginTop: '8px',
+                    fontSize: '11px',
+                    color: 'var(--danger, #ef4444)',
+                    fontWeight: 600,
+                    lineHeight: '1.4',
+                  }}>
+                    ⚠️ Quota limit of {quotaData.quota} days exceeded. Submitting this leave will be processed under <strong>Loss of Pay (LOP)</strong>.
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Dynamic Affected Slots & Student Preview Card */}
             <div style={{
               background: 'var(--bg-canvas)',
@@ -553,6 +644,19 @@ export default function LeaveManagementModal({ isOpen, onClose, onLeaveSubmitted
                         }}>
                           {l.status}
                         </span>
+                        {l.is_lop && (
+                          <span style={{
+                            padding: '2px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            background: 'var(--danger-subtle)',
+                            color: 'var(--danger)',
+                            border: '1px solid var(--danger-border)',
+                          }}>
+                            LOP
+                          </span>
+                        )}
                       </div>
 
                       <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px' }}>

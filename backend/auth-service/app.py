@@ -22,9 +22,13 @@ def create_app():
     pg_port = os.getenv("POSTGRES_PORT", "5432")
     pg_db   = os.getenv("POSTGRES_DB", "academiq")
 
-    app.config["SQLALCHEMY_DATABASE_URI"] = (
-        f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
+    db_url = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URI") or (
+        f"postgresql+psycopg2://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
     )
+    if db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["JWT_SECRET"]       = os.getenv("JWT_SECRET", "changeme")
     app.config["JWT_ALGORITHM"]    = os.getenv("JWT_ALGORITHM", "HS256")

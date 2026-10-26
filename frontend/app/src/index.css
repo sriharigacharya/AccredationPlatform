@@ -354,6 +354,10 @@ html, body {
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border-subtle);
   background-color: var(--bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 /* ── Mobile Top Navigation Bar ───────────────────────────────────────────── */
@@ -472,6 +476,16 @@ html, body {
 .btn-success:hover {
   background-color: var(--success);
   color: #ffffff;
+}
+
+.btn-warning {
+  background-color: var(--warning-subtle);
+  color: var(--warning);
+  border-color: var(--warning-border);
+}
+.btn-warning:hover {
+  background-color: var(--warning);
+  color: #000000;
 }
 
 .btn-sm {

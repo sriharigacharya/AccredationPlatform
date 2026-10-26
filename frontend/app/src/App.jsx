@@ -21,10 +21,10 @@ import AssignmentsPage    from './pages/AssignmentsPage'
 import EventsPage         from './pages/EventsPage'
 import HistoricalDataPage from './pages/HistoricalDataPage'
 import TeacherClassesPage from './pages/TeacherClassesPage'
-
 import MockDeviceKiosk    from './pages/MockDeviceKiosk'
 import TimetablePage      from './pages/TimetablePage'
 import FacultyAttendancePage from './pages/FacultyAttendancePage'
+import ApiDocsPage        from './pages/ApiDocsPage'
 
 
 // ── Route guard ────────────────────────────────────────────────────────────────
@@ -34,13 +34,8 @@ function ProtectedRoute({ children, roles }) {
   if (loading) {
     return (
       <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        backgroundColor: 'var(--bg-canvas)',
-        gap: 16
+        display: 'flex', flexDirection: 'column', justifyContent: 'center',
+        alignItems: 'center', height: '100vh', backgroundColor: 'var(--bg-canvas)', gap: 16
       }}>
         <div className="spinner spinner-lg" />
         <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Verifying credentials…</span>
@@ -128,7 +123,6 @@ function AppRoutes() {
           <AppLayout><FacultyAttendancePage /></AppLayout>
         </ProtectedRoute>
       } />
-
 
       {/* Admin + Teacher shared dashboard */}
       <Route path="/dashboard" element={
@@ -227,6 +221,13 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* API Reference & Swagger Documentation */}
+      <Route path="/api-docs" element={
+        <ProtectedRoute roles={['admin', 'teacher', 'worker']}>
+          <AppLayout><ApiDocsPage /></AppLayout>
+        </ProtectedRoute>
+      } />
+
       {/* Root → role-aware redirect */}
       <Route path="/" element={<RootRedirect />} />
 
@@ -271,3 +272,4 @@ export default function App() {
     </AuthProvider>
   )
 }
+

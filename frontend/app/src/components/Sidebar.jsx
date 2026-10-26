@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, GraduationCap, FileText,
   MessageSquare, Phone, Settings, LogOut, BookOpen,
   Upload, User, ClipboardList, Calendar, ClipboardCheck,
-  Clock, Fingerprint, X
+  Clock, Fingerprint, X, Code2
 } from 'lucide-react'
 
 const NAV_SECTIONS = [
@@ -15,7 +15,6 @@ const NAV_SECTIONS = [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'teacher'] },
       { to: '/my-record', icon: User, label: 'My Record', roles: ['student'] },
       { to: '/timetable', icon: Clock, label: 'Timetable', roles: ['admin', 'teacher', 'student'] },
-      // { to: '/documents', icon: FileText, label: 'Documents', roles: ['admin', 'teacher', 'worker'] },
     ],
   },
   {
@@ -34,16 +33,16 @@ const NAV_SECTIONS = [
   {
     label: 'Intelligence & Reports',
     items: [
-      // { to: '/chat',    icon: MessageSquare, label: 'AI Document Q&A', roles: ['admin', 'teacher'] },
       { to: '/reports', icon: ClipboardList, label: 'Accreditation Reports', roles: ['admin', 'teacher'] },
       { to: '/contact', icon: Phone, label: 'Parent Contact', roles: ['admin', 'teacher'] },
     ],
   },
   {
-    label: 'Administration',
+    label: 'Administration & Developer',
     items: [
       { to: '/settings', icon: Settings, label: 'ML & System Settings', roles: ['admin'] },
       { to: '/users', icon: Users, label: 'User Management', roles: ['admin'] },
+      { to: '/api-docs', icon: Code2, label: 'API Docs (Swagger)', roles: ['admin', 'teacher', 'worker'] },
     ],
   },
 ]
@@ -119,41 +118,32 @@ export default function Sidebar({ isOpen, onClose }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: 'rgba(255, 255, 255, 0.015)'
         }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 500 }}>
+          <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.04em' }}>
             CSE Dept · Tier-II
           </span>
           <span style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 5,
-            background: roleStyle.bg,
-            border: `1px solid ${roleStyle.border}`,
-            borderRadius: 'var(--radius-full)',
-            padding: '2px 8px',
-            fontSize: '11px',
-            fontWeight: 600,
-            color: roleStyle.color,
+            fontSize: '10px', fontWeight: 700, padding: '2px 8px',
+            borderRadius: '10px', textTransform: 'uppercase', letterSpacing: '0.06em',
+            background: roleStyle.bg, border: `1px solid ${roleStyle.border}`, color: roleStyle.color,
           }}>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: roleStyle.color }} />
-            {roleStyle.label}
+            ● {roleStyle.label}
           </span>
         </div>
 
-        {/* Navigation items */}
+        {/* Navigation */}
         <nav className="sidebar-nav">
           {visibleSections.map(section => (
-            <div key={section.label}>
+            <div key={section.label} className="nav-section">
               <div className="nav-section-label">{section.label}</div>
               {section.items.map(item => (
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  onClick={onClose}
                   className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                  onClick={onClose}
                 >
-                  <item.icon className="nav-icon" size={17} />
+                  <item.icon size={16} className="nav-icon" />
                   <span>{item.label}</span>
                 </NavLink>
               ))}
@@ -161,56 +151,37 @@ export default function Sidebar({ isOpen, onClose }) {
           ))}
         </nav>
 
-        {/* User profile & Single Sign Out */}
+        {/* User Profile Footer */}
         <div className="sidebar-footer">
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 10,
-            padding: '6px 8px',
-            borderRadius: 'var(--radius-sm)',
-            backgroundColor: 'var(--bg-surface)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-              <div style={{
-                width: 32,
-                height: 32,
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--bg-elevated)',
-                border: '1px solid var(--border-default)',
-                color: 'var(--text-primary)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '12px',
-                fontWeight: 700,
-                flexShrink: 0
-              }}>
-                {initials}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%',
+              background: 'var(--primary-subtle)', border: '1.5px solid var(--primary-border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '12px', fontWeight: 700, color: 'var(--primary)', flexShrink: 0,
+            }}>
+              {initials}
+            </div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.name || 'User'}
               </div>
-              <div style={{ minWidth: 0 }}>
-                <div className="truncate" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {user.name || 'User'}
-                </div>
-                <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  {user.email || user.user_id || 'Signed In'}
-                </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.email}
               </div>
             </div>
-
-            <button
-              onClick={logout}
-              className="btn btn-ghost btn-icon"
-              title="Sign Out"
-              aria-label="Sign Out"
-              style={{ color: 'var(--text-muted)', flexShrink: 0 }}
-            >
-              <LogOut size={16} />
-            </button>
           </div>
+          <button
+            onClick={logout}
+            className="btn btn-ghost btn-icon"
+            title="Sign out"
+            style={{ flexShrink: 0 }}
+          >
+            <LogOut size={16} />
+          </button>
         </div>
       </aside>
     </>
   )
 }
+

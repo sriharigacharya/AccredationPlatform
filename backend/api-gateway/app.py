@@ -9,6 +9,7 @@ import logging
 from flask import Flask
 from flask_cors import CORS
 from middleware.proxy import proxy_bp
+from swagger.routes import swagger_bp
 
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
@@ -33,6 +34,11 @@ def create_app():
     app.config["JWT_SECRET"]              = os.getenv("JWT_SECRET", "changeme")
     app.config["JWT_ALGORITHM"]           = os.getenv("JWT_ALGORITHM", "HS256")
 
+    # Swagger Documentation (registered at root and /api/v1 for convenience)
+    app.register_blueprint(swagger_bp)
+    app.register_blueprint(swagger_bp, url_prefix="/api/v1", name="swagger_api_v1")
+
+    # Proxy blueprint for API routing
     app.register_blueprint(proxy_bp, url_prefix="/api/v1")
 
     @app.get("/health")
@@ -41,8 +47,15 @@ def create_app():
 
     @app.get("/")
     def root():
-        return {"message": "AcademiQ API Gateway", "version": "1.0",
-                "docs": "See README.md for API reference"}
+        return {
+            "message": "AcademiQ API Gateway",
+            "version": "1.0",
+            "swagger_ui": "/docs",
+            "swagger_alias": "/swagger",
+            "openapi_spec": "/openapi.json",
+            "openapi_yaml": "/openapi.yaml",
+            "docs": "Visit /docs for interactive Swagger UI documentation and live testing"
+        }
 
     return app
 

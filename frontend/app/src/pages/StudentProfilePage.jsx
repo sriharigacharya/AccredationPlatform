@@ -10,7 +10,7 @@ import {
   ArrowLeft, Phone, MessageSquare, AlertTriangle, Briefcase,
   ShieldCheck, CheckCircle2, XCircle, ExternalLink, Clock,
   Lock, Unlock, Award, BookOpen, User, Check, Download, FileText,
-  Edit3, PhoneCall, PhoneOff
+  Edit3, PhoneCall, PhoneOff, Brain, TrendingUp, Info
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '../components/PageHeader'
@@ -547,6 +547,178 @@ export default function StudentProfilePage() {
             </table>
           </div>
         </div>
+
+        {/* ── ML Risk Assessment Card ── */}
+        {(() => {
+          // Resolve flags from live prediction (preferred) or DB-persisted fields
+          const liveFlags   = prediction?.flags ?? []
+          const dbFlagsRaw  = student?.ml_risk_flags
+          const dbFlags     = dbFlagsRaw
+            ? (typeof dbFlagsRaw === 'string' ? (() => { try { return JSON.parse(dbFlagsRaw) } catch { return [] } })() : dbFlagsRaw)
+            : []
+          const flags       = liveFlags.length > 0 ? liveFlags : dbFlags
+
+          const score       = prediction?.risk_score ?? student?.ml_risk_score ?? null
+          const level       = prediction?.risk_level  ?? student?.ml_risk_level  ?? 'Low'
+          const lowConf     = prediction?.low_confidence ?? student?.ml_low_confidence ?? false
+          const missingFlds = prediction?.missing_fields ?? []
+          const computedAt  = student?.ml_risk_computed_at ?? null
+
+          const levelColor = level === 'High' ? 'var(--danger)' : level === 'Medium' ? 'var(--warning)' : 'var(--success)'
+          const levelBg    = level === 'High' ? 'rgba(239,68,68,0.1)' : level === 'Medium' ? 'rgba(245,158,11,0.1)' : 'rgba(16,185,129,0.1)'
+
+          const severityColor = (sev) => sev === 'high' ? 'var(--danger)' : sev === 'medium' ? 'var(--warning)' : 'var(--text-muted)'
+          const severityBg    = (sev) => sev === 'high' ? 'rgba(239,68,68,0.12)' : sev === 'medium' ? 'rgba(245,158,11,0.12)' : 'rgba(148,163,184,0.12)'
+
+          const codeLabel = (code) => {
+            const map = {
+              DETENTION_RISK: 'Detention Risk',
+              ACTIVE_BACKLOG: 'Active Backlogs',
+              LOW_ATTENDANCE: 'Low Attendance',
+              LOW_CIE:        'Low CIE Marks',
+              LOW_GPA:        'Low GPA',
+            }
+            return map[code] || code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+          }
+
+          return (
+            <div className="card" style={{ marginBottom: 'var(--space-6)' }}>
+              <div className="card-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Brain size={16} style={{ color: levelColor }} />
+                  <h3 className="card-title" style={{ margin: 0 }}>ML Risk Assessment</h3>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {lowConf && (
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                      fontSize: '11px', color: 'var(--warning)', fontWeight: 500,
+                    }}>
+                      <Info size={12} /> Low Confidence
+                    </span>
+                  )}
+                  <span style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '4px 12px', borderRadius: '999px',
+                    backgroundColor: levelBg, color: levelColor,
+                    fontSize: '12px', fontWeight: 700, letterSpacing: '0.02em',
+                  }}>
+                    {level === 'High' ? '🚨' : level === 'Medium' ? '⚠️' : '✅'} {level} Risk
+                  </span>
+                </div>
+              </div>
+
+              <div style={{ padding: '16px 20px' }}>
+                {/* Score meter */}
+                {score !== null && (
+                  <div style={{ marginBottom: 18 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        <TrendingUp size={12} /> Failure Probability Score
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: levelColor, fontFamily: 'var(--font-mono)' }}>
+                        {(score * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div style={{
+                      height: 8, borderRadius: 4,
+                      background: 'rgba(255,255,255,0.07)',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        width: `${Math.min(score * 100, 100)}%`,
+                        height: '100%',
+                        background: `linear-gradient(90deg, var(--success), ${levelColor})`,
+                        borderRadius: 4,
+                        transition: 'width 0.6s ease',
+                      }} />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Low Risk (0%)</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>High Risk (100%)</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Risk Flags */}
+                {flags.length > 0 ? (
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600, marginBottom: 10 }}>
+                      Risk Flags ({flags.length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {flags.map((flag, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'flex-start', gap: 10,
+                          padding: '10px 14px',
+                          borderRadius: 'var(--radius-sm)',
+                          background: severityBg(flag.severity),
+                          border: `1px solid ${severityColor(flag.severity)}30`,
+                        }}>
+                          <AlertTriangle size={14} style={{ color: severityColor(flag.severity), marginTop: 1, flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                              <span style={{
+                                fontSize: '12px', fontWeight: 700,
+                                color: severityColor(flag.severity),
+                              }}>
+                                {codeLabel(flag.code)}
+                              </span>
+                              <span style={{
+                                fontSize: '10px', fontWeight: 600,
+                                padding: '1px 6px', borderRadius: 999,
+                                background: severityBg(flag.severity),
+                                color: severityColor(flag.severity),
+                                textTransform: 'uppercase', letterSpacing: '0.04em',
+                              }}>
+                                {flag.severity}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                              {flag.message}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '12px 16px', borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
+                  }}>
+                    <CheckCircle2 size={15} style={{ color: 'var(--success)' }} />
+                    <span style={{ fontSize: '13px', color: 'var(--success)', fontWeight: 500 }}>
+                      No active risk flags — student is within all policy thresholds.
+                    </span>
+                  </div>
+                )}
+
+                {/* Low confidence / missing fields notice */}
+                {lowConf && missingFlds.length > 0 && (
+                  <div style={{
+                    marginTop: 12, padding: '8px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'rgba(245,158,11,0.07)',
+                    border: '1px solid rgba(245,158,11,0.2)',
+                    fontSize: '11px', color: 'var(--text-muted)',
+                  }}>
+                    <Info size={11} style={{ display: 'inline', marginRight: 5 }} />
+                    Prediction confidence is reduced — missing data fields: {missingFlds.join(', ')}
+                  </div>
+                )}
+
+                {/* Timestamp */}
+                {computedAt && (
+                  <div style={{ marginTop: 12, fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right' }}>
+                    Last computed: {new Date(computedAt).toLocaleString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })()}
 
         {/* ── Bottom Grid: Placement & Parent Contact Cards ── */}
         <div className="grid-2">

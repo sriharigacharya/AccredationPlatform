@@ -128,6 +128,8 @@ docker-compose up --build
 |---|---|
 | **React App** | http://localhost:3000 |
 | **API Gateway** | http://localhost:8000 |
+| **Swagger UI Docs** | http://localhost:8000/docs |
+| **OpenAPI 3.0 Spec** | http://localhost:8000/openapi.json |
 | **Qdrant Dashboard** | http://localhost:6333/dashboard |
 
 The database is **auto-seeded on first boot** with a complete demo dataset (see [Default Logins](#default-logins) below).
@@ -402,6 +404,23 @@ TWILIO_PROXY_SERVICE_SID=KSxxxxxx   # for proxy/masked calls
 ---
 
 ## API Reference
+
+### 📖 Interactive Swagger UI & OpenAPI 3.0 Documentation
+
+AcademiQ includes built-in interactive **Swagger UI** documentation at the API Gateway:
+
+| Documentation Endpoint | Description |
+|---|---|
+| **Swagger UI** | `http://localhost:8000/docs` (aliases: `/swagger`, `/api/docs`, `/api/v1/docs`) |
+| **OpenAPI 3.0 JSON** | `http://localhost:8000/openapi.json` |
+| **OpenAPI 3.0 YAML** | `http://localhost:8000/openapi.yaml` |
+| **Frontend Portal** | `http://localhost:3000/api-docs` (under *Administration & Developer*) |
+
+#### Swagger Features:
+- **⚡ 1-Click Quick Auth**: Test buttons for **Admin**, **Faculty**, **Student**, and **Worker** automatically request a fresh JWT and pre-authorize Swagger UI with one click.
+- **🌐 Spec Switcher**: Switch between the **Unified API Gateway** and individual microservice specs (`auth`, `academic`, `prediction`, `rag`, `reports`, `documents`, `contact`) via the header dropdown.
+- **🧪 Interactive "Try it out"**: Test live endpoints against the actual database and services directly from your browser.
+- **🔐 Bearer JWT Security**: Pre-configured `bearerAuth` security scheme.
 
 All requests go through `http://localhost:8000/api/v1`. Include `Authorization: Bearer <token>` on all authenticated routes.
 

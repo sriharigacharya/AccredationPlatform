@@ -23,10 +23,46 @@ from models import (
     LeaveNotice,
     ScheduleNotification,
     FacultyDailyAttendance,
+    SystemConfig,
 )
 from routes.attendance import recompute_daily_attendance
 
 leave_bp = Blueprint("leave", __name__)
+
+
+DEFAULT_LEAVE_QUOTA = 15
+
+
+def get_annual_quota() -> int:
+    row = SystemConfig.query.get("annual_leave_quota")
+    try:
+        return int(row.value) if row else DEFAULT_LEAVE_QUOTA
+    except (ValueError, TypeError):
+        return DEFAULT_LEAVE_QUOTA
+
+
+def get_leave_quota(faculty_id: str, year=None):
+    from datetime import date as _date
+    year = year or _date.today().year
+    quota = get_annual_quota()
+    start = _date(year, 1, 1)
+    end   = _date(year, 12, 31)
+    used = LeaveNotice.query.filter(
+        LeaveNotice.faculty_id == faculty_id,
+        LeaveNotice.status != "CANCELLED",
+        LeaveNotice.date >= start,
+        LeaveNotice.date <= end,
+    ).count()
+    remaining = max(quota - used, 0)
+    return {
+        "faculty_id": faculty_id,
+        "year": year,
+        "quota": quota,
+        "used": used,
+        "remaining": remaining,
+        "lop_count": max(used - quota, 0),
+        "lop_warning": used >= quota,
+    }
 
 
 def _build_faculty_map():
@@ -168,6 +204,10 @@ def submit_leave():
     except Exception:
         return jsonify({"error": "Invalid date format, use YYYY-MM-DD"}), 400
 
+    # Check quota before creating leave
+    quota_info = get_leave_quota(faculty.faculty_id, target_date.year)
+    is_lop = quota_info["used"] >= quota_info["quota"]
+
     # Create Leave Notice
     leave = LeaveNotice(
         faculty_id=faculty.faculty_id,
@@ -176,6 +216,7 @@ def submit_leave():
         end_time=end_time,
         reason=reason,
         status="NOTIFIED",
+        is_lop=is_lop,
         created_by=created_by,
     )
     db.session.add(leave)
@@ -226,6 +267,8 @@ def submit_leave():
         "leave": leave.to_dict(faculty_map),
         "notifications_sent": notif_count,
         "affected_classes": len(slots),
+        "is_lop": leave.is_lop,
+        "quota": get_leave_quota(faculty.faculty_id, target_date.year),
     }), 201
 
 
@@ -334,6 +377,72 @@ def assign_substitute(leave_id):
         "message": f"Substitute {sub_name} assigned. Sent {sub_notif_count} update notices.",
         "leave": leave.to_dict(faculty_map),
     })
+
+
+@leave_bp.get("/quota/config")
+def get_quota_config():
+    """Returns the current institutional annual leave quota config."""
+    row = SystemConfig.query.get("annual_leave_quota")
+    val = int(row.value) if row else DEFAULT_LEAVE_QUOTA
+    return jsonify({
+        "key": "annual_leave_quota",
+        "value": val,
+        "label": "Annual Faculty Leave Quota (days)",
+        "updated_at": row.updated_at.isoformat() if (row and row.updated_at) else None,
+        "updated_by": row.updated_by if row else None,
+    })
+
+
+@leave_bp.put("/quota/config")
+def set_quota_config():
+    """Admin endpoint to update the annual faculty leave quota."""
+    data = request.get_json(force=True, silent=True) or {}
+    val = data.get("value")
+    if val is None:
+        return jsonify({"error": "value is required"}), 400
+    try:
+        val = int(val)
+        if val < 0 or val > 365:
+            return jsonify({"error": "Quota must be between 0 and 365"}), 400
+    except (ValueError, TypeError):
+        return jsonify({"error": "Value must be a valid integer"}), 400
+
+    row = SystemConfig.query.get("annual_leave_quota")
+    if not row:
+        row = SystemConfig(
+            key="annual_leave_quota",
+            value=str(val),
+            label="Annual Faculty Leave Quota (days)",
+            updated_by=data.get("updated_by", "admin"),
+        )
+        db.session.add(row)
+    else:
+        row.value = str(val)
+        row.updated_at = datetime.utcnow()
+        row.updated_by = data.get("updated_by", "admin")
+
+    db.session.commit()
+    return jsonify({
+        "message": "Leave quota updated successfully",
+        "config": row.to_dict(),
+    })
+
+
+@leave_bp.get("/quota/<faculty_id>")
+def leave_quota(faculty_id):
+    """Returns the annual leave quota, used leaves, remaining leaves, and LOP status for a faculty member."""
+    faculty = Faculty.query.filter_by(faculty_id=faculty_id).first()
+    if not faculty:
+        faculty = Faculty.query.filter(Faculty.name.ilike(f"%{faculty_id}%")).first()
+    target_id = faculty.faculty_id if faculty else faculty_id
+
+    year_str = request.args.get("year")
+    try:
+        year = int(year_str) if year_str else None
+    except ValueError:
+        year = None
+
+    return jsonify(get_leave_quota(target_id, year))
 
 
 @leave_bp.get("")

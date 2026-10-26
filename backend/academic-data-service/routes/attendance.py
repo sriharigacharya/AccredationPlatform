@@ -14,6 +14,7 @@ import uuid
 from werkzeug.utils import secure_filename
 from flask import Blueprint, request, jsonify, send_from_directory, current_app
 from datetime import datetime, date, timedelta, time
+from zoneinfo import ZoneInfo
 from models import (
     db,
     Faculty,
@@ -28,6 +29,36 @@ attendance_bp = Blueprint("attendance", __name__)
 
 ALLOWED_PROOF_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
 MAX_PROOF_SIZE = 15 * 1024 * 1024  # 15 MB
+
+INSTITUTION_TZ = ZoneInfo("Asia/Kolkata")
+
+
+def get_institution_now() -> datetime:
+    """Returns the current local datetime in the institution's timezone (Asia/Kolkata / IST)."""
+    return datetime.now(INSTITUTION_TZ).replace(tzinfo=None)
+
+
+def parse_punch_timestamp(ts_raw) -> datetime:
+    """
+    Parses incoming punch timestamp and converts to institution's local time (IST).
+    Handles ISO strings with 'Z' (UTC), timezone offsets (+05:30), or naive strings.
+    """
+    if not ts_raw:
+        return get_institution_now()
+    try:
+        if isinstance(ts_raw, str):
+            ts_clean = ts_raw.strip()
+            if ts_clean.endswith("Z"):
+                dt = datetime.fromisoformat(ts_clean[:-1] + "+00:00")
+                return dt.astimezone(INSTITUTION_TZ).replace(tzinfo=None)
+            elif "+" in ts_clean or ("-" in ts_clean and ts_clean.count("-") > 2):
+                dt = datetime.fromisoformat(ts_clean)
+                return dt.astimezone(INSTITUTION_TZ).replace(tzinfo=None)
+            else:
+                return datetime.fromisoformat(ts_clean)
+        return get_institution_now()
+    except Exception:
+        return get_institution_now()
 
 
 def _get_proofs_dir():
@@ -132,7 +163,7 @@ def recompute_daily_attendance(faculty_id, target_date):
     if not events:
         # No punch events yet
         # If past cutoff (e.g. past 11:00 AM on today, or past date) -> ABSENT
-        now = datetime.now()
+        now = get_institution_now()
         if target_date < now.date() or (target_date == now.date() and now.hour >= 11):
             daily.status = "ABSENT"
         else:
@@ -147,6 +178,31 @@ def recompute_daily_attendance(faculty_id, target_date):
     first_in_event = next((e for e in events if e.event_type == "IN"), None)
     last_out_event = next((e for e in reversed(events) if e.event_type == "OUT"), None)
 
+    # Automated Punch-Out at 5:00 PM (17:00 IST) if teacher forgot to punch OUT
+    auto_out_time = datetime.combine(target_date, time(17, 0))
+    now = get_institution_now()
+    is_past_auto_checkout = target_date < now.date() or (
+        target_date == now.date() and now >= auto_out_time
+    )
+
+    if (
+        first_in_event
+        and is_past_auto_checkout
+        and (not last_out_event or last_out_event.event_time < first_in_event.event_time)
+        and auto_out_time > first_in_event.event_time
+    ):
+        auto_out_event = AttendanceEvent(
+            faculty_id=faculty_id,
+            event_type="OUT",
+            event_time=auto_out_time,
+            device_id="SYSTEM-AUTO",
+            source="AUTO_PUNCH_OUT",
+            admin_note="Automated system punch-out at 5:00 PM",
+        )
+        db.session.add(auto_out_event)
+        db.session.flush()
+        last_out_event = auto_out_event
+
     daily.first_in = first_in_event.event_time if first_in_event else None
     daily.last_out = last_out_event.event_time if last_out_event else None
 
@@ -155,7 +211,7 @@ def recompute_daily_attendance(faculty_id, target_date):
         daily.work_duration_minutes = int((daily.last_out - daily.first_in).total_seconds() // 60)
     elif daily.first_in:
         # Currently on campus
-        now = datetime.now()
+        now = get_institution_now()
         if target_date == now.date():
             daily.work_duration_minutes = int((now - daily.first_in).total_seconds() // 60)
         else:
@@ -233,14 +289,7 @@ def record_punch():
     if not faculty:
         return jsonify({"error": f"Faculty '{faculty_input}' not recognized"}), 404
 
-    if ts_raw:
-        try:
-            punch_time = datetime.fromisoformat(ts_raw.replace("Z", "+00:00")).replace(tzinfo=None)
-        except Exception:
-            punch_time = datetime.now()
-    else:
-        punch_time = datetime.now()
-
+    punch_time = parse_punch_timestamp(ts_raw)
     punch_date = punch_time.date()
 
     # Get last event for this faculty today
@@ -305,9 +354,9 @@ def get_today_attendance():
         try:
             target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         except Exception:
-            target_date = date.today()
+            target_date = get_institution_now().date()
     else:
-        target_date = date.today()
+        target_date = get_institution_now().date()
 
     faculty_list = Faculty.query.order_by(Faculty.name).all()
     faculty_map = {f.faculty_id: f.name for f in faculty_list}
@@ -440,7 +489,7 @@ def get_faculty_attendance_history(faculty_id):
 
     # Today's status
     today_rec = FacultyDailyAttendance.query.filter_by(
-        faculty_id=faculty.faculty_id, date=date.today()
+        faculty_id=faculty.faculty_id, date=get_institution_now().date()
     ).first()
 
     return jsonify({
@@ -465,7 +514,7 @@ def manual_attendance_override():
     """Admin manual override of punch or status."""
     data = request.get_json(force=True, silent=True) or {}
     faculty_id = data.get("faculty_id")
-    date_str = data.get("date", date.today().isoformat())
+    date_str = data.get("date", get_institution_now().date().isoformat())
     event_type = data.get("event_type", "IN")
     time_str = data.get("time_str")  # "09:30"
     admin_note = data.get("admin_note", "Admin manual correction")
@@ -483,7 +532,7 @@ def manual_attendance_override():
         h, m = map(int, time_str.split(":"))
         event_dt = datetime.combine(target_date, datetime.min.time()).replace(hour=h, minute=m)
     else:
-        event_dt = datetime.now()
+        event_dt = get_institution_now()
 
     event = AttendanceEvent(
         faculty_id=faculty.faculty_id,
@@ -510,7 +559,7 @@ def manual_attendance_override():
 @attendance_bp.post("/reset-demo")
 def reset_demo():
     """Reset today's attendance events and computed records for fresh demo testing."""
-    today = date.today()
+    today = get_institution_now().date()
     start_dt = datetime.combine(today, datetime.min.time())
     end_dt = datetime.combine(today, datetime.max.time())
 
@@ -523,6 +572,61 @@ def reset_demo():
     db.session.commit()
 
     return jsonify({"message": "Today's attendance records reset successfully."})
+
+
+def auto_punch_out_forgotten(target_date=None) -> list:
+    """
+    Finds all faculty who punched IN on target_date without a punch OUT,
+    and automatically records a 5:00 PM OUT event for them.
+    Only applies if target_date is in the past, or if today is at/past 17:00 IST.
+    """
+    now = get_institution_now()
+    target_date = target_date or now.date()
+    auto_out_time = datetime.combine(target_date, time(17, 0))
+
+    if target_date == now.date() and now < auto_out_time:
+        return []
+
+    faculty_list = Faculty.query.all()
+    auto_punched = []
+
+    for f in faculty_list:
+        daily = recompute_daily_attendance(f.faculty_id, target_date)
+        if daily and daily.last_out and daily.last_out == auto_out_time:
+            ev = AttendanceEvent.query.filter_by(
+                faculty_id=f.faculty_id,
+                event_type="OUT",
+                event_time=auto_out_time,
+                source="AUTO_PUNCH_OUT",
+            ).first()
+            if ev:
+                auto_punched.append(f.faculty_id)
+
+    db.session.commit()
+    return auto_punched
+
+
+@attendance_bp.post("/auto-punch-out")
+def trigger_auto_punch_out():
+    """Manual or cron-triggered auto punch-out for forgotten teacher check-outs at 5:00 PM."""
+    data = request.get_json(force=True, silent=True) or {}
+    date_str = data.get("date")
+    if date_str:
+        try:
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except Exception:
+            target_date = get_institution_now().date()
+    else:
+        target_date = get_institution_now().date()
+
+    punched_ids = auto_punch_out_forgotten(target_date)
+    return jsonify({
+        "message": f"Auto punch-out executed for {len(punched_ids)} faculty member(s) at 5:00 PM.",
+        "auto_punched_faculty_ids": punched_ids,
+        "date": target_date.isoformat(),
+        "time": "17:00:00",
+    })
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════

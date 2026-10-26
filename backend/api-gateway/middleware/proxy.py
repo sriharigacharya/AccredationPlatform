@@ -69,6 +69,9 @@ ROUTE_TABLE = [
     ("/leave",          "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
     ("/notifications",  "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
     ("/admin-review",   "ACADEMIC_DATA_SERVICE_URL",  True, _ADMIN),
+    ("/subjects",       "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
+    ("/sections",       "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
+    ("/enrollments",    "ACADEMIC_DATA_SERVICE_URL",  True, _NO_WORKER),
 
 
 

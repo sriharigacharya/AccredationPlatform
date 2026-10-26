@@ -1,15 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { timetableAPI } from '../api/client'
+import { timetableAPI, subjectsAPI, sectionsAPI, departmentsAPI } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import LeaveManagementModal from '../components/LeaveManagementModal'
 import PageHeader from '../components/PageHeader'
 import Tabs from '../components/Tabs'
 import Badge from '../components/Badge'
+import Modal from '../components/Modal'
 import { Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import {
   Calendar, Clock, Users, Building2, AlertTriangle,
   Fingerprint, Sparkles, Plus, BookOpen, Layers, CheckCircle2,
-  ChevronRight, ArrowRight, ExternalLink
+  ChevronRight, ArrowRight, ExternalLink, Trash2, Edit3, Search
 } from 'lucide-react'
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -47,22 +49,93 @@ export default function TimetablePage() {
   // Leave modal state
   const [leaveModalOpen, setLeaveModalOpen] = useState(false)
 
+  // Feature 1: Add Slot Modal State
+  const [showAddSlotModal, setShowAddSlotModal] = useState(false)
+  const [slotForm, setSlotForm] = useState({
+    faculty_id: '',
+    subject_id: '',
+    section_id: '',
+    day_of_week: 'Mon',
+    period_index: 1,
+    room: '',
+    is_lab: false,
+    co_faculty_id: '',
+    academic_term: '2024-25-EVEN',
+  })
+  const [savingSlot, setSavingSlot] = useState(false)
+
+  // Feature 2: Subjects State
+  const [subjects, setSubjects] = useState([])
+  const [loadingSubjects, setLoadingSubjects] = useState(false)
+  const [showAddSubjectModal, setShowAddSubjectModal] = useState(false)
+  const [subjectSearch, setSubjectSearch] = useState('')
+  const [subjectForm, setSubjectForm] = useState({
+    code: '',
+    name: '',
+    department_id: '',
+  })
+  const [savingSubject, setSavingSubject] = useState(false)
+
+  // Feature 3: Sections State
+  const [allSections, setAllSections] = useState([])
+  const [loadingSections, setLoadingSections] = useState(false)
+  const [showAddSectionModal, setShowAddSectionModal] = useState(false)
+  const [sectionForm, setSectionForm] = useState({
+    semester: '',
+    section_label: '',
+    default_room: '',
+    department_id: '',
+  })
+  const [savingSection, setSavingSection] = useState(false)
+
+  // Departments List (for dropdowns)
+  const [departmentsList, setDepartmentsList] = useState([])
+
   // Load metadata on mount
-  useEffect(() => {
+  const loadMeta = () => {
     timetableAPI.getMeta().then(res => {
       const data = res.data || {}
       setMeta(data)
       if (data.faculty?.length > 0 && !selectedFacultyId) {
-        // Prefer Dr. C VIDYARAJ or first
         const def = data.faculty.find(f => f.name.toLowerCase().includes('vidyaraj')) || data.faculty[0]
         setSelectedFacultyId(def.faculty_id)
       }
       if (data.sections?.length > 0 && !selectedSectionId) {
-        // Prefer Sem 6 Sec A or first
         const defSec = data.sections.find(s => s.semester === '6' && s.section_label === 'A') || data.sections[0]
         setSelectedSectionId(defSec.id)
       }
     }).catch(console.error)
+  }
+
+  const loadSubjects = async () => {
+    setLoadingSubjects(true)
+    try {
+      const res = await subjectsAPI.list()
+      setSubjects(res.data || [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingSubjects(false)
+    }
+  }
+
+  const loadSections = async () => {
+    setLoadingSections(true)
+    try {
+      const res = await sectionsAPI.list()
+      setAllSections(res.data || [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingSections(false)
+    }
+  }
+
+  useEffect(() => {
+    loadMeta()
+    loadSubjects()
+    loadSections()
+    departmentsAPI.list().then(r => setDepartmentsList(r.data || [])).catch(() => {})
   }, [])
 
   // Fetch Faculty schedule
@@ -117,6 +190,10 @@ export default function TimetablePage() {
       loadSectionSchedule(selectedSectionId)
     } else if (activeView === 'master') {
       loadMasterSlots()
+    } else if (activeView === 'subjects') {
+      loadSubjects()
+    } else if (activeView === 'sections') {
+      loadSections()
     }
   }, [activeView, selectedFacultyId, selectedSectionId, masterDayFilter, masterRoomFilter])
 
@@ -310,9 +387,11 @@ export default function TimetablePage() {
         icon: Building2,
         count: clashes.length > 0 ? `${clashes.length} clashes` : undefined
       })
+      list.push({ id: 'subjects', label: 'Subjects & Courses', icon: BookOpen, count: subjects.length })
+      list.push({ id: 'sections', label: 'Class Sections', icon: Layers, count: allSections.length })
     }
     return list
-  }, [isStudent, clashes.length])
+  }, [isStudent, clashes.length, subjects.length, allSections.length])
 
   return (
     <>
@@ -324,6 +403,55 @@ export default function TimetablePage() {
         actions={
           !isStudent ? (
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              {isAdmin && activeView === 'master' && (
+                <button
+                  onClick={() => {
+                    setSlotForm({
+                      faculty_id: meta.faculty[0]?.faculty_id || '',
+                      subject_id: subjects[0]?.id ? String(subjects[0].id) : '',
+                      section_id: meta.sections[0]?.id ? String(meta.sections[0].id) : '',
+                      day_of_week: 'Mon',
+                      period_index: 1,
+                      room: meta.rooms[0] || 'CSE-101',
+                      is_lab: false,
+                      co_faculty_id: '',
+                      academic_term: '2024-25-EVEN',
+                    })
+                    setShowAddSlotModal(true)
+                  }}
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Plus size={14} /> Add Slot
+                </button>
+              )}
+
+              {isAdmin && activeView === 'subjects' && (
+                <button
+                  onClick={() => {
+                    setSubjectForm({ code: '', name: '', department_id: departmentsList[0]?.id || '' })
+                    setShowAddSubjectModal(true)
+                  }}
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Plus size={14} /> Add Subject
+                </button>
+              )}
+
+              {isAdmin && activeView === 'sections' && (
+                <button
+                  onClick={() => {
+                    setSectionForm({ semester: '5', section_label: 'A', default_room: 'CSE-101', department_id: departmentsList[0]?.id || '' })
+                    setShowAddSectionModal(true)
+                  }}
+                  className="btn btn-primary btn-sm"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Plus size={14} /> Add Section
+                </button>
+              )}
+
               <button
                 onClick={() => setLeaveModalOpen(true)}
                 className="btn btn-secondary btn-sm"
@@ -335,7 +463,7 @@ export default function TimetablePage() {
               <Link
                 to="/mock-device"
                 target="_blank"
-                className="btn btn-primary btn-sm"
+                className="btn btn-secondary btn-sm"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, textDecoration: 'none' }}
               >
                 <Fingerprint size={14} /> Biometric Kiosk <ExternalLink size={12} />
@@ -746,6 +874,7 @@ export default function TimetablePage() {
                     <th>Faculty</th>
                     <th>Room</th>
                     <th>Type</th>
+                    {isAdmin && <th style={{ textAlign: 'right' }}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -776,6 +905,29 @@ export default function TimetablePage() {
                           <span className="badge badge-neutral">Theory</span>
                         )}
                       </td>
+                      {isAdmin && (
+                        <td style={{ textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            style={{ color: 'var(--danger)', padding: '2px 6px' }}
+                            title="Delete slot"
+                            onClick={async () => {
+                              if (window.confirm(`Delete slot for ${slot.subject_code} (${slot.section_display}, ${slot.day_of_week} ${slot.time_label})?`)) {
+                                try {
+                                  await timetableAPI.deleteSlot(slot.id)
+                                  toast.success('Timetable slot removed')
+                                  loadMasterSlots()
+                                } catch (err) {
+                                  toast.error(err.response?.data?.error || 'Failed to delete slot')
+                                }
+                              }
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -783,6 +935,575 @@ export default function TimetablePage() {
             </div>
           </div>
         )}
+
+        {/* VIEW 4: SUBJECTS & CURRICULUM COURSES (FEATURE 2) */}
+        {activeView === 'subjects' && (
+          <div>
+            <div className="card" style={{ marginBottom: 'var(--space-4)', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div className="search-bar" style={{ maxWidth: 360, flex: 1 }}>
+                <Search size={14} />
+                <input
+                  placeholder="Search subjects by code or name…"
+                  value={subjectSearch}
+                  onChange={e => setSubjectSearch(e.target.value)}
+                />
+              </div>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                Total Courses: <strong style={{ color: 'var(--text-primary)' }}>{subjects.length}</strong>
+              </span>
+            </div>
+
+            {loadingSubjects ? (
+              <div style={{ padding: '60px', textAlign: 'center' }}>
+                <div className="spinner" />
+              </div>
+            ) : subjects.length === 0 ? (
+              <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+                <EmptyState
+                  icon={BookOpen}
+                  title="No Subjects Registered"
+                  description="Add course codes and names to make them available for timetable scheduling."
+                />
+              </div>
+            ) : (
+              <div className="table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Course Code</th>
+                      <th>Course Name</th>
+                      <th>Department</th>
+                      {isAdmin && <th style={{ textAlign: 'right' }}>Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subjects
+                      .filter(s =>
+                        !subjectSearch.trim() ||
+                        (s.code || '').toLowerCase().includes(subjectSearch.toLowerCase()) ||
+                        (s.name || '').toLowerCase().includes(subjectSearch.toLowerCase())
+                      )
+                      .map((sub, idx) => (
+                        <tr key={sub.id || idx}>
+                          <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
+                          <td>
+                            <strong style={{ color: 'var(--text-primary)' }}>{sub.code}</strong>
+                          </td>
+                          <td>{sub.name}</td>
+                          <td>
+                            <Badge variant="neutral">
+                              {departmentsList.find(d => d.id === sub.department_id)?.code || (sub.department_id ? `Dept #${sub.department_id}` : 'All')}
+                            </Badge>
+                          </td>
+                          {isAdmin && (
+                            <td style={{ textAlign: 'right' }}>
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                style={{ color: 'var(--danger)', padding: '2px 6px' }}
+                                title="Delete course"
+                                onClick={async () => {
+                                  if (window.confirm(`Delete subject ${sub.code} - ${sub.name}?`)) {
+                                    try {
+                                      await subjectsAPI.delete(sub.id)
+                                      toast.success(`Subject ${sub.code} deleted`)
+                                      loadSubjects()
+                                      loadMeta()
+                                    } catch (err) {
+                                      toast.error(err.response?.data?.error || 'Failed to delete subject')
+                                    }
+                                  }
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* VIEW 5: CLASS SECTIONS (FEATURE 3) */}
+        {activeView === 'sections' && (
+          <div>
+            <div className="card" style={{ marginBottom: 'var(--space-4)', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>Class Sections Directory</h4>
+                <p style={{ margin: '3px 0 0', fontSize: '12px', color: 'var(--text-muted)' }}>Sections and batches configured for lecture halls and timetable matrices.</p>
+              </div>
+              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                Total Sections: <strong style={{ color: 'var(--text-primary)' }}>{allSections.length}</strong>
+              </span>
+            </div>
+
+            {loadingSections ? (
+              <div style={{ padding: '60px', textAlign: 'center' }}>
+                <div className="spinner" />
+              </div>
+            ) : allSections.length === 0 ? (
+              <div className="card" style={{ padding: 40, textAlign: 'center' }}>
+                <EmptyState
+                  icon={Layers}
+                  title="No Class Sections Configured"
+                  description="Create academic sections (e.g. Sem 5 – Section A) to build timetable matrices."
+                />
+              </div>
+            ) : (
+              <div className="table-wrapper">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Semester</th>
+                      <th>Section Label</th>
+                      <th>Default Lecture Hall</th>
+                      <th>Timetable Slots</th>
+                      <th>Enrolled Students</th>
+                      {isAdmin && <th style={{ textAlign: 'right' }}>Actions</th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allSections.map((sec, idx) => (
+                      <tr key={sec.id || idx}>
+                        <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
+                        <td>
+                          <strong>Sem {sec.semester}</strong>
+                        </td>
+                        <td>
+                          <Badge variant="primary">Section {sec.section_label}</Badge>
+                        </td>
+                        <td>
+                          {sec.default_room ? <span className="badge badge-neutral">R-{sec.default_room}</span> : '—'}
+                        </td>
+                        <td style={{ fontSize: '12px' }}>
+                          <span style={{ color: sec.slot_count > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                            {sec.slot_count || 0} slots
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '12px' }}>
+                          <span style={{ color: sec.enrolled_count > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                            {sec.enrolled_count || 0} students
+                          </span>
+                        </td>
+                        {isAdmin && (
+                          <td style={{ textAlign: 'right' }}>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              style={{ color: 'var(--danger)', padding: '2px 6px' }}
+                              title="Delete section"
+                              onClick={async () => {
+                                if (window.confirm(`Delete Section Sem ${sec.semester}-${sec.section_label}?`)) {
+                                  try {
+                                    await sectionsAPI.delete(sec.id)
+                                    toast.success(`Section Sem ${sec.semester}-${sec.section_label} deleted`)
+                                    loadSections()
+                                    loadMeta()
+                                  } catch (err) {
+                                    toast.error(err.response?.data?.error || 'Failed to delete section')
+                                  }
+                                }
+                              }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── MODAL 1: ADD TIMETABLE SLOT (FEATURE 1) ── */}
+        <Modal
+          isOpen={showAddSlotModal}
+          onClose={() => setShowAddSlotModal(false)}
+          title="Allocate Timetable Class Slot"
+          maxWidth={540}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, width: '100%' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowAddSlotModal(false)}
+                disabled={savingSlot}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={savingSlot}
+                onClick={async () => {
+                  if (!slotForm.faculty_id || !slotForm.section_id) {
+                    toast.error('Faculty and Section are required')
+                    return
+                  }
+                  setSavingSlot(true)
+                  try {
+                    const payload = {
+                      faculty_id: slotForm.faculty_id,
+                      subject_id: slotForm.subject_id ? parseInt(slotForm.subject_id, 10) : undefined,
+                      section_id: parseInt(slotForm.section_id, 10),
+                      day_of_week: slotForm.day_of_week,
+                      period_index: parseInt(slotForm.period_index, 10),
+                      room: slotForm.room.trim(),
+                      is_lab: Boolean(slotForm.is_lab),
+                      co_faculty_id: slotForm.co_faculty_id || undefined,
+                      academic_term: slotForm.academic_term || '2024-25-EVEN',
+                    }
+                    const res = await timetableAPI.createSlot(payload)
+                    if (res.data?.warning) {
+                      toast(res.data.warning, { icon: '⚠️' })
+                    } else {
+                      toast.success('Timetable slot allocated successfully')
+                    }
+                    setShowAddSlotModal(false)
+                    loadMasterSlots()
+                  } catch (err) {
+                    toast.error(err.response?.data?.error || 'Failed to allocate slot')
+                  } finally {
+                    setSavingSlot(false)
+                  }
+                }}
+              >
+                {savingSlot ? 'Allocating…' : 'Allocate Slot'}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Faculty Instructor *</label>
+                <select
+                  className="form-select"
+                  value={slotForm.faculty_id}
+                  onChange={e => setSlotForm(prev => ({ ...prev, faculty_id: e.target.value }))}
+                >
+                  {meta.faculty.map(f => (
+                    <option key={f.faculty_id} value={f.faculty_id}>
+                      {f.name} ({f.faculty_id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Academic Section *</label>
+                <select
+                  className="form-select"
+                  value={slotForm.section_id}
+                  onChange={e => setSlotForm(prev => ({ ...prev, section_id: e.target.value }))}
+                >
+                  {meta.sections.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.display_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Subject / Course</label>
+                <select
+                  className="form-select"
+                  value={slotForm.subject_id}
+                  onChange={e => setSlotForm(prev => ({ ...prev, subject_id: e.target.value }))}
+                >
+                  <option value="">Select Course…</option>
+                  {subjects.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.code} — {s.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Lecture Hall / Lab Room</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. CSE-101"
+                  list="room-suggestions"
+                  value={slotForm.room}
+                  onChange={e => setSlotForm(prev => ({ ...prev, room: e.target.value }))}
+                />
+                <datalist id="room-suggestions">
+                  {meta.rooms.map(r => (
+                    <option key={r} value={r} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Day of Week *</label>
+                <select
+                  className="form-select"
+                  value={slotForm.day_of_week}
+                  onChange={e => setSlotForm(prev => ({ ...prev, day_of_week: e.target.value }))}
+                >
+                  {DAYS.map(d => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Period Index *</label>
+                <select
+                  className="form-select"
+                  value={slotForm.period_index}
+                  onChange={e => setSlotForm(prev => ({ ...prev, period_index: e.target.value }))}
+                >
+                  {PERIODS.map(p => (
+                    <option key={p.index} value={p.index}>
+                      {p.label} ({p.time})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Co-Faculty (Optional for Labs)</label>
+                <select
+                  className="form-select"
+                  value={slotForm.co_faculty_id}
+                  onChange={e => setSlotForm(prev => ({ ...prev, co_faculty_id: e.target.value }))}
+                >
+                  <option value="">None</option>
+                  {meta.faculty.map(f => (
+                    <option key={f.faculty_id} value={f.faculty_id}>
+                      {f.name} ({f.faculty_id})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Academic Term</label>
+                <input
+                  className="form-input"
+                  value={slotForm.academic_term}
+                  onChange={e => setSlotForm(prev => ({ ...prev, academic_term: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+              <input
+                type="checkbox"
+                id="is-lab-check"
+                checked={slotForm.is_lab}
+                onChange={e => setSlotForm(prev => ({ ...prev, is_lab: e.target.checked }))}
+              />
+              <label htmlFor="is-lab-check" style={{ fontSize: '13px', cursor: 'pointer', margin: 0 }}>
+                This is a Practical Laboratory / Hands-on Session
+              </label>
+            </div>
+          </div>
+        </Modal>
+
+        {/* ── MODAL 2: ADD SUBJECT (FEATURE 2) ── */}
+        <Modal
+          isOpen={showAddSubjectModal}
+          onClose={() => setShowAddSubjectModal(false)}
+          title="Add Curriculum Subject / Course"
+          maxWidth={480}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, width: '100%' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowAddSubjectModal(false)}
+                disabled={savingSubject}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={savingSubject}
+                onClick={async () => {
+                  if (!subjectForm.code?.trim() || !subjectForm.name?.trim()) {
+                    toast.error('Course Code and Name are required')
+                    return
+                  }
+                  setSavingSubject(true)
+                  try {
+                    await subjectsAPI.create({
+                      code: subjectForm.code.trim().toUpperCase(),
+                      name: subjectForm.name.trim(),
+                      department_id: subjectForm.department_id ? parseInt(subjectForm.department_id, 10) : undefined,
+                    })
+                    toast.success(`Course ${subjectForm.code.trim().toUpperCase()} added`)
+                    setShowAddSubjectModal(false)
+                    loadSubjects()
+                    loadMeta()
+                  } catch (err) {
+                    toast.error(err.response?.data?.error || 'Failed to add course')
+                  } finally {
+                    setSavingSubject(false)
+                  }
+                }}
+              >
+                {savingSubject ? 'Adding…' : 'Add Course'}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Course Code *</label>
+              <input
+                className="form-input"
+                placeholder="e.g. CS601"
+                value={subjectForm.code}
+                onChange={e => setSubjectForm(prev => ({ ...prev, code: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Course Name *</label>
+              <input
+                className="form-input"
+                placeholder="e.g. Distributed Operating Systems"
+                value={subjectForm.name}
+                onChange={e => setSubjectForm(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Department</label>
+              <select
+                className="form-select"
+                value={subjectForm.department_id}
+                onChange={e => setSubjectForm(prev => ({ ...prev, department_id: e.target.value }))}
+              >
+                <option value="">Select Department</option>
+                {departmentsList.map(d => (
+                  <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </Modal>
+
+        {/* ── MODAL 3: ADD SECTION (FEATURE 3) ── */}
+        <Modal
+          isOpen={showAddSectionModal}
+          onClose={() => setShowAddSectionModal(false)}
+          title="Add Class Section"
+          maxWidth={480}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, width: '100%' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowAddSectionModal(false)}
+                disabled={savingSection}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={savingSection}
+                onClick={async () => {
+                  if (!sectionForm.semester?.trim() || !sectionForm.section_label?.trim()) {
+                    toast.error('Semester and Section Label are required')
+                    return
+                  }
+                  setSavingSection(true)
+                  try {
+                    await sectionsAPI.create({
+                      semester: sectionForm.semester.trim(),
+                      section_label: sectionForm.section_label.trim().toUpperCase(),
+                      default_room: sectionForm.default_room.trim(),
+                      department_id: sectionForm.department_id ? parseInt(sectionForm.department_id, 10) : undefined,
+                    })
+                    toast.success(`Section Sem ${sectionForm.semester}-${sectionForm.section_label.toUpperCase()} created`)
+                    setShowAddSectionModal(false)
+                    loadSections()
+                    loadMeta()
+                  } catch (err) {
+                    toast.error(err.response?.data?.error || 'Failed to create section')
+                  } finally {
+                    setSavingSection(false)
+                  }
+                }}
+              >
+                {savingSection ? 'Creating…' : 'Create Section'}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Semester * (e.g. 5, 7, PG)</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. 5"
+                  value={sectionForm.semester}
+                  onChange={e => setSectionForm(prev => ({ ...prev, semester: e.target.value }))}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Section Label * (e.g. A, B, D)</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. D"
+                  value={sectionForm.section_label}
+                  onChange={e => setSectionForm(prev => ({ ...prev, section_label: e.target.value.toUpperCase() }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Default Lecture Hall</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. CSE-105"
+                  value={sectionForm.default_room}
+                  onChange={e => setSectionForm(prev => ({ ...prev, default_room: e.target.value }))}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Department</label>
+                <select
+                  className="form-select"
+                  value={sectionForm.department_id}
+                  onChange={e => setSectionForm(prev => ({ ...prev, department_id: e.target.value }))}
+                >
+                  <option value="">Select Department</option>
+                  {departmentsList.map(d => (
+                    <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </Modal>
 
         {/* Leave Management Modal */}
         <LeaveManagementModal

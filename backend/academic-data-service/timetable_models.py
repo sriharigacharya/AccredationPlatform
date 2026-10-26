@@ -221,6 +221,7 @@ class LeaveNotice(db.Model):
     created_by              = db.Column(db.String(50), nullable=False)
     created_at              = db.Column(db.DateTime, default=datetime.utcnow)
     cancelled_at            = db.Column(db.DateTime, nullable=True)
+    is_lop                  = db.Column(db.Boolean, default=False, nullable=False)
 
     notifications = db.relationship("ScheduleNotification", backref="leave_notice", lazy=True, cascade="all, delete-orphan")
 
@@ -240,6 +241,7 @@ class LeaveNotice(db.Model):
             "time_window": f"{self.start_time} - {self.end_time}" if (self.start_time and self.end_time) else "Full Day",
             "reason": self.reason,
             "status": self.status,
+            "is_lop": self.is_lop,
             "substitute_faculty_id": self.substitute_faculty_id,
             "substitute_faculty_name": sub_name,
             "notifications_count": len(self.notifications),
@@ -364,5 +366,24 @@ class TeacherEventAttendanceRequest(db.Model):
             "admin_remarks": self.admin_remarks,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class SystemConfig(db.Model):
+    __tablename__ = "system_config"
+
+    key        = db.Column(db.String(100), primary_key=True)
+    value      = db.Column(db.Text, nullable=False)
+    label      = db.Column(db.String(200), nullable=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by = db.Column(db.String(100), nullable=True)
+
+    def to_dict(self):
+        return {
+            "key": self.key,
+            "value": self.value,
+            "label": self.label,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+            "updated_by": self.updated_by,
         }
 

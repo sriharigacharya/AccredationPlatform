@@ -8,6 +8,7 @@ export default defineConfig({
     port: 3000,
     watch: {
       usePolling: true,
+      interval: 300,        // ms — explicit interval for Docker Desktop / WSL2 volumes
     },
     proxy: {
       '/api': {
@@ -17,3 +18,4 @@ export default defineConfig({
     }
   }
 })
+

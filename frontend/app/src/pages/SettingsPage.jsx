@@ -1,12 +1,13 @@
-import React, { useEffect, useState, useMemo } from 'react'
-import { authAPI, predictAPI } from '../api/client'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
+import { authAPI, predictAPI, leaveAPI } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
 import {
   RefreshCw, Database, Trash2, UserCheck, Shield,
   Cpu, Users, UserPlus, Key, Lock, CheckCircle2,
   AlertTriangle, Power, Sparkles, BarChart2, Activity,
   Sliders, Layers, FileText, Search, ArrowRight, Info,
-  TrendingUp, Award, BookOpen, AlertCircle
+  TrendingUp, Award, BookOpen, AlertCircle, Clock
 } from 'lucide-react'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -58,6 +59,7 @@ const ACADEMIC_FEATURES_SPEC = [
 ]
 
 export default function SettingsPage({ defaultTab = 'ml' }) {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState(defaultTab)
   const [users, setUsers]         = useState([])
   const [loading, setLoading]     = useState(true)
@@ -65,6 +67,14 @@ export default function SettingsPage({ defaultTab = 'ml' }) {
   const [modelInfo, setModelInfo] = useState(null)
   const [userSearch, setUserSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
+  const [batchStatus, setBatchStatus] = useState(null)
+  const [batchRunning, setBatchRunning] = useState(false)
+  const batchPollRef = useRef(null)
+
+  // Institutional Policies: Leave Quota State
+  const [quotaConfig, setQuotaConfig] = useState(null)
+  const [quotaInput, setQuotaInput]   = useState('15')
+  const [quotaSaving, setQuotaSaving] = useState(false)
 
   const [newUser, setNewUser]     = useState({
     name: '', email: '', password: '', role: 'teacher', linked_id: '', user_id: ''
@@ -80,10 +90,47 @@ export default function SettingsPage({ defaultTab = 'ml' }) {
       .catch(() => setLoading(false))
   }
 
+  const fetchBatchStatus = () => {
+    predictAPI.batchStatus()
+      .then(r => {
+        setBatchStatus(r.data)
+        if (r.data?.status === 'running') {
+          setBatchRunning(true)
+        } else {
+          setBatchRunning(false)
+          if (batchPollRef.current) {
+            clearInterval(batchPollRef.current)
+            batchPollRef.current = null
+          }
+        }
+      })
+      .catch(() => {})
+  }
+
   useEffect(() => {
     fetchUsers()
     predictAPI.modelInfo().then(r => setModelInfo(r.data)).catch(() => {})
+    fetchBatchStatus()
+    leaveAPI.getConfig()
+      .then(r => {
+        setQuotaConfig(r.data)
+        setQuotaInput(String(r.data.value))
+      })
+      .catch(() => setQuotaInput('15'))
   }, [])
+
+  // Poll batch status every 3s while running
+  useEffect(() => {
+    if (batchRunning && !batchPollRef.current) {
+      batchPollRef.current = setInterval(fetchBatchStatus, 3000)
+    }
+    return () => {
+      if (batchPollRef.current) {
+        clearInterval(batchPollRef.current)
+        batchPollRef.current = null
+      }
+    }
+  }, [batchRunning])
 
   const createUser = async e => {
     e.preventDefault()
@@ -125,12 +172,53 @@ export default function SettingsPage({ defaultTab = 'ml' }) {
     setTraining(true)
     try {
       const { data } = await predictAPI.train()
-      toast.success(`Model retrained! Accuracy: ${((data.metadata?.rf_accuracy || 0.908) * 100).toFixed(1)}%`)
+      const prAuc = data.metadata?.pr_auc_test
+      const cvAuc = data.metadata?.cv_pr_auc_mean
+      if (prAuc != null) {
+        toast.success(`Model retrained! PR-AUC: ${prAuc.toFixed(4)} · 5-Fold CV: ${cvAuc?.toFixed(4) ?? '—'}`)
+      } else {
+        toast.success(`Model retrained! Accuracy: ${((data.metadata?.rf_accuracy || 0.908) * 100).toFixed(1)}%`)
+      }
       predictAPI.modelInfo().then(r => setModelInfo(r.data)).catch(() => {})
+      // After retraining, batch is auto-triggered; start polling status
+      setTimeout(() => { fetchBatchStatus(); setBatchRunning(true) }, 1500)
     } catch (err) {
       toast.error(err.response?.data?.error || 'Training failed')
     } finally {
       setTraining(false)
+    }
+  }
+
+  const triggerBatchRun = async () => {
+    if (batchRunning) return
+    setBatchRunning(true)
+    try {
+      await predictAPI.runBatch()
+      toast.success('Risk engine batch run started — results will be in the DB in ~30s')
+      // Start polling
+      batchPollRef.current = setInterval(fetchBatchStatus, 3000)
+    } catch (err) {
+      setBatchRunning(false)
+      toast.error(err.response?.data?.error || 'Batch run failed to start')
+    }
+  }
+
+  const saveQuotaConfig = async (e) => {
+    e.preventDefault()
+    const val = parseInt(quotaInput, 10)
+    if (isNaN(val) || val < 0 || val > 365) {
+      toast.error('Please enter a valid number between 0 and 365')
+      return
+    }
+    setQuotaSaving(true)
+    try {
+      const res = await leaveAPI.setConfig(val, user?.name || 'Administrator')
+      setQuotaConfig(res.data.config)
+      toast.success(`Annual faculty leave quota updated to ${val} days`)
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update leave quota')
+    } finally {
+      setQuotaSaving(false)
     }
   }
 
@@ -152,8 +240,9 @@ export default function SettingsPage({ defaultTab = 'ml' }) {
 
 
   const tabList = [
-    { id: 'ml',    label: 'Machine Learning & Predictive Engine', icon: Cpu },
-    { id: 'users', label: 'User Accounts & Provisioning',         icon: Users, count: users.length },
+    { id: 'ml',       label: 'Machine Learning & Predictive Engine', icon: Cpu },
+    { id: 'users',    label: 'User Accounts & Provisioning',         icon: Users, count: users.length },
+    { id: 'policies', label: 'Institutional Policies',               icon: Sliders },
   ]
 
   return (
@@ -206,21 +295,23 @@ export default function SettingsPage({ defaultTab = 'ml' }) {
               <StatCard
                 label="Model Test Accuracy"
                 value={`${Math.round((modelInfo?.rf_accuracy || 0.9075) * 100)}%`}
-                subtext="363 / 400 Test Cohort Accurate"
+                subtext="Calibrated RF — isotonic CalibratedClassifierCV"
                 icon={CheckCircle2}
                 variant="success"
               />
               <StatCard
-                label="ROC-AUC Discriminator"
-                value="0.9569"
-                subtext="Area Under ROC Curve"
+                label="PR-AUC (Test Split)"
+                value={modelInfo?.pr_auc_test != null ? modelInfo.pr_auc_test.toFixed(4) : '—'}
+                subtext="Average Precision — Fail class"
                 icon={Activity}
                 variant="primary"
               />
               <StatCard
-                label="At-Risk Recall Rate"
-                value="77.4%"
-                subtext="100% with Statutory Safety Rules"
+                label="5-Fold CV PR-AUC"
+                value={modelInfo?.cv_pr_auc_mean != null
+                  ? `${modelInfo.cv_pr_auc_mean.toFixed(4)} ± ${(modelInfo.cv_pr_auc_std || 0).toFixed(4)}`
+                  : '—'}
+                subtext="Stratified cross-validated mean ± std"
                 icon={AlertTriangle}
                 variant="danger"
               />
@@ -286,13 +377,103 @@ export default function SettingsPage({ defaultTab = 'ml' }) {
                   <div style={{ fontWeight: 600, fontSize: '13px', marginTop: 2, color: 'var(--primary)' }}>class_weight="balanced"</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Preprocessing</div>
-                  <div style={{ fontWeight: 600, fontSize: '13px', marginTop: 2 }}>StandardScaler Pipeline</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Calibration</div>
+                  <div style={{ fontWeight: 600, fontSize: '13px', marginTop: 2 }}>CalibratedClassifierCV (isotonic)</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Risk Threshold</div>
-                  <div style={{ fontWeight: 600, fontSize: '13px', marginTop: 2, color: 'var(--danger)' }}>≥ 0.60 Probability</div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>High / Medium Tier</div>
+                  <div style={{ fontWeight: 600, fontSize: '13px', marginTop: 2, color: 'var(--danger)' }}>≥ 0.65 / ≥ 0.35</div>
                 </div>
+              </div>
+            </div>
+
+            {/* ── Risk Engine Schedule & Manual Trigger ── */}
+            <div className="card" style={{ marginBottom: 'var(--space-6)', borderLeft: '4px solid var(--warning)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Clock size={16} color="var(--warning)" />
+                    <h3 className="card-title" style={{ fontSize: '15px' }}>Risk Prediction Schedule</h3>
+                    <Badge variant={
+                      batchStatus?.status === 'running'   ? 'warning' :
+                      batchStatus?.status === 'completed' ? 'success' :
+                      batchStatus?.status === 'failed'    ? 'danger'  : 'neutral'
+                    }>
+                      {batchStatus?.status === 'running'   ? 'Running…'  :
+                       batchStatus?.status === 'completed' ? 'Up to Date' :
+                       batchStatus?.status === 'failed'    ? 'Failed'    : 'Idle'}
+                    </Badge>
+                  </div>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: 700 }}>
+                    ML predictions are <strong>pre-computed and stored in the database</strong> — so the dashboard loads instantly with zero delay.
+                    Results refresh automatically on <strong>service startup</strong> and every night at <strong>02:00 AM</strong>.
+                    Use the button to trigger a manual refresh at any time.
+                  </p>
+
+                  {/* Status detail row */}
+                  <div style={{ display: 'flex', gap: 24, marginTop: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Last Run</div>
+                      <div style={{ fontWeight: 600, fontSize: '13px', marginTop: 2, fontFamily: 'var(--font-mono)' }}>
+                        {batchStatus?.last_run_at
+                          ? new Date(batchStatus.last_run_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+                          : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Students Updated</div>
+                      <div style={{ fontWeight: 600, fontSize: '13px', marginTop: 2 }}>
+                        {batchStatus?.students_updated != null ? `${batchStatus.students_updated} / ${batchStatus.students_total}` : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Triggered By</div>
+                      <div style={{ fontWeight: 600, fontSize: '13px', marginTop: 2, textTransform: 'capitalize' }}>
+                        {batchStatus?.triggered_by || '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>Auto-Schedule</div>
+                      <div style={{ fontWeight: 600, fontSize: '13px', marginTop: 2, color: 'var(--success)' }}>Daily · 02:00 AM</div>
+                    </div>
+                  </div>
+
+                  {/* Running progress indicator */}
+                  {batchRunning && (
+                    <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div className="spinner" style={{ width: 14, height: 14, borderColor: 'var(--warning)', borderTopColor: 'transparent' }} />
+                      <span style={{ fontSize: '12.5px', color: 'var(--warning)', fontWeight: 600 }}>
+                        Computing ML predictions for all students and writing to database…
+                      </span>
+                    </div>
+                  )}
+
+                  {batchStatus?.error && (
+                    <div style={{ marginTop: 12, padding: '8px 12px', backgroundColor: 'var(--danger-subtle)', borderRadius: 6, fontSize: '12px', color: 'var(--danger)' }}>
+                      <strong>Last error:</strong> {batchStatus.error}
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={triggerBatchRun}
+                  disabled={batchRunning}
+                  className="btn btn-warning"
+                  style={{ alignSelf: 'center', minWidth: 180 }}
+                >
+                  {batchRunning ? (
+                    <>
+                      <div className="spinner" style={{ width: 12, height: 12 }} />
+                      <span>Running…</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={14} />
+                      <span>Run Risk Engine Now</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -1030,7 +1211,207 @@ export default function SettingsPage({ defaultTab = 'ml' }) {
             </div>
           </div>
         )}
+
+        {/* TAB 3: INSTITUTIONAL POLICIES */}
+        {activeTab === 'policies' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Top overview card */}
+            <div className="card" style={{ padding: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '10px',
+                      background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <Sliders size={20} color="var(--primary)" />
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Institutional Faculty Leave Policy
+                      </h3>
+                      <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'var(--text-muted)' }}>
+                        Configure institutional leave allowances, annual quota thresholds, and Loss of Pay (LOP) flags.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Badge variant="primary" dot>
+                    Active Policy: {quotaConfig ? `${quotaConfig.value} Days / Year` : `${quotaInput || 15} Days / Year`}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Configuration Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(300px, 1fr)', gap: '24px', alignItems: 'start' }}>
+              {/* Form Card */}
+              <div className="card" style={{ padding: '24px' }}>
+                <h4 style={{ margin: '0 0 8px', fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock size={16} color="var(--primary)" /> Annual Leave Quota Limit
+                </h4>
+                <p style={{ margin: '0 0 20px', fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                  Set the maximum number of paid annual leaves allotted to each teaching faculty member per calendar year (Jan 1 – Dec 31).
+                </p>
+
+                <form onSubmit={saveQuotaConfig}>
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Allotted Leaves (Days / Year)
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        max="365"
+                        value={quotaInput}
+                        onChange={e => setQuotaInput(e.target.value)}
+                        required
+                        style={{
+                          width: '140px',
+                          padding: '10px 14px',
+                          fontSize: '18px',
+                          fontWeight: 700,
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-default)',
+                          background: 'var(--bg-canvas)',
+                          color: 'var(--text-primary)',
+                        }}
+                      />
+                      <span style={{ fontSize: '14px', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                        days / faculty member
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Preset quick-select chips */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <span style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      Common Presets:
+                    </span>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {[10, 12, 15, 18, 20, 24, 30].map(val => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setQuotaInput(String(val))}
+                          className={`btn btn-sm ${quotaInput === String(val) ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ fontSize: '12px', padding: '4px 10px' }}
+                        >
+                          {val} days
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Audit Trail Note */}
+                  {quotaConfig && (
+                    <div style={{
+                      padding: '12px 14px',
+                      borderRadius: '8px',
+                      background: 'var(--bg-canvas)',
+                      border: '1px solid var(--border-subtle)',
+                      marginBottom: '20px',
+                      fontSize: '12px',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px'
+                    }}>
+                      <div>
+                        <strong>Last Updated:</strong>{' '}
+                        {quotaConfig.updated_at ? new Date(quotaConfig.updated_at).toLocaleString() : 'System Default'}
+                      </div>
+                      <div>
+                        <strong>Updated By:</strong> {quotaConfig.updated_by || 'system'}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                    <button
+                      type="submit"
+                      disabled={quotaSaving}
+                      className="btn btn-primary"
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      <CheckCircle2 size={16} />
+                      {quotaSaving ? 'Saving Policy…' : 'Save Institutional Policy'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              {/* Policy Logic & Enforcement Details Card */}
+              <div className="card" style={{ padding: '24px' }}>
+                <h4 style={{ margin: '0 0 16px', fontSize: '15px', fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Info size={16} color="var(--primary)" /> How Policy Enforcement Works
+                </h4>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
+                      background: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <CheckCircle2 size={15} color="var(--success)" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                        Live Faculty Balance Tracking
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                        When applying for leave, faculty members see their used count, remaining quota, and calendar-year balance in real time.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
+                      background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <AlertCircle size={15} color="var(--danger)" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                        Loss of Pay (LOP) Warning & Tagging
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                        Leaves requested after the limit is reached trigger an immediate Loss of Pay warning banner and are recorded in the database with <code>is_lop = true</code>.
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '8px', flexShrink: 0,
+                      background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      <RefreshCw size={15} color="var(--primary)" />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                        Automatic Restoration on Cancellation
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: '1.4' }}>
+                        Cancelled leaves are excluded from the annual count, automatically restoring the faculty member's available quota without manual intervention.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
 }
+

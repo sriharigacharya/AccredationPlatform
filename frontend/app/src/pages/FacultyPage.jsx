@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react'
-import { facultyAPI, reportsAPI } from '../api/client'
+import { facultyAPI, reportsAPI, departmentsAPI } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import {
   Search, BookOpen, Award, GraduationCap, ChevronRight,
   Mail, Briefcase, FileText, Beaker, CheckCircle2, RefreshCw, Download,
   Edit3, Plus, Trash2, Check, X, Clock, AlertCircle, Lock, ShieldCheck,
-  UserCheck, AlertTriangle
+  UserCheck, AlertTriangle, Building2
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import PageHeader from '../components/PageHeader'
@@ -31,6 +31,36 @@ export default function FacultyPage() {
   const [activeTab, setActiveTab]           = useState('directory')
   const [updateRequests, setUpdateRequests] = useState([])
   const [requestsLoading, setRequestsLoading]= useState(false)
+
+  // Departments State (Admin CRUD)
+  const [departments, setDepartments]               = useState([])
+  const [departmentsLoading, setDepartmentsLoading] = useState(false)
+  const [isDeptModalOpen, setIsDeptModalOpen]       = useState(false)
+  const [isEditDept, setIsEditDept]                 = useState(false)
+  const [deptForm, setDeptForm]                     = useState({
+    id: null,
+    code: '',
+    name: '',
+    vision: '',
+    mission: '',
+    peos: '',
+    pos: '',
+  })
+  const [savingDept, setSavingDept]                 = useState(false)
+
+  // Register New Faculty State (Admin)
+  const [isRegisterFacultyOpen, setIsRegisterFacultyOpen] = useState(false)
+  const [registerFacultyForm, setRegisterFacultyForm]     = useState({
+    faculty_id: '',
+    name: '',
+    email: '',
+    phone: '',
+    department_id: '',
+    designation: 'Assistant Professor',
+    qualification: '',
+    experience: '',
+  })
+  const [savingFaculty, setSavingFaculty]                 = useState(false)
 
   // Teacher Profile Edit Modal
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -91,8 +121,20 @@ export default function FacultyPage() {
       .catch(() => setRequestsLoading(false))
   }
 
+  // Fetch Departments
+  const fetchDepartments = () => {
+    setDepartmentsLoading(true)
+    departmentsAPI.list()
+      .then(r => {
+        setDepartments(r.data || [])
+        setDepartmentsLoading(false)
+      })
+      .catch(() => setDepartmentsLoading(false))
+  }
+
   useEffect(() => {
     fetchFaculty()
+    fetchDepartments()
   }, [search])
 
   useEffect(() => {
@@ -464,9 +506,10 @@ export default function FacultyPage() {
               activeTab={activeTab}
               onChange={setActiveTab}
               tabs={[
-                { id: 'directory', label: 'Faculty Directory', icon: GraduationCap, count: faculty.length },
-                { id: 'pending',   label: 'Pending Approvals',  icon: Clock,         count: pendingRequests.length },
-                { id: 'history',   label: 'Review History',     icon: ShieldCheck,   count: historyRequests.length },
+                { id: 'directory',   label: 'Faculty Directory', icon: GraduationCap, count: faculty.length },
+                { id: 'departments', label: 'Departments',       icon: Building2,     count: departments.length },
+                { id: 'pending',     label: 'Pending Approvals',  icon: Clock,         count: pendingRequests.length },
+                { id: 'history',     label: 'Review History',     icon: ShieldCheck,   count: historyRequests.length },
               ]}
             />
           </div>
@@ -488,9 +531,33 @@ export default function FacultyPage() {
                     placeholder="Search faculty by name, designation, or research area…"
                   />
                 </div>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  Showing <strong>{faculty.length}</strong> department educators
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    Showing <strong>{faculty.length}</strong> educators
+                  </span>
+                  {isAdmin && (
+                    <button
+                      className="btn btn-primary btn-sm"
+                      onClick={() => {
+                        setRegisterFacultyForm({
+                          faculty_id: '',
+                          name: '',
+                          email: '',
+                          phone: '',
+                          department_id: departments[0]?.id || '',
+                          designation: 'Assistant Professor',
+                          qualification: '',
+                          experience: '',
+                        })
+                        setIsRegisterFacultyOpen(true)
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Plus size={14} />
+                      <span>Register Faculty</span>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -715,6 +782,140 @@ export default function FacultyPage() {
               </div>
             )}
           </>
+        )}
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            TAB: DEPARTMENTS (ADMIN CRUD)
+           ══════════════════════════════════════════════════════════════════════ */}
+        {activeTab === 'departments' && isAdmin && (
+          <div>
+            <div className="card" style={{ marginBottom: 'var(--space-4)', padding: '14px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  Department Profiles & Governance
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '12.5px', color: 'var(--text-muted)' }}>
+                  Configure academic departments, institutional vision, mission, PEOs, and POs for NBA criteria.
+                </p>
+              </div>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  setIsEditDept(false)
+                  setDeptForm({
+                    id: null,
+                    code: '',
+                    name: '',
+                    vision: '',
+                    mission: '',
+                    peos: '',
+                    pos: '',
+                  })
+                  setIsDeptModalOpen(true)
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Plus size={14} />
+                <span>Add Department</span>
+              </button>
+            </div>
+
+            {departmentsLoading ? (
+              <div style={{ padding: '60px', textAlign: 'center' }}>
+                <div className="spinner" />
+              </div>
+            ) : departments.length === 0 ? (
+              <EmptyState
+                icon={Building2}
+                title="No Departments Configured"
+                description="Add your institution's academic departments to manage NBA accreditation data."
+              />
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
+                {departments.map(dept => {
+                  let peoCount = 0
+                  let poCount = 0
+                  try {
+                    const parsedPeo = Array.isArray(dept.peos) ? dept.peos : (typeof dept.peos === 'string' ? JSON.parse(dept.peos) : [])
+                    peoCount = parsedPeo?.length || 0
+                  } catch (_) {}
+                  try {
+                    const parsedPo = Array.isArray(dept.pos) ? dept.pos : (typeof dept.pos === 'string' ? JSON.parse(dept.pos) : [])
+                    poCount = parsedPo?.length || 0
+                  } catch (_) {}
+
+                  return (
+                    <div key={dept.id} className="card" style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <Badge variant="primary" style={{ marginBottom: 6, fontWeight: 700 }}>{dept.code}</Badge>
+                          <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {dept.name}
+                          </h4>
+                        </div>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => {
+                            let parsedPeo = []
+                            let parsedPo = []
+                            try {
+                              parsedPeo = Array.isArray(dept.peos) ? dept.peos : (typeof dept.peos === 'string' ? JSON.parse(dept.peos) : [])
+                            } catch (_) {}
+                            try {
+                              parsedPo = Array.isArray(dept.pos) ? dept.pos : (typeof dept.pos === 'string' ? JSON.parse(dept.pos) : [])
+                            } catch (_) {}
+
+                            setIsEditDept(true)
+                            setDeptForm({
+                              id: dept.id,
+                              code: dept.code || '',
+                              name: dept.name || '',
+                              vision: dept.vision || '',
+                              mission: dept.mission || '',
+                              peos: (parsedPeo || []).join('\n'),
+                              pos: (parsedPo || []).join('\n'),
+                            })
+                            setIsDeptModalOpen(true)
+                          }}
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px' }}
+                        >
+                          <Edit3 size={13} />
+                          <span>Edit</span>
+                        </button>
+                      </div>
+
+                      {dept.vision && (
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Vision</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {dept.vision}
+                          </div>
+                        </div>
+                      )}
+
+                      {dept.mission && (
+                        <div>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Mission</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: 2, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {dept.mission}
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 10, display: 'flex', gap: 12 }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          PEOs: <strong style={{ color: 'var(--text-primary)' }}>{peoCount}</strong>
+                        </span>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          POs: <strong style={{ color: 'var(--text-primary)' }}>{poCount}</strong>
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         )}
 
         {/* ══════════════════════════════════════════════════════════════════════
@@ -1332,6 +1533,285 @@ export default function FacultyPage() {
               onChange={e => setRejectionReason(e.target.value)}
               placeholder="e.g. Publication DOI verification missing, please attach official proof or conference link…"
             />
+          </div>
+        </Modal>
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            MODAL: REGISTER FACULTY (ADMIN)
+           ══════════════════════════════════════════════════════════════════════ */}
+        <Modal
+          isOpen={isRegisterFacultyOpen}
+          onClose={() => setIsRegisterFacultyOpen(false)}
+          title="Register New Faculty Member"
+          maxWidth={540}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, width: '100%' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setIsRegisterFacultyOpen(false)}
+                disabled={savingFaculty}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={async () => {
+                  if (!registerFacultyForm.faculty_id?.trim() || !registerFacultyForm.name?.trim()) {
+                    toast.error('Faculty ID and Name are required')
+                    return
+                  }
+                  setSavingFaculty(true)
+                  try {
+                    const payload = {
+                      faculty_id: registerFacultyForm.faculty_id.trim().toUpperCase(),
+                      name: registerFacultyForm.name.trim(),
+                      email: registerFacultyForm.email.trim(),
+                      phone: registerFacultyForm.phone.trim(),
+                      designation: registerFacultyForm.designation.trim(),
+                      qualification: registerFacultyForm.qualification.trim(),
+                      experience: registerFacultyForm.experience.trim(),
+                      department_id: registerFacultyForm.department_id ? parseInt(registerFacultyForm.department_id, 10) : undefined,
+                    }
+                    await facultyAPI.create(payload)
+                    toast.success(`Faculty ${payload.name} registered successfully`)
+                    setIsRegisterFacultyOpen(false)
+                    fetchFaculty()
+                  } catch (err) {
+                    toast.error(err.response?.data?.error || 'Failed to register faculty')
+                  } finally {
+                    setSavingFaculty(false)
+                  }
+                }}
+                disabled={savingFaculty}
+              >
+                {savingFaculty ? 'Registering…' : 'Register Faculty'}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Faculty ID *</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. FAC025"
+                  value={registerFacultyForm.faculty_id}
+                  onChange={e => setRegisterFacultyForm(prev => ({ ...prev, faculty_id: e.target.value }))}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Full Name *</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. Dr. Ramesh Kumar"
+                  value={registerFacultyForm.name}
+                  onChange={e => setRegisterFacultyForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Email</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="ramesh@institution.edu"
+                  value={registerFacultyForm.email}
+                  onChange={e => setRegisterFacultyForm(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Phone</label>
+                <input
+                  className="form-input"
+                  placeholder="+91 98765 43210"
+                  value={registerFacultyForm.phone}
+                  onChange={e => setRegisterFacultyForm(prev => ({ ...prev, phone: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Department</label>
+                <select
+                  className="form-select"
+                  value={registerFacultyForm.department_id}
+                  onChange={e => setRegisterFacultyForm(prev => ({ ...prev, department_id: e.target.value }))}
+                >
+                  <option value="">Select Department</option>
+                  {departments.map(d => (
+                    <option key={d.id} value={d.id}>{d.code} — {d.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Designation</label>
+                <select
+                  className="form-select"
+                  value={registerFacultyForm.designation}
+                  onChange={e => setRegisterFacultyForm(prev => ({ ...prev, designation: e.target.value }))}
+                >
+                  <option value="Professor">Professor</option>
+                  <option value="Associate Professor">Associate Professor</option>
+                  <option value="Assistant Professor">Assistant Professor</option>
+                  <option value="HOD & Professor">HOD & Professor</option>
+                  <option value="Lecturer">Lecturer</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Qualification</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. Ph.D (Computer Science)"
+                  value={registerFacultyForm.qualification}
+                  onChange={e => setRegisterFacultyForm(prev => ({ ...prev, qualification: e.target.value }))}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Experience</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. 10 Years"
+                  value={registerFacultyForm.experience}
+                  onChange={e => setRegisterFacultyForm(prev => ({ ...prev, experience: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+        </Modal>
+
+        {/* ══════════════════════════════════════════════════════════════════════
+            MODAL: ADD / EDIT DEPARTMENT (ADMIN)
+           ══════════════════════════════════════════════════════════════════════ */}
+        <Modal
+          isOpen={isDeptModalOpen}
+          onClose={() => setIsDeptModalOpen(false)}
+          title={isEditDept ? `Edit Department · ${deptForm.code}` : "Add Academic Department"}
+          maxWidth={560}
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, width: '100%' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setIsDeptModalOpen(false)}
+                disabled={savingDept}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={async () => {
+                  if (!deptForm.code?.trim() || !deptForm.name?.trim()) {
+                    toast.error('Code and Name are required')
+                    return
+                  }
+                  setSavingDept(true)
+                  try {
+                    const payload = {
+                      code: deptForm.code.trim().toUpperCase(),
+                      name: deptForm.name.trim(),
+                      vision: deptForm.vision.trim(),
+                      mission: deptForm.mission.trim(),
+                      peos: deptForm.peos.split('\n').map(s => s.trim()).filter(Boolean),
+                      pos: deptForm.pos.split('\n').map(s => s.trim()).filter(Boolean),
+                    }
+                    if (isEditDept && deptForm.id) {
+                      await departmentsAPI.update(deptForm.id, payload)
+                      toast.success('Department updated successfully')
+                    } else {
+                      await departmentsAPI.create(payload)
+                      toast.success('Department created successfully')
+                    }
+                    setIsDeptModalOpen(false)
+                    fetchDepartments()
+                  } catch (err) {
+                    toast.error(err.response?.data?.error || 'Failed to save department')
+                  } finally {
+                    setSavingDept(false)
+                  }
+                }}
+                disabled={savingDept}
+              >
+                {savingDept ? 'Saving…' : (isEditDept ? 'Save Changes' : 'Create Department')}
+              </button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="grid-2" style={{ gap: 12 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Department Code *</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. CSE"
+                  value={deptForm.code}
+                  disabled={isEditDept}
+                  onChange={e => setDeptForm(prev => ({ ...prev, code: e.target.value }))}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Department Name *</label>
+                <input
+                  className="form-input"
+                  placeholder="e.g. Computer Science & Engineering"
+                  value={deptForm.name}
+                  onChange={e => setDeptForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Department Vision</label>
+              <textarea
+                className="form-textarea"
+                rows={2}
+                placeholder="Institutional vision statement for this department…"
+                value={deptForm.vision}
+                onChange={e => setDeptForm(prev => ({ ...prev, vision: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Department Mission</label>
+              <textarea
+                className="form-textarea"
+                rows={2}
+                placeholder="Department mission statements…"
+                value={deptForm.mission}
+                onChange={e => setDeptForm(prev => ({ ...prev, mission: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Program Educational Objectives (PEOs) — One per line</label>
+              <textarea
+                className="form-textarea"
+                rows={3}
+                placeholder="PEO 1: Graduates will excel in industry...&#10;PEO 2: Graduates will pursue higher education..."
+                value={deptForm.peos}
+                onChange={e => setDeptForm(prev => ({ ...prev, peos: e.target.value }))}
+              />
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">Program Specific / Program Outcomes (POs) — One per line</label>
+              <textarea
+                className="form-textarea"
+                rows={3}
+                placeholder="PO 1: Engineering knowledge...&#10;PO 2: Problem analysis..."
+                value={deptForm.pos}
+                onChange={e => setDeptForm(prev => ({ ...prev, pos: e.target.value }))}
+              />
+            </div>
           </div>
         </Modal>
       </div>

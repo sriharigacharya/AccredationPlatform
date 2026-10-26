@@ -11,6 +11,7 @@ import json
 from datetime import datetime, date
 from flask import Blueprint, request, jsonify
 from models import db, Student, Faculty, ClassAttendanceSession, ClassAttendanceEntry
+from timetable_models import TimetableSlot, Subject, Section
 
 classes_bp = Blueprint("classes", __name__)
 
@@ -68,6 +69,41 @@ def _get_context():
     }
 
 
+def _resolve_semester(course_code, section):
+    """
+    Resolve semester integer for a given course code and section.
+    Checks query params, TimetableSlot joins, static assignments, or course code digits.
+    """
+    sem_arg = request.args.get("semester")
+    if sem_arg:
+        try:
+            return int(sem_arg)
+        except (ValueError, TypeError):
+            pass
+
+    slot = TimetableSlot.query.join(Subject).join(Section).filter(
+        Subject.code == course_code,
+        Section.section_label == section
+    ).first()
+    if slot and slot.section and slot.section.semester:
+        try:
+            return int(slot.section.semester)
+        except (ValueError, TypeError):
+            pass
+
+    ca = next((c for c in FACULTY_CLASS_ASSIGNMENTS if c["course_code"] == course_code and c["section"] == section), None)
+    if ca and "semester" in ca:
+        return ca["semester"]
+
+    for ch in course_code:
+        if ch.isdigit():
+            d = int(ch)
+            if 1 <= d <= 8:
+                return d
+            break
+    return None
+
+
 # ── GET /classes/my-classes ──────────────────────────────────────────────────
 
 @classes_bp.get("/my-classes")
@@ -75,6 +111,7 @@ def _get_context():
 def get_my_classes():
     """
     Returns courses taught by the current teacher (or all courses if admin).
+    Dynamically loads from TimetableSlot, falling back to static assignments.
     """
     ctx = _get_context()
     user_role = ctx["role"]
@@ -84,35 +121,98 @@ def get_my_classes():
         return jsonify({"error": "Access denied. Only teachers and administrators can view classes."}), 403
 
     classes = []
-    for ca in FACULTY_CLASS_ASSIGNMENTS:
-        # Admin can view all classes; teachers only view classes matching their linked faculty ID
-        if user_role == "teacher" and linked_id and ca["faculty_id"] != linked_id:
+    seen = set()
+
+    # 1. Query dynamic timetable slots
+    ts_query = TimetableSlot.query.join(Subject).join(Section)
+    if user_role == "teacher" and linked_id:
+        ts_query = ts_query.filter(TimetableSlot.faculty_id == linked_id)
+
+    slots = ts_query.all()
+    faculty_cache = {}
+
+    for slot in slots:
+        if not slot.subject or not slot.section:
             continue
+        c_code = slot.subject.code
+        sec = slot.section.section_label
+        sem_str = slot.section.semester
+        try:
+            sem = int(sem_str)
+        except (ValueError, TypeError):
+            sem = 1
+        fac_id = slot.faculty_id
+        key = (c_code, sec, sem, fac_id)
+        if key in seen:
+            continue
+        seen.add(key)
 
-        fac = Faculty.query.filter_by(faculty_id=ca["faculty_id"]).first()
-        student_count = Student.query.filter_by(section=ca["section"]).count()
+        if fac_id not in faculty_cache:
+            fac = Faculty.query.filter_by(faculty_id=fac_id).first()
+            faculty_cache[fac_id] = fac.name if fac else fac_id
+        fac_name = faculty_cache[fac_id]
 
-        # Count low performing students in this class
-        students = Student.query.filter_by(section=ca["section"]).all()
+        # Count students in this semester & section
+        stu_query = Student.query.filter_by(section=sec, semester=sem)
+        student_count = stu_query.count()
+        if student_count == 0:
+            student_count = Student.query.filter_by(section=sec).count()
+
+        students = stu_query.all() if student_count > 0 else Student.query.filter_by(section=sec).all()
         at_risk_count = 0
         for s in students:
-            r = s.get_course_risk_status(ca["course_code"])
+            r = s.get_course_risk_status(c_code)
             if r["is_at_risk"]:
                 at_risk_count += 1
 
         classes.append({
-            "course_code": ca["course_code"],
-            "course_name": ca["course_name"],
-            "section": ca["section"],
-            "semester": ca["semester"],
-            "faculty_id": ca["faculty_id"],
-            "faculty_name": fac.name if fac else ca["faculty_id"],
+            "course_code": c_code,
+            "course_name": slot.subject.name,
+            "section": sec,
+            "semester": sem,
+            "faculty_id": fac_id,
+            "faculty_name": fac_name,
             "student_count": student_count,
             "at_risk_count": at_risk_count,
-            "credits": ca["credits"],
+            "credits": 2 if slot.is_lab else 4,
             "evaluations_available": list(EXAM_MAX_MARKS.keys()),
         })
 
+    # 2. If no timetable slots were found, fallback to static curriculum map
+    if not classes:
+        for ca in FACULTY_CLASS_ASSIGNMENTS:
+            if user_role == "teacher" and linked_id and ca["faculty_id"] != linked_id:
+                continue
+
+            fac = Faculty.query.filter_by(faculty_id=ca["faculty_id"]).first()
+            sec = ca["section"]
+            sem = ca.get("semester", 3)
+            stu_query = Student.query.filter_by(section=sec, semester=sem)
+            student_count = stu_query.count()
+            if student_count == 0:
+                student_count = Student.query.filter_by(section=sec).count()
+
+            students = stu_query.all() if student_count > 0 else Student.query.filter_by(section=sec).all()
+            at_risk_count = 0
+            for s in students:
+                r = s.get_course_risk_status(ca["course_code"])
+                if r["is_at_risk"]:
+                    at_risk_count += 1
+
+            classes.append({
+                "course_code": ca["course_code"],
+                "course_name": ca["course_name"],
+                "section": sec,
+                "semester": sem,
+                "faculty_id": ca["faculty_id"],
+                "faculty_name": fac.name if fac else ca["faculty_id"],
+                "student_count": student_count,
+                "at_risk_count": at_risk_count,
+                "credits": ca["credits"],
+                "evaluations_available": list(EXAM_MAX_MARKS.keys()),
+            })
+
+    classes.sort(key=lambda c: (c.get("semester", 0), c.get("section", ""), c.get("course_code", "")))
     return jsonify(classes)
 
 
@@ -127,7 +227,13 @@ def get_class_students(course_code, section):
     if ctx["role"] and ctx["role"] not in ("admin", "teacher"):
         return jsonify({"error": "Access denied"}), 403
 
-    students = Student.query.filter_by(section=section).order_by(Student.student_id).all()
+    sem = _resolve_semester(course_code, section)
+    if sem:
+        students = Student.query.filter_by(section=section, semester=sem).order_by(Student.student_id).all()
+        if not students:
+            students = Student.query.filter_by(section=section).order_by(Student.student_id).all()
+    else:
+        students = Student.query.filter_by(section=section).order_by(Student.student_id).all()
     roster = []
 
     for s in students:
@@ -222,8 +328,9 @@ def record_class_attendance():
     absent_count = len(records) - present_count
 
     # Find assignment for course name
+    sub = Subject.query.filter_by(code=course_code).first()
     ca = next((c for c in FACULTY_CLASS_ASSIGNMENTS if c["course_code"] == course_code), None)
-    course_name = ca["course_name"] if ca else course_code
+    course_name = sub.name if sub else (ca["course_name"] if ca else course_code)
 
     session = ClassAttendanceSession(
         faculty_id=faculty_id,
@@ -305,18 +412,24 @@ def get_attendance_session_detail(session_id):
     session = ClassAttendanceSession.query.get_or_404(session_id)
 
     if ctx["role"] == "teacher" and ctx["linked_id"] and session.faculty_id != ctx["linked_id"]:
-        ca = CourseAssignment.query.filter_by(
-            faculty_id=ctx["linked_id"],
-            course_code=session.course_code,
-            section=session.section
+        slot = TimetableSlot.query.join(Subject).join(Section).filter(
+            TimetableSlot.faculty_id == ctx["linked_id"],
+            Subject.code == session.course_code,
+            Section.section_label == session.section
         ).first()
-        if not ca:
+        if not slot:
             return jsonify({"error": "You are not assigned to this class"}), 403
 
     entries = ClassAttendanceEntry.query.filter_by(session_id=session.id).all()
     entry_map = {e.student_id: e.status for e in entries}
 
-    students = Student.query.filter_by(section=session.section).order_by(Student.student_id).all()
+    sem = _resolve_semester(session.course_code, session.section)
+    if sem:
+        students = Student.query.filter_by(section=session.section, semester=sem).order_by(Student.student_id).all()
+        if not students:
+            students = Student.query.filter_by(section=session.section).order_by(Student.student_id).all()
+    else:
+        students = Student.query.filter_by(section=session.section).order_by(Student.student_id).all()
     roster = []
     for s in students:
         roster.append({
@@ -346,12 +459,12 @@ def update_attendance_session(session_id):
     session = ClassAttendanceSession.query.get_or_404(session_id)
 
     if ctx["role"] == "teacher" and ctx["linked_id"] and session.faculty_id != ctx["linked_id"]:
-        ca = CourseAssignment.query.filter_by(
-            faculty_id=ctx["linked_id"],
-            course_code=session.course_code,
-            section=session.section
+        slot = TimetableSlot.query.join(Subject).join(Section).filter(
+            TimetableSlot.faculty_id == ctx["linked_id"],
+            Subject.code == session.course_code,
+            Section.section_label == session.section
         ).first()
-        if not ca:
+        if not slot:
             return jsonify({"error": "You are not assigned to this class"}), 403
 
     data = request.get_json(force=True) or {}
@@ -500,7 +613,13 @@ def get_class_at_risk(course_code, section):
     if ctx["role"] and ctx["role"] not in ("admin", "teacher"):
         return jsonify({"error": "Access denied"}), 403
 
-    students = Student.query.filter_by(section=section).all()
+    sem = _resolve_semester(course_code, section)
+    if sem:
+        students = Student.query.filter_by(section=section, semester=sem).all()
+        if not students:
+            students = Student.query.filter_by(section=section).all()
+    else:
+        students = Student.query.filter_by(section=section).all()
     at_risk_students = []
 
     for s in students:

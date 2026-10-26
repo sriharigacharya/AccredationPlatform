@@ -25,6 +25,9 @@ from routes.attendance import attendance_bp
 from routes.leave import leave_bp
 from routes.notifications import notifications_bp
 from routes.admin_review import admin_review_bp
+from routes.subjects    import subjects_bp
+from routes.sections    import sections_bp
+from routes.enrollments import enrollments_bp
 
 import event_models        # noqa: F401
 import placement_models    # noqa: F401
@@ -56,12 +59,14 @@ def create_app():
             pg_host = os.getenv("POSTGRES_HOST", "postgres")
             pg_port = os.getenv("POSTGRES_PORT", "5432")
             pg_db   = os.getenv("POSTGRES_DB", "academiq")
-            db_url  = f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
+            db_url  = f"postgresql+psycopg2://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
         else:
             sqlite_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "academiq.db"))
             db_url = f"sqlite:///{sqlite_path}"
             print(f"[*] Defaulting to local SQLite database: {db_url}")
 
+    if db_url and db_url.startswith("postgresql://"):
+        db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
     app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -80,6 +85,9 @@ def create_app():
     app.register_blueprint(leave_bp,                url_prefix="/leave")
     app.register_blueprint(notifications_bp,        url_prefix="/notifications")
     app.register_blueprint(admin_review_bp,         url_prefix="/admin-review")
+    app.register_blueprint(subjects_bp,             url_prefix="/subjects")
+    app.register_blueprint(sections_bp,             url_prefix="/sections")
+    app.register_blueprint(enrollments_bp,          url_prefix="/enrollments")
 
     app.register_blueprint(events_bp)               # routes use /clubs/:id/events + /events/
     app.register_blueprint(placements_bp)           # routes use /profile/placement + /placements/
@@ -116,6 +124,32 @@ def create_app():
                 _init_db_and_seed()
         else:
             raise e
+
+    def _start_auto_punch_out_worker():
+        import threading
+        import time as _time
+        from routes.attendance import auto_punch_out_forgotten, get_institution_now
+
+        def _worker_loop():
+            last_run_date = None
+            while True:
+                try:
+                    now = get_institution_now()
+                    today = now.date()
+                    if now.hour >= 17 and last_run_date != today:
+                        with app.app_context():
+                            punched = auto_punch_out_forgotten(today)
+                            last_run_date = today
+                            if punched:
+                                app.logger.info(f"[auto-punch-out] 5:00 PM auto punch-out executed for: {punched}")
+                except Exception as ex:
+                    app.logger.warning(f"[auto-punch-out] Error in background worker: {ex}")
+                _time.sleep(30)
+
+        t = threading.Thread(target=_worker_loop, daemon=True, name="AutoPunchOutWorker")
+        t.start()
+
+    _start_auto_punch_out_worker()
 
     return app
 
@@ -214,9 +248,37 @@ def _run_db_migrations():
         )
         """,
         "UPDATE students SET phone = '8660042249' WHERE phone IS NULL OR phone != '8660042249'",
+        # ── ML Risk prediction columns (persisted by prediction-service batch) ──
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS ml_risk_score FLOAT",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS ml_risk_level VARCHAR(20)",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS ml_risk_flags TEXT",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS ml_risk_computed_at TIMESTAMP",
+        "ALTER TABLE students ADD COLUMN IF NOT EXISTS ml_low_confidence BOOLEAN DEFAULT FALSE",
+        # ── Faculty Leave Quota & Loss of Pay (LOP) ─────────────────────────
+        "ALTER TABLE leave_notices ADD COLUMN IF NOT EXISTS is_lop BOOLEAN DEFAULT FALSE",
+        """
+        CREATE TABLE IF NOT EXISTS system_config (
+            key VARCHAR(100) PRIMARY KEY,
+            value TEXT NOT NULL,
+            label VARCHAR(200),
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_by VARCHAR(100)
+        )
+        """,
     ]
+    import re
+    is_sqlite = db.engine.dialect.name == "sqlite"
     for sql in migrations:
         try:
+            if is_sqlite and "ADD COLUMN IF NOT EXISTS" in sql:
+                m = re.match(r"ALTER\s+TABLE\s+(\w+)\s+ADD\s+COLUMN\s+IF\s+NOT\s+EXISTS\s+(\w+)\s+(.+)", sql.strip(), re.IGNORECASE)
+                if m:
+                    table, col, col_type = m.groups()
+                    cols = [row[1] for row in db.session.execute(text(f"PRAGMA table_info({table})")).fetchall()]
+                    if col not in cols:
+                        db.session.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}"))
+                        db.session.commit()
+                    continue
             db.session.execute(text(sql))
             db.session.commit()
         except Exception:

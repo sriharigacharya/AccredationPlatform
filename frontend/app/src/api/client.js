@@ -44,6 +44,9 @@ export const studentsAPI = {
   delete: (id) => api.delete(`/students/${id}`),
   analytics: (id) => api.get(`/students/${id}/analytics`),
   stats: () => api.get('/students/stats/overview'),
+  bulkImport: (formData) => api.post('/students/bulk-import', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
 }
 
 // ── Faculty ───────────────────────────────────────────────────────────────────
@@ -154,6 +157,9 @@ export const predictAPI = {
   atRisk: (threshold) => api.get('/predict/atrisk', { params: { threshold } }),
   train: () => api.post('/predict/train'),
   modelInfo: () => api.get('/predict/model/info'),
+  // Batch persistence — triggers a full ML run that writes results to the DB
+  runBatch: () => api.post('/predict/run-batch'),
+  batchStatus: () => api.get('/predict/batch-status'),
 }
 
 // ── Assignments ───────────────────────────────────────────────────────────────
@@ -329,6 +335,32 @@ export const timetableAPI = {
   getSection: (id, params) => api.get(`/timetable/section/${id}`, { params }),
   getSlots: (params) => api.get('/timetable/slots', { params }),
   getRooms: (params) => api.get('/timetable/rooms', { params }),
+  createSlot: (data) => api.post('/timetable/slots', data),
+  deleteSlot: (id) => api.delete(`/timetable/slots/${id}`),
+}
+
+// ── Subjects (Curriculum Courses) ────────────────────────────────────────────
+export const subjectsAPI = {
+  list: (params) => api.get('/subjects/', { params }),
+  create: (data) => api.post('/subjects/', data),
+  update: (id, data) => api.put(`/subjects/${id}`, data),
+  delete: (id) => api.delete(`/subjects/${id}`),
+}
+
+// ── Sections ──────────────────────────────────────────────────────────────────
+export const sectionsAPI = {
+  list: (params) => api.get('/sections/', { params }),
+  create: (data) => api.post('/sections/', data),
+  update: (id, data) => api.put(`/sections/${id}`, data),
+  delete: (id) => api.delete(`/sections/${id}`),
+}
+
+// ── Student Enrollments ───────────────────────────────────────────────────────
+export const enrollmentsAPI = {
+  list: (params) => api.get('/enrollments/', { params }),
+  enroll: (data) => api.post('/enrollments/', data),
+  bulk: (data) => api.post('/enrollments/bulk', data),
+  remove: (id) => api.delete(`/enrollments/${id}`),
 }
 
 // ── Faculty Attendance & Biometric Punch ─────────────────────────────────────
@@ -353,11 +385,14 @@ export const attendanceAPI = {
 
 // ── Leave Management ──────────────────────────────────────────────────────────
 export const leaveAPI = {
-  preview: (data) => api.post('/leave/preview-affected', data),
-  submit: (data) => api.post('/leave', data),
-  cancel: (id) => api.delete(`/leave/${id}`),
-  assignSubstitute: (id, data) => api.post(`/leave/${id}/substitute`, data),
-  list: (params) => api.get('/leave', { params }),
+  preview:          (data)             => api.post('/leave/preview-affected', data),
+  submit:           (data)             => api.post('/leave', data),
+  cancel:           (id)               => api.delete(`/leave/${id}`),
+  assignSubstitute: (id, data)         => api.post(`/leave/${id}/substitute`, data),
+  list:             (params)           => api.get('/leave', { params }),
+  getQuota:         (facultyId, year)  => api.get(`/leave/quota/${facultyId}`, { params: year ? { year } : {} }),
+  getConfig:        ()                 => api.get('/leave/quota/config'),
+  setConfig:        (value, updatedBy) => api.put('/leave/quota/config', { value, updated_by: updatedBy }),
 }
 
 // ── Schedule Notifications (Student Absence Alerts) ───────────────────────────

@@ -188,6 +188,100 @@ def delete_student(student_id):
     return jsonify({"message": "Student deleted"}), 200
 
 
+@students_bp.patch("/<student_id>/risk")
+def update_student_risk(student_id):
+    """
+    PATCH /students/:student_id/risk
+
+    Called exclusively by the prediction-service batch job to persist
+    pre-computed ML risk results.  Accepts:
+        ml_risk_score, ml_risk_level, ml_risk_flags,
+        ml_risk_computed_at, ml_low_confidence
+    """
+    import json as _json
+    from datetime import datetime
+
+    s = _find_student(student_id)
+    data = request.get_json(force=True) or {}
+
+    if "ml_risk_score" in data:
+        s.ml_risk_score = float(data["ml_risk_score"])
+    if "ml_risk_level" in data:
+        s.ml_risk_level = str(data["ml_risk_level"])
+    if "ml_risk_flags" in data:
+        flags = data["ml_risk_flags"]
+        s.ml_risk_flags = flags if isinstance(flags, str) else _json.dumps(flags)
+    if "ml_risk_computed_at" in data:
+        try:
+            s.ml_risk_computed_at = datetime.fromisoformat(
+                data["ml_risk_computed_at"].replace("Z", "+00:00")
+            )
+        except Exception:
+            s.ml_risk_computed_at = datetime.utcnow()
+    if "ml_low_confidence" in data:
+        s.ml_low_confidence = bool(data["ml_low_confidence"])
+
+    db.session.commit()
+    return jsonify({"ok": True, "student_id": s.student_id}), 200
+
+
+@students_bp.get("/atrisk")
+def at_risk_students():
+    """
+    GET /students/atrisk?threshold=<float>&limit=<int>
+
+    Returns students whose pre-computed ml_risk_score >= threshold.
+    This is a pure DB query â€” no ML inference â€” so it responds instantly.
+
+    Called by prediction-service /predict/atrisk as the fast DB-backed path.
+    """
+    import json as _json
+
+    threshold = float(request.args.get("threshold", 0.35))
+    limit     = int(request.args.get("limit", 50))
+
+    # Only query students where ml_risk_score has been computed
+    query = Student.query.filter(
+        Student.ml_risk_score != None,  # noqa: E711
+        Student.ml_risk_score >= threshold,
+    ).order_by(Student.ml_risk_score.desc()).limit(limit)
+
+    students = query.all()
+
+    at_risk = []
+    for s in students:
+        try:
+            flags = _json.loads(s.ml_risk_flags) if s.ml_risk_flags else []
+        except Exception:
+            flags = []
+
+        at_risk.append({
+            **s.to_dict(include_dept=False),
+            "risk_score":       s.ml_risk_score,
+            "risk_level":       s.ml_risk_level,
+            "model_tier":       s.ml_risk_level,
+            "flags":            flags,
+            "low_confidence":   s.ml_low_confidence,
+            "computed_at":      s.ml_risk_computed_at.isoformat() if s.ml_risk_computed_at else None,
+            # Dashboard-friendly aliases
+            "probability":      s.ml_risk_score,
+            "attendance_rate":  s.attendance_pct,
+        })
+
+    # Count total at-risk students (without limit)
+    total_count = Student.query.filter(
+        Student.ml_risk_score != None,  # noqa: E711
+        Student.ml_risk_score >= threshold,
+    ).count()
+
+    return jsonify({
+        "at_risk":   at_risk,
+        "count":     total_count,
+        "threshold": threshold,
+        "source":    "db_persisted",
+    })
+
+
 @students_bp.get("/<student_id>/analytics")
 def student_analytics(student_id):
     """
@@ -227,6 +321,8 @@ def student_analytics(student_id):
         "student_id":   s.student_id,
         "overall_risk": overall_risk,
         "risk_flags":   risks,
+        "ml_risk_score": s.ml_risk_score,
+        "ml_risk_level": s.ml_risk_level,
         "performance_summary": {
             "attendance_pct":         s.attendance_pct,
             "internal_marks":         s.internal_marks,
@@ -266,3 +362,137 @@ def stats_overview():
         "avg_gpa":        round(float(avg_gpa), 2),
         "avg_attendance": round(float(avg_attend), 1),
     })
+
+
+
+@students_bp.post("/bulk-import")
+def bulk_import_students():
+    """
+    POST /students/bulk-import  (multipart/form-data, field: 'file')
+    Admin only. Accepts CSV with headers matching Student fields.
+
+    Required columns : student_id, name
+    Optional columns : email, phone, semester, section, previous_gpa,
+                       backlogs, engagement, department (dept code e.g. CSE)
+
+    Returns: { created, created_ids, skipped, errors, total_processed }
+    """
+    import csv
+    import io as _io
+
+    role = _get_role()
+    if role != "admin":
+        return jsonify({"error": "Admin access required"}), 403
+
+    f = request.files.get("file")
+    if not f:
+        return jsonify({"error": "file field is required"}), 400
+
+    # File size cap (C-3 audit fix)
+    MAX_CSV_BYTES = 5 * 1024 * 1024
+    MAX_CSV_ROWS  = 2000
+
+    f.stream.seek(0, 2)
+    file_size = f.stream.tell()
+    f.stream.seek(0)
+    if file_size > MAX_CSV_BYTES:
+        return jsonify({"error": "File too large. Maximum allowed size is 5 MB."}), 413
+
+    try:
+        stream = _io.StringIO(f.stream.read().decode("utf-8-sig"))
+    except UnicodeDecodeError:
+        return jsonify({"error": "File encoding not supported. Please save as UTF-8 CSV."}), 400
+
+    reader = csv.DictReader(stream)
+    sample = next(reader, None)
+    if sample is None:
+        return jsonify({"error": "CSV file is empty"}), 400
+    missing_cols = [c for c in ("student_id", "name") if c not in sample]
+    if missing_cols:
+        return jsonify({"error": "CSV is missing required columns: " + ", ".join(missing_cols)}), 400
+
+    stream.seek(0)
+    reader = csv.DictReader(stream)
+
+    created, skipped, errors = [], [], []
+    row_num = 1
+
+    for row in reader:
+        row_num += 1
+        if row_num > MAX_CSV_ROWS + 1:
+            errors.append("Row limit of " + str(MAX_CSV_ROWS) + " reached. Remaining rows ignored.")
+            break
+
+        sid  = (row.get("student_id") or "").strip().upper()
+        name = (row.get("name") or "").strip()
+
+        if not sid:
+            errors.append("Row " + str(row_num) + ": student_id is missing")
+            continue
+        if not name:
+            errors.append("Row " + str(row_num) + " (" + sid + "): name is missing")
+            continue
+
+        if Student.query.filter_by(student_id=sid).first():
+            skipped.append(sid)
+            continue
+
+        # Resolve department — always set dept_id (M-4 audit fix)
+        dept_id = None
+        dept_raw = (row.get("department") or row.get("department_code") or "").strip().upper()
+        if dept_raw:
+            dept = Department.query.filter_by(code=dept_raw).first()
+            if dept:
+                dept_id = dept.id
+            else:
+                errors.append("Row " + str(row_num) + " (" + sid + "): Department '" + dept_raw + "' not found - using default")
+        if dept_id is None:
+            default_dept = Department.query.first()
+            dept_id = default_dept.id if default_dept else None
+
+        try:
+            semester = int(row.get("semester") or 1)
+            section  = (row.get("section") or "A").strip().upper()
+        except (ValueError, TypeError):
+            errors.append("Row " + str(row_num) + " (" + sid + "): Invalid semester/section value")
+            continue
+
+        try:
+            # Savepoint per row — failure here won't wipe prior successes (H-3 fix)
+            sp = db.session.begin_nested()
+            s = Student(
+                student_id             = sid,
+                name                   = name,
+                email                  = (row.get("email") or "").strip() or None,
+                phone                  = (row.get("phone") or "").strip() or None,
+                department_id          = dept_id,
+                semester               = semester,
+                section                = section,
+                previous_gpa           = float(row.get("previous_gpa") or 0),
+                backlogs               = int(row.get("backlogs") or 0),
+                engagement             = row.get("engagement", "Medium").strip() or "Medium",
+                final_result           = "Pending",
+                attendance_pct         = 100.0,
+                internal_marks         = 0.0,
+                assignment_score_pct   = 0.0,
+                course_performance_pct = 0.0,
+                courses_data           = json.dumps(
+                    Student.get_default_courses_for_semester(semester, section)
+                ),
+            )
+            db.session.add(s)
+            db.session.flush()
+            sp.commit()
+            created.append(sid)
+        except Exception as ex:
+            sp.rollback()
+            errors.append("Row " + str(row_num) + " (" + sid + "): " + str(ex))
+
+    db.session.commit()
+    return jsonify({
+        "created":         len(created),
+        "created_ids":     created,
+        "skipped":         skipped,
+        "errors":          errors,
+        "total_processed": row_num - 1,
+    }), 201
